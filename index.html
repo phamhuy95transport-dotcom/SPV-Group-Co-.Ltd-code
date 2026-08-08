@@ -135,7 +135,7 @@
                             class="px-4 sm:px-5 py-2.5 rounded-t-xl text-xs sm:text-sm transition-all flex items-center gap-2 shrink-0">
                         <i class="fa-solid fa-list-check text-indigo-500"></i>
                         <span>Nhập liệu & Tra Cứu</span>
-                        <span class="bg-indigo-100 text-indigo-800 text-[11px] font-bold px-2 py-0.2 rounded-full">{{ records.length }}</span>
+                        <span class="bg-indigo-100 text-indigo-800 text-[11px] font-bold px-2 py-0.5 rounded-full">{{ records.length }}</span>
                     </button>
 
                     <button @click="switchTab('category')"
@@ -1049,7 +1049,7 @@
     <!-- Firebase Standard Integration Script -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Firebase Config Setup
@@ -1071,6 +1071,9 @@
         window.dbInstance = db;
         window.authInstance = auth;
         window.appIdInstance = appId;
+        
+        // Export Firestore helpers to global window for Vue usage
+        window.fsHelpers = { collection, doc, setDoc, deleteDoc, onSnapshot };
     </script>
 
     <script>
@@ -1345,6 +1348,14 @@
                 }
             },
 
+            watch: {
+                filteredRecords() {
+                    if (this.activeTab === 'report') {
+                        this.$nextTick(() => this.renderChart());
+                    }
+                }
+            },
+
             async mounted() {
                 // Tải bộ nhớ tạm LocalStorage
                 this.loadFromLocalStorage();
@@ -1400,10 +1411,9 @@
                 async syncRecordToCloud(recordDoc) {
                     this.saveToLocalStorage();
                     
-                    // Thực hiện gửi dữ liệu lên Cloud Firestore nếu đã kích hoạt
                     try {
-                        if (window.dbInstance) {
-                            const { doc, setDoc } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
+                        if (window.dbInstance && window.fsHelpers) {
+                            const { doc, setDoc } = window.fsHelpers;
                             const docRef = doc(window.dbInstance, 'artifacts', window.appIdInstance, 'public', 'data', 'shipments', String(recordDoc.id));
                             await setDoc(docRef, { ...recordDoc, updatedAt: new Date().toISOString() }, { merge: true });
                         }
@@ -1415,8 +1425,8 @@
                 async deleteRecordFromCloud(recordId) {
                     this.saveToLocalStorage();
                     try {
-                        if (window.dbInstance) {
-                            const { doc, deleteDoc } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
+                        if (window.dbInstance && window.fsHelpers) {
+                            const { doc, deleteDoc } = window.fsHelpers;
                             const docRef = doc(window.dbInstance, 'artifacts', window.appIdInstance, 'public', 'data', 'shipments', String(recordId));
                             await deleteDoc(docRef);
                         }
@@ -1426,10 +1436,10 @@
                 },
 
                 initCloudDatabaseSync() {
-                    setTimeout(async () => {
-                        if (window.dbInstance) {
+                    setTimeout(() => {
+                        if (window.dbInstance && window.fsHelpers) {
                             try {
-                                const { collection, onSnapshot } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
+                                const { collection, onSnapshot } = window.fsHelpers;
                                 const colRef = collection(window.dbInstance, 'artifacts', window.appIdInstance, 'public', 'data', 'shipments');
                                 onSnapshot(colRef, (snapshot) => {
                                     if (!snapshot.empty) {
