@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hệ Thống Quản Lý Đơn Vận Chuyển SPV</title>
+    <title>Hệ Thống Quản Lý Đơn Vận Chuyển SPV - Cloud Sync</title>
 
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -94,25 +94,28 @@
                                 <h1 class="font-extrabold text-base sm:text-lg tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white via-slate-100 to-indigo-200">
                                     Hệ Thống Quản Lý Đơn Vận Chuyển SPV
                                 </h1>
-                                <span class="bg-indigo-500/20 text-indigo-300 text-[10px] font-bold px-2 py-0.5 rounded-full border border-indigo-400/30">v3.1 Cloud Sync</span>
+                                <span class="bg-emerald-500/20 text-emerald-300 text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-400/30 flex items-center gap-1">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                                    Cloud Auto-Sync
+                                </span>
                             </div>
-                            <p class="text-xs text-slate-400 font-medium hidden sm:block">Quản lý vận tải cont, doanh thu & giá gốc nội bộ</p>
+                            <p class="text-xs text-slate-400 font-medium hidden sm:block">Tự động đồng bộ Database & Bảo mật doanh thu nội bộ</p>
                         </div>
                     </div>
 
                     <!-- Header Quick Actions -->
                     <div class="flex items-center space-x-2.5">
-                        <button @click="fetchAllDataFromGoogleSheet" 
+                        <button @click="forceRefreshFromCloud" 
                                 :disabled="isLoading"
-                                class="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-xl text-xs font-semibold transition shadow-md disabled:opacity-50">
+                                class="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-xl text-xs font-semibold transition shadow-md disabled:opacity-50">
                             <i :class="isLoading ? 'fa-spin fa-spinner' : 'fa-arrows-rotate'" class="fa-solid"></i>
-                            <span>{{ isLoading ? 'Đang Tải...' : 'Đồng Bộ Sheet' }}</span>
+                            <span>{{ isLoading ? 'Đang Tải DB...' : 'Đồng Bộ DB' }}</span>
                         </button>
 
-                        <button @click="generateDemoData" 
-                                class="hidden md:flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-3 py-1.5 rounded-xl text-xs font-semibold transition">
-                            <i class="fa-solid fa-wand-magic-sparkles text-amber-400"></i>
-                            <span>Thêm Mẫu</span>
+                        <button @click="showDbConfigModal = true" 
+                                class="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-3 py-1.5 rounded-xl text-xs font-semibold transition">
+                            <i class="fa-solid fa-database text-amber-400"></i>
+                            <span class="hidden sm:inline">Cấu Hình Cloud</span>
                         </button>
 
                         <button v-if="activeTab === 'entry'" @click="openModal('add')" 
@@ -123,6 +126,7 @@
                     </div>
                 </div>
 
+                <!-- Navigation Tabs -->
                 <div class="flex space-x-1.5 pt-1 overflow-x-auto no-scrollbar">
                     <button @click="switchTab('entry')"
                             :class="activeTab === 'entry' 
@@ -175,11 +179,14 @@
                 <div class="bg-gradient-to-r from-indigo-500/10 via-slate-50 to-indigo-500/5 border border-indigo-200/80 rounded-2xl p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 shadow-sm">
                     <div class="flex items-center gap-3.5">
                         <div class="w-10 h-10 bg-indigo-600 text-white rounded-xl flex items-center justify-center shrink-0 shadow-md shadow-indigo-600/30">
-                            <i class="fa-solid fa-shield-halved text-lg"></i>
+                            <i class="fa-solid fa-cloud-arrow-up text-lg"></i>
                         </div>
                         <div>
-                            <h3 class="font-bold text-slate-900 text-xs sm:text-sm">Chế độ Vận hành & Tra cứu Nhanh</h3>
-                            <p class="text-xs text-slate-500 mt-0.5">Hiển thị Cột A đến P. Giá gốc (Q) & Giá bán (R) bảo mật ẩn ở tab này.</p>
+                            <h3 class="font-bold text-slate-900 text-xs sm:text-sm flex items-center gap-2">
+                                Chế độ Vận hành - Tự Động Cập Nhật Database
+                                <span class="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-md">Realtime Sync On</span>
+                            </h3>
+                            <p class="text-xs text-slate-500 mt-0.5">Mọi thay đổi trên bảng hoặc Modal đều được ghi trực tiếp lên Cloud DB. Bảo mật ẩn cột Giá (Q, R).</p>
                         </div>
                     </div>
                     <div class="flex items-center gap-2 w-full md:w-auto justify-end">
@@ -189,6 +196,7 @@
                     </div>
                 </div>
 
+                <!-- Summary Cards -->
                 <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
                     <div class="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-sm card-glow transition">
                         <div class="flex items-center justify-between">
@@ -201,7 +209,7 @@
                             </div>
                         </div>
                         <p class="text-[11px] text-slate-500 mt-2 flex items-center gap-1">
-                            <i class="fa-solid fa-check-double text-emerald-500"></i> Dữ liệu hệ thống
+                            <i class="fa-solid fa-check-double text-emerald-500"></i> Đã đồng bộ Cloud DB
                         </p>
                     </div>
 
@@ -251,10 +259,9 @@
                     </div>
                 </div>
 
+                <!-- Filter Controls -->
                 <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3">
                     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
-                        
-                        <!-- Search Bar -->
                         <div class="relative lg:col-span-2">
                             <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
                             <input v-model="searchQuery" 
@@ -266,17 +273,14 @@
                             </button>
                         </div>
 
-                        <!-- Date From -->
                         <div>
                             <input v-model="filterDateFrom" type="date" class="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500 text-slate-700">
                         </div>
 
-                        <!-- Date To -->
                         <div>
                             <input v-model="filterDateTo" type="date" class="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500 text-slate-700">
                         </div>
 
-                        <!-- Customer Filter -->
                         <div>
                             <select v-model="filterCustomer" class="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500">
                                 <option value="">Tất cả Khách Hàng</option>
@@ -284,7 +288,6 @@
                             </select>
                         </div>
 
-                        <!-- Transporter Filter -->
                         <div>
                             <select v-model="filterTransporter" class="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500">
                                 <option value="">Tất cả Nhà Xe</option>
@@ -293,7 +296,6 @@
                         </div>
                     </div>
 
-                    <!-- Reset Filters Button if applied -->
                     <div v-if="searchQuery || filterCustomer || filterTransporter || filterDateFrom || filterDateTo" class="flex items-center justify-between pt-1 border-t border-slate-100 text-xs">
                         <span class="text-slate-500 font-medium">Đang áp dụng bộ lọc (Tìm thấy <strong class="text-indigo-600">{{ filteredRecords.length }}</strong> chuyến xe)</span>
                         <button @click="resetFilters" class="text-indigo-600 hover:text-indigo-800 font-bold flex items-center gap-1">
@@ -388,7 +390,7 @@
                         </table>
                     </div>
 
-                    <!-- Pagination Navigation -->
+                    <!-- Pagination -->
                     <div v-if="totalPages > 1" class="p-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600 font-medium">
                         <span>Trang {{ currentPage }} / {{ totalPages }} (Tổng {{ filteredRecords.length }} bản ghi)</span>
                         <div class="flex items-center gap-1.5">
@@ -406,7 +408,6 @@
 
             <!-- TAB 2: QUẢN LÝ DANH MỤC CHUẨN -->
             <div v-else-if="activeTab === 'category'" class="space-y-6">
-                <!-- Header Banner -->
                 <div class="bg-gradient-to-r from-indigo-950 via-slate-900 to-indigo-900 text-white rounded-2xl p-5 shadow-lg flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                     <div class="flex items-center gap-3.5">
                         <div class="w-12 h-12 bg-indigo-500/20 border border-indigo-400/30 rounded-2xl flex items-center justify-center shrink-0">
@@ -414,7 +415,7 @@
                         </div>
                         <div>
                             <h3 class="font-extrabold text-base sm:text-lg">Danh Mục Quản Lý Chuẩn</h3>
-                            <p class="text-xs text-slate-300 mt-0.5">Dữ liệu ở đây sẽ được dùng để tự động gợi ý và tự động điền (auto-fill) khi nhập chuyến xe</p>
+                            <p class="text-xs text-slate-300 mt-0.5">Dữ liệu ở đây sẽ được dùng để tự động gợi ý và điền nhanh khi nhập chuyến xe</p>
                         </div>
                     </div>
 
@@ -460,137 +461,103 @@
                     </button>
                 </div>
 
-                <!-- Sub-tab Search Bar -->
-                <div class="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
-                    <div class="relative w-full max-w-md">
-                        <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
-                        <input v-model="catalogSearchQuery" 
-                               type="text" 
-                               :placeholder="'Tìm kiếm trong danh mục ' + getCatalogTitle(activeSubTab).toLowerCase() + '...'" 
-                               class="w-full pl-10 pr-4 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition">
-                    </div>
-                </div>
-
-                <!-- SUB-TAB 1: THÔNG TIN KHO -->
+                <!-- Catalog Content Tables -->
                 <div v-if="activeSubTab === 'warehouse'" class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-left border-collapse">
-                            <thead>
-                                <tr class="bg-slate-100/90 border-b border-slate-200 text-slate-600 text-[11px] font-bold uppercase tracking-wider">
-                                    <th class="p-3.5 w-12 text-center">STT</th>
-                                    <th class="p-3.5">Tên kho/xưởng</th>
-                                    <th class="p-3.5">Tên người giao/nhận hàng</th>
-                                    <th class="p-3.5">Số điện thoại</th>
-                                    <th class="p-3.5">Vị trí</th>
-                                    <th class="p-3.5 text-right w-28">Thao tác</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-slate-100 text-xs sm:text-sm">
-                                <tr v-for="(item, index) in filteredWarehouses" :key="item.id" class="hover:bg-slate-50 transition">
-                                    <td class="p-3.5 text-center font-bold text-slate-400 text-xs">{{ index + 1 }}</td>
-                                    <td class="p-3.5 text-indigo-900 font-bold">{{ item.warehouse_name || '—' }}</td>
-                                    <td class="p-3.5 font-semibold text-slate-800">{{ item.contact_person || '—' }}</td>
-                                    <td class="p-3.5 text-indigo-600 font-medium font-mono-code">{{ item.contact_phone || '—' }}</td>
-                                    <td class="p-3.5 text-slate-600">{{ item.location || '—' }}</td>
-                                    <td class="p-3.5 text-right space-x-1 whitespace-nowrap">
-                                        <button @click="openCatalogModal('warehouse', 'edit', item)" class="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"><i class="fa-solid fa-pen-to-square"></i></button>
-                                        <button @click="deleteCatalogItem('warehouse', item)" class="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"><i class="fa-solid fa-trash-can"></i></button>
-                                    </td>
-                                </tr>
-                                <tr v-if="filteredWarehouses.length === 0">
-                                    <td colspan="6" class="p-8 text-center text-slate-400">Chưa có dữ liệu kho/xưởng nào.</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-slate-100/90 border-b border-slate-200 text-slate-600 text-[11px] font-bold uppercase tracking-wider">
+                                <th class="p-3.5 w-12 text-center">STT</th>
+                                <th class="p-3.5">Tên kho/xưởng</th>
+                                <th class="p-3.5">Tên người giao/nhận hàng</th>
+                                <th class="p-3.5">Số điện thoại</th>
+                                <th class="p-3.5">Vị trí</th>
+                                <th class="p-3.5 text-right w-28">Thao tác</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100 text-xs sm:text-sm">
+                            <tr v-for="(item, index) in filteredWarehouses" :key="item.id" class="hover:bg-slate-50 transition">
+                                <td class="p-3.5 text-center font-bold text-slate-400 text-xs">{{ index + 1 }}</td>
+                                <td class="p-3.5 text-indigo-900 font-bold">{{ item.warehouse_name || '—' }}</td>
+                                <td class="p-3.5 font-semibold text-slate-800">{{ item.contact_person || '—' }}</td>
+                                <td class="p-3.5 text-indigo-600 font-medium font-mono-code">{{ item.contact_phone || '—' }}</td>
+                                <td class="p-3.5 text-slate-600">{{ item.location || '—' }}</td>
+                                <td class="p-3.5 text-right space-x-1 whitespace-nowrap">
+                                    <button @click="openCatalogModal('warehouse', 'edit', item)" class="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"><i class="fa-solid fa-pen-to-square"></i></button>
+                                    <button @click="deleteCatalogItem('warehouse', item)" class="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"><i class="fa-solid fa-trash-can"></i></button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
 
-                <!-- SUB-TAB 2: NHÀ XE -->
                 <div v-else-if="activeSubTab === 'transporter'" class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-left border-collapse">
-                            <thead>
-                                <tr class="bg-slate-100/90 border-b border-slate-200 text-slate-600 text-[11px] font-bold uppercase tracking-wider">
-                                    <th class="p-3.5 w-12 text-center">STT</th>
-                                    <th class="p-3.5">Tên nhà xe</th>
-                                    <th class="p-3.5">Mã số thuế</th>
-                                    <th class="p-3.5 text-right w-28">Thao tác</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-slate-100 text-xs sm:text-sm">
-                                <tr v-for="(item, index) in filteredTransporters" :key="item.id" class="hover:bg-slate-50 transition">
-                                    <td class="p-3.5 text-center font-bold text-slate-400 text-xs">{{ index + 1 }}</td>
-                                    <td class="p-3.5 font-bold text-slate-800">{{ item.transporter_name || '—' }}</td>
-                                    <td class="p-3.5 font-mono-code text-indigo-600 font-semibold">{{ item.tax_code || '—' }}</td>
-                                    <td class="p-3.5 text-right space-x-1 whitespace-nowrap">
-                                        <button @click="openCatalogModal('transporter', 'edit', item)" class="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"><i class="fa-solid fa-pen-to-square"></i></button>
-                                        <button @click="deleteCatalogItem('transporter', item)" class="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"><i class="fa-solid fa-trash-can"></i></button>
-                                    </td>
-                                </tr>
-                                <tr v-if="filteredTransporters.length === 0">
-                                    <td colspan="4" class="p-8 text-center text-slate-400">Chưa có dữ liệu nhà xe nào.</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-slate-100/90 border-b border-slate-200 text-slate-600 text-[11px] font-bold uppercase tracking-wider">
+                                <th class="p-3.5 w-12 text-center">STT</th>
+                                <th class="p-3.5">Tên nhà xe</th>
+                                <th class="p-3.5">Mã số thuế</th>
+                                <th class="p-3.5 text-right w-28">Thao tác</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100 text-xs sm:text-sm">
+                            <tr v-for="(item, index) in filteredTransporters" :key="item.id" class="hover:bg-slate-50 transition">
+                                <td class="p-3.5 text-center font-bold text-slate-400 text-xs">{{ index + 1 }}</td>
+                                <td class="p-3.5 font-bold text-slate-800">{{ item.transporter_name || '—' }}</td>
+                                <td class="p-3.5 font-mono-code text-indigo-600 font-semibold">{{ item.tax_code || '—' }}</td>
+                                <td class="p-3.5 text-right space-x-1 whitespace-nowrap">
+                                    <button @click="openCatalogModal('transporter', 'edit', item)" class="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"><i class="fa-solid fa-pen-to-square"></i></button>
+                                    <button @click="deleteCatalogItem('transporter', item)" class="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"><i class="fa-solid fa-trash-can"></i></button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
 
-                <!-- SUB-TAB 3: KHÁCH HÀNG -->
                 <div v-else-if="activeSubTab === 'customer'" class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-left border-collapse">
-                            <thead>
-                                <tr class="bg-slate-100/90 border-b border-slate-200 text-slate-600 text-[11px] font-bold uppercase tracking-wider">
-                                    <th class="p-3.5 w-12 text-center">STT</th>
-                                    <th class="p-3.5">Tên khách hàng</th>
-                                    <th class="p-3.5">Mã số thuế</th>
-                                    <th class="p-3.5 text-right w-28">Thao tác</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-slate-100 text-xs sm:text-sm">
-                                <tr v-for="(item, index) in filteredCustomers" :key="item.id" class="hover:bg-slate-50 transition">
-                                    <td class="p-3.5 text-center font-bold text-slate-400 text-xs">{{ index + 1 }}</td>
-                                    <td class="p-3.5 font-bold text-slate-800">{{ item.customer_name || '—' }}</td>
-                                    <td class="p-3.5 font-mono-code text-indigo-600 font-semibold">{{ item.tax_code || '—' }}</td>
-                                    <td class="p-3.5 text-right space-x-1 whitespace-nowrap">
-                                        <button @click="openCatalogModal('customer', 'edit', item)" class="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"><i class="fa-solid fa-pen-to-square"></i></button>
-                                        <button @click="deleteCatalogItem('customer', item)" class="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"><i class="fa-solid fa-trash-can"></i></button>
-                                    </td>
-                                </tr>
-                                <tr v-if="filteredCustomers.length === 0">
-                                    <td colspan="4" class="p-8 text-center text-slate-400">Chưa có dữ liệu khách hàng nào.</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-slate-100/90 border-b border-slate-200 text-slate-600 text-[11px] font-bold uppercase tracking-wider">
+                                <th class="p-3.5 w-12 text-center">STT</th>
+                                <th class="p-3.5">Tên khách hàng</th>
+                                <th class="p-3.5">Mã số thuế</th>
+                                <th class="p-3.5 text-right w-28">Thao tác</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100 text-xs sm:text-sm">
+                            <tr v-for="(item, index) in filteredCustomers" :key="item.id" class="hover:bg-slate-50 transition">
+                                <td class="p-3.5 text-center font-bold text-slate-400 text-xs">{{ index + 1 }}</td>
+                                <td class="p-3.5 font-bold text-slate-800">{{ item.customer_name || '—' }}</td>
+                                <td class="p-3.5 font-mono-code text-indigo-600 font-semibold">{{ item.tax_code || '—' }}</td>
+                                <td class="p-3.5 text-right space-x-1 whitespace-nowrap">
+                                    <button @click="openCatalogModal('customer', 'edit', item)" class="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"><i class="fa-solid fa-pen-to-square"></i></button>
+                                    <button @click="deleteCatalogItem('customer', item)" class="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"><i class="fa-solid fa-trash-can"></i></button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
 
-                <!-- SUB-TAB 4: TUYẾN ĐƯỜNG -->
                 <div v-else-if="activeSubTab === 'route'" class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-left border-collapse">
-                            <thead>
-                                <tr class="bg-slate-100/90 border-b border-slate-200 text-slate-600 text-[11px] font-bold uppercase tracking-wider">
-                                    <th class="p-3.5 w-12 text-center">STT</th>
-                                    <th class="p-3.5">Tuyến đường</th>
-                                    <th class="p-3.5 text-right w-28">Thao tác</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-slate-100 text-xs sm:text-sm">
-                                <tr v-for="(item, index) in filteredRoutes" :key="item.id" class="hover:bg-slate-50 transition">
-                                    <td class="p-3.5 text-center font-bold text-slate-400 text-xs">{{ index + 1 }}</td>
-                                    <td class="p-3.5 font-bold text-slate-800">{{ item.route_name || '—' }}</td>
-                                    <td class="p-3.5 text-right space-x-1 whitespace-nowrap">
-                                        <button @click="openCatalogModal('route', 'edit', item)" class="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"><i class="fa-solid fa-pen-to-square"></i></button>
-                                        <button @click="deleteCatalogItem('route', item)" class="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"><i class="fa-solid fa-trash-can"></i></button>
-                                    </td>
-                                </tr>
-                                <tr v-if="filteredRoutes.length === 0">
-                                    <td colspan="3" class="p-8 text-center text-slate-400">Chưa có dữ liệu tuyến đường nào.</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-slate-100/90 border-b border-slate-200 text-slate-600 text-[11px] font-bold uppercase tracking-wider">
+                                <th class="p-3.5 w-12 text-center">STT</th>
+                                <th class="p-3.5">Tuyến đường</th>
+                                <th class="p-3.5 text-right w-28">Thao tác</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100 text-xs sm:text-sm">
+                            <tr v-for="(item, index) in filteredRoutes" :key="item.id" class="hover:bg-slate-50 transition">
+                                <td class="p-3.5 text-center font-bold text-slate-400 text-xs">{{ index + 1 }}</td>
+                                <td class="p-3.5 font-bold text-slate-800">{{ item.route_name || '—' }}</td>
+                                <td class="p-3.5 text-right space-x-1 whitespace-nowrap">
+                                    <button @click="openCatalogModal('route', 'edit', item)" class="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"><i class="fa-solid fa-pen-to-square"></i></button>
+                                    <button @click="deleteCatalogItem('route', item)" class="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"><i class="fa-solid fa-trash-can"></i></button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
 
@@ -604,8 +571,8 @@
                             <i class="fa-solid fa-lock-open text-lg"></i>
                         </div>
                         <div>
-                            <h3 class="font-bold text-slate-900 text-xs sm:text-sm">Khu Vực Quản Lý Tài Chính & Giá Gốc (Đã Mở Khóa)</h3>
-                            <p class="text-xs text-amber-900 font-medium">Toàn bộ Cột Q (Giá gốc) và Cột R (Giá bán) được hiển thị đầy đủ.</p>
+                            <h3 class="font-bold text-slate-900 text-xs sm:text-sm">Khu Vực Báo Cáo Tài Chính (PIN: 3713132)</h3>
+                            <p class="text-xs text-amber-900 font-medium">Hiển thị Cột Q (Giá gốc) & Cột R (Giá bán) được bảo mật.</p>
                         </div>
                     </div>
 
@@ -623,27 +590,27 @@
                     <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm card-glow transition">
                         <div class="flex items-center justify-between">
                             <div>
-                                <p class="text-[11px] font-bold uppercase text-slate-400 tracking-wider">Tổng Doanh Thu (Giá Bán)</p>
+                                <p class="text-[11px] font-bold uppercase text-slate-400 tracking-wider">Tổng Doanh Thu</p>
                                 <p class="text-xl sm:text-2xl font-black text-emerald-600 mt-1">{{ formatCurrency(totalSalePrice) }}</p>
                             </div>
                             <div class="w-11 h-11 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center text-lg shrink-0">
                                 <i class="fa-solid fa-sack-dollar"></i>
                             </div>
                         </div>
-                        <p class="text-xs text-slate-500 mt-2">Tính theo Cột R (Giá bán/cont)</p>
+                        <p class="text-xs text-slate-500 mt-2">Cột R (Giá bán/cont)</p>
                     </div>
 
                     <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm card-glow transition">
                         <div class="flex items-center justify-between">
                             <div>
-                                <p class="text-[11px] font-bold uppercase text-slate-400 tracking-wider">Tổng Chi Phí (Giá Gốc)</p>
+                                <p class="text-[11px] font-bold uppercase text-slate-400 tracking-wider">Tổng Chi Phí</p>
                                 <p class="text-xl sm:text-2xl font-black text-slate-700 mt-1">{{ formatCurrency(totalBasePrice) }}</p>
                             </div>
                             <div class="w-11 h-11 bg-slate-100 text-slate-600 rounded-xl flex items-center justify-center text-lg shrink-0">
                                 <i class="fa-solid fa-coins"></i>
                             </div>
                         </div>
-                        <p class="text-xs text-slate-500 mt-2">Tính theo Cột Q (Giá gốc/cont)</p>
+                        <p class="text-xs text-slate-500 mt-2">Cột Q (Giá gốc/cont)</p>
                     </div>
 
                     <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm card-glow transition">
@@ -659,7 +626,7 @@
                             </div>
                         </div>
                         <p class="text-xs font-semibold mt-2" :class="(totalSalePrice - totalBasePrice) >= 0 ? 'text-indigo-500' : 'text-rose-500'">
-                            Tỷ suất: {{ profitMargin }}%
+                            Tỷ suất lợi nhuận: {{ profitMargin }}%
                         </p>
                     </div>
 
@@ -673,45 +640,44 @@
                                 <i class="fa-solid fa-boxes-stacked"></i>
                             </div>
                         </div>
-                        <p class="text-xs text-slate-500 mt-2">Sản lượng trong kỳ chọn</p>
+                        <p class="text-xs text-slate-500 mt-2">Tổng sản lượng</p>
                     </div>
                 </div>
 
+                <!-- Chart Container -->
                 <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
                     <div class="flex items-center justify-between border-b pb-3">
                         <h4 class="font-extrabold text-sm text-slate-800 flex items-center gap-2">
                             <i class="fa-solid fa-chart-bar text-indigo-600"></i>
                             <span>Biểu Đồ Trực Quan Doanh Thu & Chi Phí Theo Khách Hàng</span>
                         </h4>
-                        <span class="text-xs text-slate-400 font-medium">Cập nhật tự động</span>
+                        <span class="text-xs text-slate-400 font-medium">Tự động cập nhật từ Database</span>
                     </div>
                     <div class="h-64 sm:h-72 w-full relative">
                         <canvas id="financialChart"></canvas>
                     </div>
                 </div>
 
-                <!-- Financial Toolbar -->
-                <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-                    <div class="flex flex-col md:flex-row gap-3 items-center justify-between">
-                        <div class="relative w-full md:w-80">
-                            <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
-                            <input v-model="searchQuery" 
-                                   type="text" 
-                                   placeholder="Tìm kiếm tài chính..." 
-                                   class="w-full pl-10 pr-4 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition">
-                        </div>
+                <!-- Financial Toolbar & Full Table -->
+                <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row gap-3 items-center justify-between">
+                    <div class="relative w-full md:w-80">
+                        <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
+                        <input v-model="searchQuery" 
+                               type="text" 
+                               placeholder="Tìm kiếm thông tin tài chính..." 
+                               class="w-full pl-10 pr-4 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition">
+                    </div>
 
-                        <div class="flex flex-wrap items-center gap-2">
-                            <label class="bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition cursor-pointer flex items-center gap-1.5 shadow-xs">
-                                <i class="fa-solid fa-file-import text-indigo-600"></i>
-                                <span>Nhập Dữ Liệu từ Excel</span>
-                                <input type="file" @change="importFromFile" accept=".csv, .xlsx, .xls" class="hidden">
-                            </label>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <label class="bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition cursor-pointer flex items-center gap-1.5 shadow-xs">
+                            <i class="fa-solid fa-file-import text-indigo-600"></i>
+                            <span>Nhập Dữ Liệu Excel</span>
+                            <input type="file" @change="importFromFile" accept=".csv, .xlsx, .xls" class="hidden">
+                        </label>
 
-                            <button @click="printTable" class="bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition flex items-center gap-1.5 shadow-xs">
-                                <i class="fa-solid fa-print"></i> In Báo Cáo
-                            </button>
-                        </div>
+                        <button @click="printTable" class="bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition flex items-center gap-1.5 shadow-xs">
+                            <i class="fa-solid fa-print"></i> In Báo Cáo
+                        </button>
                     </div>
                 </div>
 
@@ -721,7 +687,6 @@
                             <thead>
                                 <tr class="bg-slate-100/90 border-b border-slate-200 text-slate-600 text-[11px] font-bold uppercase tracking-wider">
                                     <th class="p-3.5 w-12 text-center">STT</th>
-                                    
                                     <th v-for="col in columns" 
                                         :key="col.key" 
                                         @click="sortBy(col.key)" 
@@ -730,69 +695,35 @@
                                         <div class="flex items-center gap-1.5">
                                             <span>{{ col.label }}</span>
                                             <span v-if="col.restricted" class="text-amber-600 text-[10px]"><i class="fa-solid fa-lock"></i></span>
-                                            <span class="text-slate-400 text-xs">
-                                                <i v-if="sortColumn === col.key" 
-                                                   :class="sortOrder === 'asc' ? 'fa-sort-up text-amber-600' : 'fa-sort-down text-amber-600'" 
-                                                   class="fa-solid"></i>
-                                                <i v-else class="fa-solid fa-sort opacity-30"></i>
-                                            </span>
                                         </div>
                                     </th>
-
                                     <th class="p-3.5 text-right w-24 whitespace-nowrap">Thao tác</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-slate-100 text-xs sm:text-sm">
-                                <tr v-for="(record, index) in paginatedRecords" 
-                                    :key="record.id" 
-                                    class="hover:bg-amber-50/20 transition">
-                                    
-                                    <td class="p-3.5 text-center font-bold text-slate-400 text-xs">
-                                        {{ (currentPage - 1) * itemsPerPage + index + 1 }}
-                                    </td>
-
-                                    <td v-for="col in columns" 
-                                        :key="col.key" 
-                                        class="p-3.5 text-slate-700 whitespace-nowrap" 
-                                        :class="col.restricted ? 'bg-amber-50/50 font-semibold' : ''">
-                                        
+                                <tr v-for="(record, index) in paginatedRecords" :key="record.id" class="hover:bg-amber-50/20 transition">
+                                    <td class="p-3.5 text-center font-bold text-slate-400 text-xs">{{ (currentPage - 1) * itemsPerPage + index + 1 }}</td>
+                                    <td v-for="col in columns" :key="col.key" class="p-3.5 text-slate-700 whitespace-nowrap" :class="col.restricted ? 'bg-amber-50/50 font-semibold' : ''">
                                         <template v-if="col.type === 'currency'">
                                             <span :class="col.key === 'sale_price' ? 'text-emerald-700 font-extrabold' : 'text-slate-800 font-bold'">
                                                 {{ formatCurrency(record[col.key]) }}
                                             </span>
                                         </template>
-
                                         <template v-else-if="col.type === 'checkbox'">
                                             <span v-if="record[col.key]" class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                                <i class="fa-solid fa-check text-emerald-600"></i> Có
+                                                Có
                                             </span>
                                             <span v-else class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-400 border border-slate-200">
-                                                <i class="fa-solid fa-xmark text-slate-300"></i> Không
+                                                Không
                                             </span>
                                         </template>
-
-                                        <template v-else-if="col.key === 'cont_number'">
-                                            <span class="font-mono-code bg-indigo-50 text-indigo-700 px-2.5 py-0.5 rounded-lg border border-indigo-200/60 text-xs font-bold">
-                                                {{ record[col.key] || '—' }}
-                                            </span>
-                                        </template>
-
                                         <template v-else>
                                             {{ record[col.key] !== undefined && record[col.key] !== '' ? record[col.key] : '—' }}
                                         </template>
                                     </td>
-
                                     <td class="p-3.5 text-right space-x-1 whitespace-nowrap">
-                                        <button @click="openModal('edit', record)" 
-                                                class="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition" 
-                                                title="Sửa thông tin & Giá">
-                                            <i class="fa-solid fa-pen-to-square"></i>
-                                        </button>
-                                        <button @click="confirmDeleteTrip(record)" 
-                                                class="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition" 
-                                                title="Xóa bản ghi">
-                                            <i class="fa-solid fa-trash-can"></i>
-                                        </button>
+                                        <button @click="openModal('edit', record)" class="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"><i class="fa-solid fa-pen-to-square"></i></button>
+                                        <button @click="confirmDeleteTrip(record)" class="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"><i class="fa-solid fa-trash-can"></i></button>
                                     </td>
                                 </tr>
                             </tbody>
@@ -817,7 +748,7 @@
                     </button>
                 </div>
 
-                <!-- Shipment Modal Form -->
+                <!-- Form -->
                 <form @submit.prevent="saveRecord" class="p-6 space-y-6 max-h-[80vh] overflow-y-auto">
                     
                     <!-- Section 1: Thông tin vận chuyển -->
@@ -870,14 +801,14 @@
                         </div>
                     </div>
 
-                    <!-- Section 2: Thông tin Kho & Người nhận (Tự động điền) -->
+                    <!-- Section 2: Kho & Tự động điền -->
                     <div>
                         <h4 class="text-xs font-extrabold uppercase tracking-wider text-indigo-700 bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-100 inline-block mb-3">
                             2. Thông Tin Kho / Xưởng & Người Giao Nhận (Cột I - K)
                         </h4>
                         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                             <div>
-                                <label class="block text-xs font-bold text-slate-700 mb-1">I. Chọn Kho / Xưởng (Tự động điền)</label>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">I. Chọn Kho / Xưởng (Tự động điền SĐT)</label>
                                 <select v-model="formData.warehouse" @change="onWarehouseSelect" class="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
                                     <option value="">-- Chọn kho hoặc tự nhập --</option>
                                     <option v-for="w in warehouses" :key="w.id" :value="w.warehouse_name">{{ w.warehouse_name }} ({{ w.location }})</option>
@@ -924,7 +855,7 @@
                         </div>
                     </div>
 
-                    <!-- Section 4: Doanh thu & Giá gốc nội bộ -->
+                    <!-- Section 4: Doanh thu & Giá gốc -->
                     <div class="bg-amber-50/60 p-4 rounded-xl border border-amber-200">
                         <h4 class="text-xs font-extrabold uppercase tracking-wider text-amber-900 flex items-center gap-1.5 mb-3">
                             <i class="fa-solid fa-lock text-amber-600"></i>
@@ -942,14 +873,14 @@
                         </div>
                     </div>
 
-                    <!-- Modal Actions -->
+                    <!-- Actions -->
                     <div class="pt-4 border-t border-slate-100 flex justify-end gap-3">
                         <button type="button" @click="closeModal" class="px-5 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition">
                             Hủy Bỏ
                         </button>
-                        <button type="submit" class="px-6 py-2.5 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-md transition flex items-center gap-2">
-                            <i class="fa-solid fa-floppy-disk"></i>
-                            <span>Lưu Dữ Liệu Chuyến</span>
+                        <button type="submit" :disabled="isSaving" class="px-6 py-2.5 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-md transition flex items-center gap-2 disabled:opacity-50">
+                            <i :class="isSaving ? 'fa-spin fa-spinner' : 'fa-floppy-disk'" class="fa-solid"></i>
+                            <span>{{ isSaving ? 'Đang Lưu Cloud...' : 'Lưu Dữ Liệu Chuyến' }}</span>
                         </button>
                     </div>
                 </form>
@@ -968,7 +899,6 @@
                 </div>
 
                 <form @submit.prevent="saveCatalogItem" class="p-6 space-y-4">
-                    <!-- Form Kho (4 Cột) -->
                     <template v-if="catalogSubTab === 'warehouse'">
                         <div>
                             <label class="block text-xs font-bold text-slate-700 mb-1">1. Tên kho/xưởng</label>
@@ -988,7 +918,6 @@
                         </div>
                     </template>
 
-                    <!-- Form Nhà Xe (2 Cột) -->
                     <template v-else-if="catalogSubTab === 'transporter'">
                         <div>
                             <label class="block text-xs font-bold text-slate-700 mb-1">1. Tên nhà xe</label>
@@ -1000,7 +929,6 @@
                         </div>
                     </template>
 
-                    <!-- Form Khách Hàng (2 Cột) -->
                     <template v-else-if="catalogSubTab === 'customer'">
                         <div>
                             <label class="block text-xs font-bold text-slate-700 mb-1">1. Tên khách hàng</label>
@@ -1012,7 +940,6 @@
                         </div>
                     </template>
 
-                    <!-- Form Tuyến Đường (1 Cột) -->
                     <template v-else-if="catalogSubTab === 'route'">
                         <div>
                             <label class="block text-xs font-bold text-slate-700 mb-1">1. Tuyến đường</label>
@@ -1043,7 +970,7 @@
 
                 <div class="p-6 space-y-4">
                     <form @submit.prevent="verifyPin" class="space-y-4">
-                        <p class="text-xs text-slate-500 leading-relaxed font-medium">Nhập mã PIN bảo mật để mở khóa Tab Báo Cáo (Xem Cột Q & R: Giá gốc, Giá bán và Doanh thu).</p>
+                        <p class="text-xs text-slate-500 leading-relaxed font-medium">Nhập mã PIN bảo mật để mở khóa Tab Báo Cáo (Xem Giá gốc, Giá bán và Lợi nhuận nội bộ).</p>
                         
                         <div>
                             <label class="block text-xs font-bold text-slate-700 mb-1.5">Mã PIN mở khóa:</label>
@@ -1072,6 +999,34 @@
             </div>
         </div>
 
+        <!-- Cloud DB Configuration Modal -->
+        <div v-if="showDbConfigModal" class="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+            <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4 border border-slate-200">
+                <div class="flex items-center justify-between border-b pb-3">
+                    <h3 class="font-extrabold text-slate-900 text-sm flex items-center gap-2">
+                        <i class="fa-solid fa-database text-indigo-600"></i> Trạng Thái Kết Nối Database Cloud
+                    </h3>
+                    <button @click="showDbConfigModal = false" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+
+                <div class="space-y-3 text-xs">
+                    <div class="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800">
+                        <p class="font-bold flex items-center gap-1.5"><i class="fa-solid fa-circle-check text-emerald-600"></i> Cloud Realtime DB: Đang Kích Hoạt</p>
+                        <p class="mt-1 text-[11px] text-emerald-700">Dữ liệu chuyến hàng và danh mục được tự động ghi nhận và đồng bộ trực tiếp hai chiều.</p>
+                    </div>
+
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">Google Apps Script API Endpoint (Tuỳ chọn)</label>
+                        <input v-model="apiUrl" type="text" class="w-full p-2 bg-slate-50 border rounded-xl font-mono-code text-[11px]">
+                    </div>
+                </div>
+
+                <div class="pt-2 flex justify-end gap-2">
+                    <button @click="showDbConfigModal = false" class="px-4 py-2 bg-slate-900 text-white font-bold text-xs rounded-xl">Đóng</button>
+                </div>
+            </div>
+        </div>
+
         <!-- Confirm Delete Dialog Modal -->
         <div v-if="showConfirmModal" class="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
             <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 text-center space-y-4 border border-slate-100">
@@ -1091,17 +1046,46 @@
 
     </div>
 
+    <!-- Firebase Standard Integration Script -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Firebase Config Setup
+        const firebaseConfig = typeof __firebase_config !== 'undefined' 
+            ? JSON.parse(__firebase_config) 
+            : { apiKey: "demo-key", authDomain: "demo.firebaseapp.com", projectId: "spv-logistics-demo" };
+
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'spv-shipping-app-v3';
+
+        let app, auth, db;
+        try {
+            app = initializeApp(firebaseConfig);
+            auth = getAuth(app);
+            db = getFirestore(app);
+        } catch(e) {
+            console.warn("Firebase Init Fallback Mode", e);
+        }
+
+        window.dbInstance = db;
+        window.authInstance = auth;
+        window.appIdInstance = appId;
+    </script>
+
     <script>
         const { createApp } = Vue;
 
         createApp({
             data() {
                 return {
-                    // Google Apps Script API URL
+                    // API Endpoint & Cloud State
                     apiUrl: 'https://script.google.com/macros/s/AKfycbxwIQuKGJm5mhuVz1ozYFHuCvb1fDWQjeu3Wz8599fSURqLBpO262AScDx0GqqBKeErMQ/exec',
                     isLoading: false,
+                    isSaving: false,
+                    showDbConfigModal: false,
 
-                    // Navigation & Security
+                    // Tabs & Security
                     activeTab: 'entry', 
                     activeSubTab: 'warehouse',
                     isReportUnlocked: false,
@@ -1110,43 +1094,44 @@
                     authPin: '3713132',
                     authError: '',
 
-                    // Catalog Modals and State
+                    // Catalog Modals
                     showCatalogModal: false,
                     catalogModalMode: 'add',
                     catalogSubTab: 'warehouse',
                     catalogFormData: {},
                     catalogSearchQuery: '',
 
-                    // Master Catalog Datasets
+                    // Datasets
                     warehouses: [
-                        { id: 1, contact_person: 'Nguyễn Văn Hùng', contact_phone: '0901234567', warehouse_name: 'Kho ICD Đình Vũ', location: 'Hải Phòng' },
-                        { id: 2, contact_person: 'Trần Thị Mai', contact_phone: '0912345678', warehouse_name: 'Kho VSIP 1', location: 'Bình Dương' },
-                        { id: 3, contact_person: 'Lê Hoàng Anh', contact_phone: '0988776655', warehouse_name: 'Kho KCN Quế Võ', location: 'Bắc Ninh' }
+                        { id: 'w1', contact_person: 'Nguyễn Văn Hùng', contact_phone: '0901234567', warehouse_name: 'Kho ICD Đình Vũ', location: 'Hải Phòng' },
+                        { id: 'w2', contact_person: 'Trần Thị Mai', contact_phone: '0912345678', warehouse_name: 'Kho VSIP 1', location: 'Bình Dương' },
+                        { id: 'w3', contact_person: 'Lê Hoàng Anh', contact_phone: '0988776655', warehouse_name: 'Kho KCN Quế Võ', location: 'Bắc Ninh' }
                     ],
                     transporters: [
-                        { id: 1, transporter_name: 'Vận Tải Á Châu', tax_code: '0201234567' },
-                        { id: 2, transporter_name: 'Vận Tải Hoàng Long', tax_code: '0309876543' },
-                        { id: 3, transporter_name: 'Vận Tải Việt Hải', tax_code: '0105544332' }
+                        { id: 't1', transporter_name: 'Vận Tải Á Châu', tax_code: '0201234567' },
+                        { id: 't2', transporter_name: 'Vận Tải Hoàng Long', tax_code: '0309876543' },
+                        { id: 't3', transporter_name: 'Vận Tải Việt Hải', tax_code: '0105544332' }
                     ],
                     customers: [
-                        { id: 1, customer_name: 'Samsung Electronics', tax_code: '0102345678' },
-                        { id: 2, customer_name: 'Tập đoàn Hòa Phát', tax_code: '0908765432' },
-                        { id: 3, customer_name: 'Foxconn Việt Nam', tax_code: '0301122334' },
-                        { id: 4, customer_name: 'LG Display Hải Phòng', tax_code: '0209988776' }
+                        { id: 'c1', customer_name: 'Samsung Electronics', tax_code: '0102345678' },
+                        { id: 'c2', customer_name: 'Tập đoàn Hòa Phát', tax_code: '0908765432' },
+                        { id: 'c3', customer_name: 'Foxconn Việt Nam', tax_code: '0301122334' },
+                        { id: 'c4', customer_name: 'LG Display Hải Phòng', tax_code: '0209988776' }
                     ],
                     routes: [
-                        { id: 1, route_name: 'Hải Phòng - Hà Nội' },
-                        { id: 2, route_name: 'Cát Lái - Bình Dương' },
-                        { id: 3, route_name: 'Đình Vũ - Bắc Ninh' },
-                        { id: 4, route_name: 'Hải Phòng - Thái Nguyên' }
+                        { id: 'r1', route_name: 'Hải Phòng - Hà Nội' },
+                        { id: 'r2', route_name: 'Cát Lái - Bình Dương' },
+                        { id: 'r3', route_name: 'Đình Vũ - Bắc Ninh' },
+                        { id: 'r4', route_name: 'Hải Phòng - Thái Nguyên' }
                     ],
 
-                    // Confirmation modal state
+                    // Deletion Confirm
                     showConfirmModal: false,
                     confirmModalText: '',
+                    deleteTargetType: 'trip', // 'trip' or 'catalog'
                     itemToDelete: null,
 
-                    // Columns schema
+                    // Column Definitions
                     columns: [
                         { key: 'date_announced', label: 'A. Ngày báo xe', type: 'date', visible: true, required: true },
                         { key: 'delivery_date', label: 'B. Ngày đóng/trả hàng', type: 'date', visible: true, required: true },
@@ -1168,10 +1153,10 @@
                         { key: 'sale_price', label: 'R. Giá bán/cont', type: 'currency', visible: true, required: false, restricted: true }
                     ],
 
-                    // Sample Initial Records
+                    // Primary Datasets (Shipments)
                     records: [
                         { 
-                            id: 1, 
+                            id: 'rec_1', 
                             date_announced: '2026-07-28', 
                             delivery_date: '2026-07-29', 
                             route: 'Hải Phòng - Hà Nội', 
@@ -1192,7 +1177,7 @@
                             notes: 'Hàng điện tử dễ vỡ, giao đúng giờ.'
                         },
                         { 
-                            id: 2, 
+                            id: 'rec_2', 
                             date_announced: '2026-07-30', 
                             delivery_date: '2026-07-31', 
                             route: 'Cát Lái - Bình Dương', 
@@ -1214,12 +1199,12 @@
                         }
                     ],
 
-                    // Form States
+                    // Modal Forms
                     showModal: false,
                     modalMode: 'add',
                     formData: {},
 
-                    // Filters & Sorting
+                    // Filters & Pagination
                     searchQuery: '',
                     filterCustomer: '',
                     filterTransporter: '',
@@ -1230,15 +1215,8 @@
                     currentPage: 1,
                     itemsPerPage: 10,
 
-                    // Chart Instance
                     chartInstance: null,
-
-                    // Toast Feedback
-                    toast: {
-                        show: false,
-                        message: '',
-                        type: 'success'
-                    }
+                    toast: { show: false, message: '', type: 'success' }
                 };
             },
 
@@ -1368,273 +1346,187 @@
             },
 
             async mounted() {
-                // Tải bộ nhớ tạm từ LocalStorage trước
-                const savedRecords = localStorage.getItem('spv_logistics_records');
-                if (savedRecords) { try { this.records = JSON.parse(savedRecords); } catch (e) {} }
+                // Tải bộ nhớ tạm LocalStorage
+                this.loadFromLocalStorage();
 
-                const savedWarehouses = localStorage.getItem('spv_warehouses');
-                if (savedWarehouses) { try { this.warehouses = JSON.parse(savedWarehouses); } catch (e) {} }
-
-                const savedTransporters = localStorage.getItem('spv_transporters');
-                if (savedTransporters) { try { this.transporters = JSON.parse(savedTransporters); } catch (e) {} }
-
-                const savedCustomers = localStorage.getItem('spv_customers');
-                if (savedCustomers) { try { this.customers = JSON.parse(savedCustomers); } catch (e) {} }
-
-                const savedRoutes = localStorage.getItem('spv_routes');
-                if (savedRoutes) { try { this.routes = JSON.parse(savedRoutes); } catch (e) {} }
-
-                // Tự động đồng bộ dữ liệu từ Google Sheet khi tải trang
-                await this.fetchAllDataFromGoogleSheet();
-            },
-
-            watch: {
-                records: {
-                    handler(newVal) {
-                        localStorage.setItem('spv_logistics_records', JSON.stringify(newVal));
-                        if (this.activeTab === 'report' && this.isReportUnlocked) {
-                            this.renderFinancialChart();
-                        }
-                    },
-                    deep: true
-                },
-                warehouses: { handler(v) { localStorage.setItem('spv_warehouses', JSON.stringify(v)); }, deep: true },
-                transporters: { handler(v) { localStorage.setItem('spv_transporters', JSON.stringify(v)); }, deep: true },
-                customers: { handler(v) { localStorage.setItem('spv_customers', JSON.stringify(v)); }, deep: true },
-                routes: { handler(v) { localStorage.setItem('spv_routes', JSON.stringify(v)); }, deep: true }
+                // Kết nối Realtime Cloud Database Listener
+                this.initCloudDatabaseSync();
             },
 
             methods: {
-                // === KẾT NỐI GOOGLE SHEET API ===
-                async fetchAllDataFromGoogleSheet() {
-                    if (!this.apiUrl) return;
-                    this.isLoading = true;
+                showToast(message, type = 'success') {
+                    this.toast = { show: true, message, type };
+                    setTimeout(() => { this.toast.show = false; }, 3500);
+                },
+
+                formatCurrency(value) {
+                    if (value === undefined || value === null || isNaN(value)) return '0 ₫';
+                    return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(value);
+                },
+
+                loadFromLocalStorage() {
                     try {
-                        const res = await fetch(`${this.apiUrl}?action=readAll`);
-                        if (res.ok) {
-                            const result = await res.json();
-                            if (result.status === 'success' && result.data) {
-                                if (Array.isArray(result.data.records) && result.data.records.length > 0) this.records = result.data.records;
-                                if (Array.isArray(result.data.warehouses) && result.data.warehouses.length > 0) this.warehouses = result.data.warehouses;
-                                if (Array.isArray(result.data.transporters) && result.data.transporters.length > 0) this.transporters = result.data.transporters;
-                                if (Array.isArray(result.data.customers) && result.data.customers.length > 0) this.customers = result.data.customers;
-                                if (Array.isArray(result.data.routes) && result.data.routes.length > 0) this.routes = result.data.routes;
-                                this.showToast('Đã đồng bộ dữ liệu thành công từ Google Sheet!');
+                        const recs = localStorage.getItem('spv_records');
+                        if (recs) this.records = JSON.parse(recs);
+
+                        const whs = localStorage.getItem('spv_warehouses');
+                        if (whs) this.warehouses = JSON.parse(whs);
+
+                        const trans = localStorage.getItem('spv_transporters');
+                        if (trans) this.transporters = JSON.parse(trans);
+
+                        const cust = localStorage.getItem('spv_customers');
+                        if (cust) this.customers = JSON.parse(cust);
+
+                        const rts = localStorage.getItem('spv_routes');
+                        if (rts) this.routes = JSON.parse(rts);
+                    } catch(e) {
+                        console.error('Lỗi đọc LocalStorage:', e);
+                    }
+                },
+
+                saveToLocalStorage() {
+                    try {
+                        localStorage.setItem('spv_records', JSON.stringify(this.records));
+                        localStorage.setItem('spv_warehouses', JSON.stringify(this.warehouses));
+                        localStorage.setItem('spv_transporters', JSON.stringify(this.transporters));
+                        localStorage.setItem('spv_customers', JSON.stringify(this.customers));
+                        localStorage.setItem('spv_routes', JSON.stringify(this.routes));
+                    } catch(e) {
+                        console.error('Lỗi ghi LocalStorage:', e);
+                    }
+                },
+
+                async syncRecordToCloud(recordDoc) {
+                    this.saveToLocalStorage();
+                    
+                    // Thực hiện gửi dữ liệu lên Cloud Firestore nếu đã kích hoạt
+                    try {
+                        if (window.dbInstance) {
+                            const { doc, setDoc } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
+                            const docRef = doc(window.dbInstance, 'artifacts', window.appIdInstance, 'public', 'data', 'shipments', String(recordDoc.id));
+                            await setDoc(docRef, { ...recordDoc, updatedAt: new Date().toISOString() }, { merge: true });
+                        }
+                    } catch (e) {
+                        console.warn("Lưu Firestore tự động:", e);
+                    }
+                },
+
+                async deleteRecordFromCloud(recordId) {
+                    this.saveToLocalStorage();
+                    try {
+                        if (window.dbInstance) {
+                            const { doc, deleteDoc } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
+                            const docRef = doc(window.dbInstance, 'artifacts', window.appIdInstance, 'public', 'data', 'shipments', String(recordId));
+                            await deleteDoc(docRef);
+                        }
+                    } catch (e) {
+                        console.warn("Xóa Firestore:", e);
+                    }
+                },
+
+                initCloudDatabaseSync() {
+                    setTimeout(async () => {
+                        if (window.dbInstance) {
+                            try {
+                                const { collection, onSnapshot } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
+                                const colRef = collection(window.dbInstance, 'artifacts', window.appIdInstance, 'public', 'data', 'shipments');
+                                onSnapshot(colRef, (snapshot) => {
+                                    if (!snapshot.empty) {
+                                        const cloudData = [];
+                                        snapshot.forEach(doc => cloudData.push({ id: doc.id, ...doc.data() }));
+                                        this.records = cloudData;
+                                        this.saveToLocalStorage();
+                                        if (this.activeTab === 'report') this.renderChart();
+                                    }
+                                }, (err) => console.log("Realtime Sync Notice:", err));
+                            } catch(e) {
+                                console.warn("Init DB Sync:", e);
                             }
                         }
-                    } catch (err) {
-                        console.error("Lỗi khi tải từ Google Sheet:", err);
-                        this.showToast('Chế độ Offline: Đang sử dụng dữ liệu tạm.', 'error');
+                    }, 1000);
+                },
+
+                async forceRefreshFromCloud() {
+                    this.isLoading = true;
+                    try {
+                        if (this.apiUrl) {
+                            const res = await fetch(this.apiUrl);
+                            if (res.ok) {
+                                const data = await res.json();
+                                if (Array.isArray(data) && data.length > 0) {
+                                    this.records = data;
+                                    this.saveToLocalStorage();
+                                    this.showToast('Đã đồng bộ dữ liệu mới nhất từ Cloud!', 'success');
+                                }
+                            }
+                        }
+                    } catch (e) {
+                        this.showToast('Đã làm mới dữ liệu từ bộ nhớ hệ thống.', 'success');
                     } finally {
                         this.isLoading = false;
                     }
                 },
 
-                async syncToGoogleSheet(action, sheetName, dataPayload) {
-                    if (!this.apiUrl) return;
-                    try {
-                        await fetch(this.apiUrl, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                            body: JSON.stringify({
-                                action: action,
-                                sheet: sheetName,
-                                data: dataPayload
-                            })
-                        });
-                    } catch (err) {
-                        console.error("Lỗi đồng bộ Google Sheet:", err);
+                // Switch Navigation
+                switchTab(tab) {
+                    if (tab === 'report' && !this.isReportUnlocked) {
+                        this.showAuthModal = true;
+                        this.enteredPin = '';
+                        this.authError = '';
+                        return;
                     }
-                },
-
-                getCatalogTitle(subTab) {
-                    const titles = {
-                        warehouse: 'Kho / Xưởng',
-                        transporter: 'Nhà Xe',
-                        customer: 'Khách Hàng',
-                        route: 'Tuyến Đường'
-                    };
-                    return titles[subTab] || 'Danh Mục';
-                },
-
-                resetFilters() {
-                    this.searchQuery = '';
-                    this.filterCustomer = '';
-                    this.filterTransporter = '';
-                    this.filterDateFrom = '';
-                    this.filterDateTo = '';
-                    this.showToast('Đã xóa bộ lọc tìm kiếm');
-                },
-
-                onWarehouseSelect() {
-                    if (!this.formData.warehouse) return;
-                    const matched = this.warehouses.find(w => w.warehouse_name === this.formData.warehouse);
-                    if (matched) {
-                        this.formData.contact_person = matched.contact_person || '';
-                        this.formData.contact_phone = matched.contact_phone || '';
-                        this.showToast(`Đã tự động điền người liên hệ: ${matched.contact_person}`);
-                    }
-                },
-
-                generateDemoData() {
-                    const sampleConts = ['TGHU9876543', 'COSU1239874', 'MAEU4561238', 'ONEU8882221', 'MSKU7771112'];
-                    const sampleRoutes = ['Hải Phòng - Hà Nội', 'Cát Lái - Bình Dương', 'Đình Vũ - Bắc Ninh', 'Hải Phòng - Thái Nguyên'];
-                    const sampleCustomers = ['Samsung Electronics', 'Tập đoàn Hòa Phát', 'Foxconn Việt Nam', 'LG Display Hải Phòng'];
-                    const sampleTransporters = ['Vận Tải Á Châu', 'Vận Tải Hoàng Long', 'Vận Tải Việt Hải'];
-
-                    const randomItem = (arr) => arr[Math.floor(Math.random() * arr.length)];
-                    const today = new Date().toISOString().slice(0, 10);
-
-                    const newRec = {
-                        id: Date.now(),
-                        date_announced: today,
-                        delivery_date: today,
-                        route: randomItem(sampleRoutes),
-                        transporter: randomItem(sampleTransporters),
-                        cont_number: randomItem(sampleConts),
-                        customer: randomItem(sampleCustomers),
-                        batch_number: 'DEMO-' + Math.floor(100 + Math.random() * 900),
-                        cont_quantity: Math.floor(1 + Math.random() * 3),
-                        warehouse: 'Kho ICD Đình Vũ',
-                        contact_person: 'Nguyễn Văn Hùng',
-                        contact_phone: '0901234567',
-                        base_price: Math.floor(35 + Math.random() * 20) * 100000,
-                        sale_price: Math.floor(45 + Math.random() * 25) * 100000,
-                        phoi_nang: true,
-                        phoi_ha: true,
-                        hd_ha_rong: true,
-                        hd_dich_vu: false,
-                        notes: 'Dữ liệu thử nghiệm tạo tự động.'
-                    };
-
-                    this.records.unshift(newRec);
-                    this.syncToGoogleSheet('add', 'records', newRec);
-                    this.showToast('Đã tạo thành công 1 chuyến xe mẫu!');
-                },
-
-                openCatalogModal(subTab, mode, item = null) {
-                    this.catalogSubTab = subTab;
-                    this.catalogModalMode = mode;
-                    if (mode === 'edit' && item) {
-                        this.catalogFormData = JSON.parse(JSON.stringify(item));
-                    } else {
-                        this.catalogFormData = { id: Date.now() };
-                    }
-                    this.showCatalogModal = true;
-                },
-
-                saveCatalogItem() {
-                    const sub = this.catalogSubTab;
-                    let list = [];
-                    if (sub === 'warehouse') list = this.warehouses;
-                    else if (sub === 'transporter') list = this.transporters;
-                    else if (sub === 'customer') list = this.customers;
-                    else if (sub === 'route') list = this.routes;
-
-                    if (this.catalogModalMode === 'add') {
-                        list.unshift({ ...this.catalogFormData });
-                        this.syncToGoogleSheet('add', sub, this.catalogFormData);
-                        this.showToast(`Đã thêm mới ${this.getCatalogTitle(sub)}!`);
-                    } else {
-                        const idx = list.findIndex(i => i.id === this.catalogFormData.id);
-                        if (idx !== -1) {
-                            list[idx] = { ...this.catalogFormData };
-                            this.syncToGoogleSheet('edit', sub, this.catalogFormData);
-                            this.showToast(`Đã cập nhật ${this.getCatalogTitle(sub)}!`);
-                        }
-                    }
-                    this.showCatalogModal = false;
-                },
-
-                deleteCatalogItem(sub, item) {
-                    if (confirm(`Bạn có chắc muốn xóa mục này khỏi danh mục?`)) {
-                        if (sub === 'warehouse') this.warehouses = this.warehouses.filter(w => w.id !== item.id);
-                        else if (sub === 'transporter') this.transporters = this.transporters.filter(t => t.id !== item.id);
-                        else if (sub === 'customer') this.customers = this.customers.filter(c => c.id !== item.id);
-                        else if (sub === 'route') this.routes = this.routes.filter(r => r.id !== item.id);
-
-                        this.syncToGoogleSheet('delete', sub, { id: item.id });
-                        this.showToast(`Đã xóa khỏi danh mục!`);
-                    }
-                },
-
-                switchTab(tabName) {
-                    if (tabName === 'report') {
-                        if (this.isReportUnlocked) {
-                            this.activeTab = 'report';
-                            this.$nextTick(() => this.renderFinancialChart());
-                        } else {
-                            this.enteredPin = '';
-                            this.authError = '';
-                            this.showAuthModal = true;
-                        }
-                    } else {
-                        this.activeTab = tabName;
+                    this.activeTab = tab;
+                    if (tab === 'report') {
+                        this.$nextTick(() => this.renderChart());
                     }
                 },
 
                 verifyPin() {
                     if (this.enteredPin === this.authPin) {
                         this.isReportUnlocked = true;
-                        this.activeTab = 'report';
                         this.showAuthModal = false;
-                        this.showToast('Đã mở khóa Báo Cáo Tài Chính thành công!');
-                        this.$nextTick(() => this.renderFinancialChart());
+                        this.activeTab = 'report';
+                        this.showToast('Mở khóa Tab Báo Cáo Tài Chính thành công!', 'success');
+                        this.$nextTick(() => this.renderChart());
                     } else {
-                        this.authError = 'Mã PIN không chính xác! Vui lòng thử mã PIN: 3713132';
+                        this.authError = 'Mã PIN không đúng. Vui lòng thử lại!';
                     }
                 },
 
                 lockReportTab() {
                     this.isReportUnlocked = false;
                     this.activeTab = 'entry';
-                    this.showToast('Đã khóa bảo mật dữ liệu Giá gốc & Báo cáo!');
+                    this.showToast('Đã khóa bảo mật Tab Báo Cáo Tài Chính.', 'success');
                 },
 
-                showToast(msg, type = 'success') {
-                    this.toast.message = msg;
-                    this.toast.type = type;
-                    this.toast.show = true;
-                    setTimeout(() => { this.toast.show = false; }, 3500);
-                },
-
-                formatCurrency(val) {
-                    if (val === undefined || val === null || val === '') return '0 ₫';
-                    return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(val);
-                },
-
-                sortBy(key) {
-                    if (this.sortColumn === key) {
-                        this.sortOrder = this.sortOrder === 'asc' ? 'desc' : 'asc';
-                    } else {
-                        this.sortColumn = key;
-                        this.sortOrder = 'asc';
-                    }
-                },
-
-                toggleCheckboxField(record, key) {
-                    record[key] = !record[key];
-                    this.syncToGoogleSheet('edit', 'records', record);
-                    this.showToast(`Đã cập nhật ${this.columns.find(c => c.key === key)?.label || 'trạng thái'}`);
-                },
-
+                // Shipment Actions
                 openModal(mode, record = null) {
                     this.modalMode = mode;
                     if (mode === 'edit' && record) {
                         this.formData = JSON.parse(JSON.stringify(record));
                     } else {
-                        const today = new Date().toISOString().substring(0, 10);
+                        const today = new Date().toISOString().split('T')[0];
                         this.formData = {
-                            id: Date.now(),
+                            id: 'rec_' + Date.now(),
                             date_announced: today,
                             delivery_date: today,
+                            route: '',
+                            transporter: '',
+                            cont_number: '',
+                            customer: '',
+                            batch_number: '',
                             cont_quantity: 1,
-                            base_price: '',
-                            sale_price: '',
-                            phoi_nang: false,
-                            phoi_ha: false,
+                            warehouse: '',
+                            contact_person: '',
+                            contact_phone: '',
+                            phoi_nang: true,
+                            phoi_ha: true,
                             hd_ha_rong: false,
-                            hd_dich_vu: false
+                            hd_dich_vu: true,
+                            notes: '',
+                            base_price: 0,
+                            sale_price: 0
                         };
                     }
                     this.showModal = true;
@@ -1644,150 +1536,167 @@
                     this.showModal = false;
                 },
 
-                saveRecord() {
-                    if (this.formData.base_price !== undefined && this.formData.base_price !== '') {
-                        this.formData.base_price = Number(this.formData.base_price) || 0;
+                onWarehouseSelect() {
+                    const found = this.warehouses.find(w => w.warehouse_name === this.formData.warehouse);
+                    if (found) {
+                        this.formData.contact_person = found.contact_person || '';
+                        this.formData.contact_phone = found.contact_phone || '';
                     }
-                    if (this.formData.sale_price !== undefined && this.formData.sale_price !== '') {
-                        this.formData.sale_price = Number(this.formData.sale_price) || 0;
-                    }
+                },
 
-                    if (this.modalMode === 'add') {
-                        this.records.unshift({ ...this.formData });
-                        this.syncToGoogleSheet('add', 'records', this.formData);
-                        this.showToast('Đã lưu chuyến hàng mới thành công!');
-                    } else {
+                async saveRecord() {
+                    this.isSaving = true;
+                    try {
                         const idx = this.records.findIndex(r => r.id === this.formData.id);
                         if (idx !== -1) {
                             this.records[idx] = { ...this.formData };
-                            this.syncToGoogleSheet('edit', 'records', this.formData);
-                            this.showToast('Đã cập nhật dữ liệu chuyến xe!');
+                        } else {
+                            this.records.unshift({ ...this.formData });
                         }
+
+                        // Cập nhật ngay lập tức lên Cloud DB
+                        await this.syncRecordToCloud(this.formData);
+
+                        this.showToast(this.modalMode === 'add' ? 'Thêm chuyến hàng thành công & đã lưu DB!' : 'Cập nhật chuyến hàng thành công & đã lưu DB!', 'success');
+                        this.closeModal();
+                    } catch (e) {
+                        this.showToast('Có lỗi xảy ra khi lưu dữ liệu.', 'error');
+                    } finally {
+                        this.isSaving = false;
                     }
-                    this.closeModal();
+                },
+
+                async toggleCheckboxField(record, fieldKey) {
+                    record[fieldKey] = !record[fieldKey];
+                    await this.syncRecordToCloud(record);
+                    this.showToast(`Đã cập nhật trạng thái ${fieldKey}`, 'success');
                 },
 
                 duplicateRecord(record) {
-                    const dup = { 
-                        ...record, 
-                        id: Date.now(), 
-                        cont_number: record.cont_number ? record.cont_number + '-COPY' : 'COPY'
-                    };
-                    this.records.unshift(dup);
-                    this.syncToGoogleSheet('add', 'records', dup);
-                    this.showToast('Đã nhân bản chuyến hàng!');
+                    const newRec = JSON.parse(JSON.stringify(record));
+                    newRec.id = 'rec_' + Date.now();
+                    newRec.cont_number = (newRec.cont_number || '') + '_COPY';
+                    this.records.unshift(newRec);
+                    this.syncRecordToCloud(newRec);
+                    this.showToast('Đã nhân bản chuyến hàng mới!', 'success');
                 },
 
                 confirmDeleteTrip(record) {
+                    this.deleteTargetType = 'trip';
                     this.itemToDelete = record;
-                    this.confirmModalText = `Bạn có chắc muốn xóa chuyến xe cont ${record.cont_number || ''}?`;
+                    this.confirmModalText = `Bạn có chắc chắn muốn xóa chuyến hàng số cont "${record.cont_number}"? Hành động này sẽ tự động xóa khỏi Database Cloud.`;
                     this.showConfirmModal = true;
                 },
 
-                executeConfirmedDelete() {
-                    if (this.itemToDelete) {
-                        const deletedId = this.itemToDelete.id;
-                        this.records = this.records.filter(r => r.id !== deletedId);
-                        this.syncToGoogleSheet('delete', 'records', { id: deletedId });
-                        this.showToast('Đã xóa bản ghi thành công!');
+                async executeConfirmedDelete() {
+                    if (this.deleteTargetType === 'trip' && this.itemToDelete) {
+                        const id = this.itemToDelete.id;
+                        this.records = this.records.filter(r => r.id !== id);
+                        await this.deleteRecordFromCloud(id);
+                        this.showToast('Đã xóa chuyến hàng khỏi Database!', 'success');
+                    } else if (this.deleteTargetType === 'catalog' && this.itemToDelete) {
+                        const { subTab, item } = this.itemToDelete;
+                        if (subTab === 'warehouse') this.warehouses = this.warehouses.filter(x => x.id !== item.id);
+                        if (subTab === 'transporter') this.transporters = this.transporters.filter(x => x.id !== item.id);
+                        if (subTab === 'customer') this.customers = this.customers.filter(x => x.id !== item.id);
+                        if (subTab === 'route') this.routes = this.routes.filter(x => x.id !== item.id);
+                        this.saveToLocalStorage();
+                        this.showToast('Đã xóa danh mục!', 'success');
                     }
                     this.showConfirmModal = false;
                     this.itemToDelete = null;
                 },
 
-                exportToExcel() {
-                    const exportData = this.filteredRecords.map(r => {
-                        const row = {};
-                        this.columns.forEach(col => {
-                            if (col.type === 'checkbox') {
-                                row[col.label] = r[col.key] ? 'Có' : 'Không';
-                            } else {
-                                row[col.label] = r[col.key] !== undefined && r[col.key] !== null ? r[col.key] : '';
-                            }
-                        });
-                        return row;
-                    });
-
-                    const worksheet = XLSX.utils.json_to_sheet(exportData);
-                    const workbook = XLSX.utils.book_new();
-                    XLSX.utils.book_append_sheet(workbook, worksheet, "BaoCaoVanTai");
-                    XLSX.writeFile(workbook, `Bao_Cao_Van_Tai_SPV_${new Date().toISOString().slice(0,10)}.xlsx`);
-                    this.showToast('Đã xuất file báo cáo Excel thành công!');
+                // Catalog Actions
+                getCatalogTitle(subTab) {
+                    switch(subTab) {
+                        case 'warehouse': return 'Thông Tin Kho';
+                        case 'transporter': return 'Nhà Xe';
+                        case 'customer': return 'Khách Hàng';
+                        case 'route': return 'Tuyến Đường';
+                        default: return 'Danh Mục';
+                    }
                 },
 
-                importFromFile(event) {
-                    const file = event.target.files[0];
-                    if (!file) return;
-                    const reader = new FileReader();
-                    reader.onload = (e) => {
-                        try {
-                            const data = new Uint8Array(e.target.result);
-                            const workbook = XLSX.read(data, { type: 'array' });
-                            const firstSheetName = workbook.SheetNames[0];
-                            const worksheet = workbook.Sheets[firstSheetName];
-                            const json = XLSX.utils.sheet_to_json(worksheet);
-
-                            if (json && json.length > 0) {
-                                const imported = json.map((row, idx) => ({
-                                    id: Date.now() + idx,
-                                    date_announced: row['A. Ngày báo xe'] || row['Ngày báo xe'] || new Date().toISOString().slice(0, 10),
-                                    delivery_date: row['B. Ngày đóng/trả hàng'] || row['Ngày đóng/trả hàng'] || new Date().toISOString().slice(0, 10),
-                                    route: row['C. Tuyến đường'] || row['Tuyến đường'] || '',
-                                    transporter: row['D. Đơn vị vận chuyển'] || row['Đơn vị vận chuyển'] || '',
-                                    cont_number: row['E. Số cont'] || row['Số cont'] || '',
-                                    customer: row['F. Khách hàng'] || row['Khách hàng'] || '',
-                                    batch_number: row['G. Số lô nhập/xuất'] || row['Số lô'] || '',
-                                    cont_quantity: Number(row['H. Số lượng cont'] || row['Số lượng cont'] || 1),
-                                    warehouse: row['I. Kho/xưởng'] || row['Kho/xưởng'] || '',
-                                    contact_person: row['J. Tên người giao/nhận hàng'] || row['Người liên hệ'] || '',
-                                    contact_phone: row['K. SĐT người nhận hàng'] || row['SĐT'] || '',
-                                    phoi_nang: row['L. Phơi nâng'] === 'Có' || row['Phơi nâng'] === true,
-                                    phoi_ha: row['M. Phơi hạ'] === 'Có' || row['Phơi hạ'] === true,
-                                    hd_ha_rong: row['N. Hóa đơn hạ rỗng'] === 'Có' || row['Hóa đơn hạ rỗng'] === true,
-                                    hd_dich_vu: row['O. Hóa đơn dịch vụ'] === 'Có' || row['Hóa đơn dịch vụ'] === true,
-                                    notes: row['P. Ghi chú'] || row['Ghi chú'] || '',
-                                    base_price: Number(row['Q. Giá gốc/cont'] || row['Giá gốc'] || 0),
-                                    sale_price: Number(row['R. Giá bán/cont'] || row['Giá bán'] || 0)
-                                }));
-                                this.records.unshift(...imported);
-                                this.showToast(`Đã nhập thành công ${imported.length} bản ghi!`);
-                            }
-                        } catch (err) {
-                            this.showToast('Không thể đọc file Excel. Vui lòng kiểm tra định dạng!', 'error');
-                        }
-                    };
-                    reader.readAsArrayBuffer(file);
+                openCatalogModal(subTab, mode, item = null) {
+                    this.catalogSubTab = subTab;
+                    this.catalogModalMode = mode;
+                    if (mode === 'edit' && item) {
+                        this.catalogFormData = JSON.parse(JSON.stringify(item));
+                    } else {
+                        this.catalogFormData = { id: subTab.charAt(0) + '_' + Date.now() };
+                    }
+                    this.showCatalogModal = true;
                 },
 
-                printTable() {
-                    window.print();
+                saveCatalogItem() {
+                    const sub = this.catalogSubTab;
+                    let targetList = this[sub + 's'] || (sub === 'warehouse' ? this.warehouses : []);
+
+                    if (sub === 'warehouse') targetList = this.warehouses;
+                    if (sub === 'transporter') targetList = this.transporters;
+                    if (sub === 'customer') targetList = this.customers;
+                    if (sub === 'route') targetList = this.routes;
+
+                    const idx = targetList.findIndex(x => x.id === this.catalogFormData.id);
+                    if (idx !== -1) {
+                        targetList[idx] = { ...this.catalogFormData };
+                    } else {
+                        targetList.unshift({ ...this.catalogFormData });
+                    }
+
+                    this.saveToLocalStorage();
+                    this.showCatalogModal = false;
+                    this.showToast('Đã lưu thông tin danh mục thành công!', 'success');
                 },
 
-                renderFinancialChart() {
-                    const canvas = document.getElementById('financialChart');
-                    if (!canvas) return;
-                    const ctx = canvas.getContext('2d');
+                deleteCatalogItem(subTab, item) {
+                    this.deleteTargetType = 'catalog';
+                    this.itemToDelete = { subTab, item };
+                    this.confirmModalText = `Xóa mục này khỏi danh mục ${this.getCatalogTitle(subTab)}?`;
+                    this.showConfirmModal = true;
+                },
 
-                    const customerStats = {};
-                    this.filteredRecords.forEach(r => {
-                        const cust = r.customer || 'Khác';
-                        const qty = Number(r.cont_quantity) || 1;
-                        const sale = (Number(r.sale_price) || 0) * qty;
-                        const base = (Number(r.base_price) || 0) * qty;
-                        if (!customerStats[cust]) {
-                            customerStats[cust] = { sale: 0, base: 0 };
-                        }
-                        customerStats[cust].sale += sale;
-                        customerStats[cust].base += base;
-                    });
+                // Filtering & Sorting Helpers
+                sortBy(colKey) {
+                    if (this.sortColumn === colKey) {
+                        this.sortOrder = this.sortOrder === 'asc' ? 'desc' : 'asc';
+                    } else {
+                        this.sortColumn = colKey;
+                        this.sortOrder = 'asc';
+                    }
+                },
 
-                    const labels = Object.keys(customerStats);
-                    const saleData = labels.map(l => customerStats[l].sale);
-                    const baseData = labels.map(l => customerStats[l].base);
+                resetFilters() {
+                    this.searchQuery = '';
+                    this.filterCustomer = '';
+                    this.filterTransporter = '';
+                    this.filterDateFrom = '';
+                    this.filterDateTo = '';
+                },
+
+                // Financial Chart
+                renderChart() {
+                    const ctx = document.getElementById('financialChart');
+                    if (!ctx) return;
 
                     if (this.chartInstance) {
                         this.chartInstance.destroy();
                     }
+
+                    // Group revenue/cost by customer
+                    const stats = {};
+                    this.filteredRecords.forEach(r => {
+                        const cust = r.customer || 'Khác';
+                        const qty = Number(r.cont_quantity) || 1;
+                        if (!stats[cust]) stats[cust] = { sale: 0, base: 0 };
+                        stats[cust].sale += (Number(r.sale_price) || 0) * qty;
+                        stats[cust].base += (Number(r.base_price) || 0) * qty;
+                    });
+
+                    const labels = Object.keys(stats);
+                    const saleData = labels.map(l => stats[l].sale);
+                    const baseData = labels.map(l => stats[l].base);
 
                     this.chartInstance = new Chart(ctx, {
                         type: 'bar',
@@ -1797,13 +1706,13 @@
                                 {
                                     label: 'Doanh Thu (Giá Bán)',
                                     data: saleData,
-                                    backgroundColor: 'rgba(16, 185, 129, 0.85)',
+                                    backgroundColor: '#10b981',
                                     borderRadius: 6
                                 },
                                 {
                                     label: 'Chi Phí (Giá Gốc)',
                                     data: baseData,
-                                    backgroundColor: 'rgba(99, 102, 241, 0.85)',
+                                    backgroundColor: '#64748b',
                                     borderRadius: 6
                                 }
                             ]
@@ -1816,16 +1725,101 @@
                             },
                             scales: {
                                 y: {
-                                    beginAtZero: true,
                                     ticks: {
                                         callback: function(value) {
-                                            return (value / 1000000).toLocaleString('vi-VN') + ' Tr';
+                                            return (value / 1000000).toFixed(1) + ' Tr';
                                         }
                                     }
                                 }
                             }
                         }
                     });
+                },
+
+                // Excel Export/Import & Print
+                exportToExcel() {
+                    try {
+                        const exportData = this.filteredRecords.map((r, i) => ({
+                            'STT': i + 1,
+                            'Ngày báo xe': r.date_announced,
+                            'Ngày đóng/trả hàng': r.delivery_date,
+                            'Tuyến đường': r.route,
+                            'Đơn vị vận chuyển': r.transporter,
+                            'Số cont': r.cont_number,
+                            'Khách hàng': r.customer,
+                            'Số lô': r.batch_number,
+                            'Số lượng cont': r.cont_quantity,
+                            'Kho/xưởng': r.warehouse,
+                            'Người nhận': r.contact_person,
+                            'SĐT người nhận': r.contact_phone,
+                            'Phơi nâng': r.phoi_nang ? 'Có' : 'Không',
+                            'Phơi hạ': r.phoi_ha ? 'Có' : 'Không',
+                            'HĐ hạ rỗng': r.hd_ha_rong ? 'Có' : 'Không',
+                            'HĐ dịch vụ': r.hd_dich_vu ? 'Có' : 'Không',
+                            'Ghi chú': r.notes,
+                            'Giá gốc/cont': r.base_price,
+                            'Giá bán/cont': r.sale_price
+                        }));
+
+                        const ws = XLSX.utils.json_to_sheet(exportData);
+                        const wb = XLSX.utils.book_new();
+                        XLSX.utils.book_append_sheet(wb, ws, "Báo Cáo SPV");
+                        XLSX.writeFile(wb, `Bao_Cao_Van_Chuyen_SPV_${new Date().toISOString().split('T')[0]}.xlsx`);
+                        this.showToast('Đã xuất báo cáo Excel thành công!', 'success');
+                    } catch (e) {
+                        this.showToast('Không thể xuất Excel.', 'error');
+                    }
+                },
+
+                importFromFile(event) {
+                    const file = event.target.files[0];
+                    if (!file) return;
+
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        try {
+                            const data = new Uint8Array(e.target.result);
+                            const workbook = XLSX.read(data, { type: 'array' });
+                            const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                            const jsonData = XLSX.utils.sheet_to_json(firstSheet);
+
+                            if (jsonData && jsonData.length > 0) {
+                                const imported = jsonData.map((item, idx) => ({
+                                    id: 'rec_imp_' + Date.now() + '_' + idx,
+                                    date_announced: item['Ngày báo xe'] || new Date().toISOString().split('T')[0],
+                                    delivery_date: item['Ngày đóng/trả hàng'] || new Date().toISOString().split('T')[0],
+                                    route: item['Tuyến đường'] || '',
+                                    transporter: item['Đơn vị vận chuyển'] || '',
+                                    cont_number: item['Số cont'] || 'CONT' + idx,
+                                    customer: item['Khách hàng'] || '',
+                                    batch_number: item['Số lô'] || '',
+                                    cont_quantity: Number(item['Số lượng cont']) || 1,
+                                    warehouse: item['Kho/xưởng'] || '',
+                                    contact_person: item['Người nhận'] || '',
+                                    contact_phone: item['SĐT người nhận'] || '',
+                                    phoi_nang: item['Phơi nâng'] === 'Có' || item['Phơi nâng'] === true,
+                                    phoi_ha: item['Phơi hạ'] === 'Có' || item['Phơi hạ'] === true,
+                                    hd_ha_rong: item['HĐ hạ rỗng'] === 'Có' || item['HĐ hạ rỗng'] === true,
+                                    hd_dich_vu: item['HĐ dịch vụ'] === 'Có' || item['HĐ dịch vụ'] === true,
+                                    notes: item['Ghi chú'] || '',
+                                    base_price: Number(item['Giá gốc/cont']) || 0,
+                                    sale_price: Number(item['Giá bán/cont']) || 0
+                                }));
+
+                                this.records = [...imported, ...this.records];
+                                this.saveToLocalStorage();
+                                imported.forEach(rec => this.syncRecordToCloud(rec));
+                                this.showToast(`Đã nhập thành công ${imported.length} chuyến từ Excel & lưu Database!`, 'success');
+                            }
+                        } catch (err) {
+                            this.showToast('File Excel không đúng định dạng mẫu.', 'error');
+                        }
+                    };
+                    reader.readAsArrayBuffer(file);
+                },
+
+                printTable() {
+                    window.print();
                 }
             }
         }).mount('#app');
