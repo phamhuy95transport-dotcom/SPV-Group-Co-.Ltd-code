@@ -96,26 +96,19 @@
                                 </h1>
                                 <span class="bg-emerald-500/20 text-emerald-300 text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-400/30 flex items-center gap-1">
                                     <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                                    Cloud Auto-Sync
+                                    {{ isConnected ? 'Cloud Realtime Active' : 'Connecting...' }}
                                 </span>
                             </div>
-                            <p class="text-xs text-slate-400 font-medium hidden sm:block">Tự động đồng bộ Database & Bảo mật doanh thu nội bộ</p>
+                            <p class="text-xs text-slate-400 font-medium hidden sm:block">Tự động đồng bộ Database Cloud & Bảo mật doanh thu nội bộ</p>
                         </div>
                     </div>
 
                     <!-- Header Quick Actions -->
                     <div class="flex items-center space-x-2.5">
-                        <button @click="forceRefreshFromCloud" 
-                                :disabled="isLoading"
-                                class="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-xl text-xs font-semibold transition shadow-md disabled:opacity-50">
-                            <i :class="isLoading ? 'fa-spin fa-spinner' : 'fa-arrows-rotate'" class="fa-solid"></i>
-                            <span>{{ isLoading ? 'Đang Tải DB...' : 'Đồng Bộ DB' }}</span>
-                        </button>
-
                         <button @click="showDbConfigModal = true" 
                                 class="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-3 py-1.5 rounded-xl text-xs font-semibold transition">
                             <i class="fa-solid fa-database text-amber-400"></i>
-                            <span class="hidden sm:inline">Cấu Hình Cloud</span>
+                            <span class="hidden sm:inline">Trạng Thái Cloud DB</span>
                         </button>
 
                         <button v-if="activeTab === 'entry'" @click="openModal('add')" 
@@ -183,10 +176,10 @@
                         </div>
                         <div>
                             <h3 class="font-bold text-slate-900 text-xs sm:text-sm flex items-center gap-2">
-                                Chế độ Vận hành - Tự Động Cập Nhật Database
-                                <span class="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-md">Realtime Sync On</span>
+                                Chế độ Vận hành - Tự Động Đồng Bộ Realtime Cloud Database
+                                <span class="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-md">Direct Sync</span>
                             </h3>
-                            <p class="text-xs text-slate-500 mt-0.5">Mọi thay đổi trên bảng hoặc Modal đều được ghi trực tiếp lên Cloud DB. Bảo mật ẩn cột Giá (Q, R).</p>
+                            <p class="text-xs text-slate-500 mt-0.5">Mọi thao tác lưu, xóa hoặc sửa đổi đều được cập nhật trực tiếp tới Cloud Database không bị mất khi lưu trữ.</p>
                         </div>
                     </div>
                     <div class="flex items-center gap-2 w-full md:w-auto justify-end">
@@ -337,7 +330,6 @@
                                     </td>
 
                                     <td v-for="col in entryColumns" :key="col.key" class="p-3.5 text-slate-700 whitespace-nowrap">
-                                        
                                         <template v-if="col.type === 'checkbox'">
                                             <button @click="toggleCheckboxField(record, col.key)" 
                                                     class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold transition cursor-pointer"
@@ -483,7 +475,7 @@
                                 <td class="p-3.5 text-slate-600">{{ item.location || '—' }}</td>
                                 <td class="p-3.5 text-right space-x-1 whitespace-nowrap">
                                     <button @click="openCatalogModal('warehouse', 'edit', item)" class="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"><i class="fa-solid fa-pen-to-square"></i></button>
-                                    <button @click="deleteCatalogItem('warehouse', item)" class="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"><i class="fa-solid fa-trash-can"></i></button>
+                                    <button @click="confirmDeleteCatalog('warehouse', item)" class="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"><i class="fa-solid fa-trash-can"></i></button>
                                 </td>
                             </tr>
                         </tbody>
@@ -507,7 +499,7 @@
                                 <td class="p-3.5 font-mono-code text-indigo-600 font-semibold">{{ item.tax_code || '—' }}</td>
                                 <td class="p-3.5 text-right space-x-1 whitespace-nowrap">
                                     <button @click="openCatalogModal('transporter', 'edit', item)" class="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"><i class="fa-solid fa-pen-to-square"></i></button>
-                                    <button @click="deleteCatalogItem('transporter', item)" class="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"><i class="fa-solid fa-trash-can"></i></button>
+                                    <button @click="confirmDeleteCatalog('transporter', item)" class="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"><i class="fa-solid fa-trash-can"></i></button>
                                 </td>
                             </tr>
                         </tbody>
@@ -531,7 +523,7 @@
                                 <td class="p-3.5 font-mono-code text-indigo-600 font-semibold">{{ item.tax_code || '—' }}</td>
                                 <td class="p-3.5 text-right space-x-1 whitespace-nowrap">
                                     <button @click="openCatalogModal('customer', 'edit', item)" class="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"><i class="fa-solid fa-pen-to-square"></i></button>
-                                    <button @click="deleteCatalogItem('customer', item)" class="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"><i class="fa-solid fa-trash-can"></i></button>
+                                    <button @click="confirmDeleteCatalog('customer', item)" class="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"><i class="fa-solid fa-trash-can"></i></button>
                                 </td>
                             </tr>
                         </tbody>
@@ -553,7 +545,7 @@
                                 <td class="p-3.5 font-bold text-slate-800">{{ item.route_name || '—' }}</td>
                                 <td class="p-3.5 text-right space-x-1 whitespace-nowrap">
                                     <button @click="openCatalogModal('route', 'edit', item)" class="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"><i class="fa-solid fa-pen-to-square"></i></button>
-                                    <button @click="deleteCatalogItem('route', item)" class="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"><i class="fa-solid fa-trash-can"></i></button>
+                                    <button @click="confirmDeleteCatalog('route', item)" class="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"><i class="fa-solid fa-trash-can"></i></button>
                                 </td>
                             </tr>
                         </tbody>
@@ -651,7 +643,7 @@
                             <i class="fa-solid fa-chart-bar text-indigo-600"></i>
                             <span>Biểu Đồ Trực Quan Doanh Thu & Chi Phí Theo Khách Hàng</span>
                         </h4>
-                        <span class="text-xs text-slate-400 font-medium">Tự động cập nhật từ Database</span>
+                        <span class="text-xs text-slate-400 font-medium">Tự động cập nhật từ Database Cloud</span>
                     </div>
                     <div class="h-64 sm:h-72 w-full relative">
                         <canvas id="financialChart"></canvas>
@@ -880,7 +872,7 @@
                         </button>
                         <button type="submit" :disabled="isSaving" class="px-6 py-2.5 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-md transition flex items-center gap-2 disabled:opacity-50">
                             <i :class="isSaving ? 'fa-spin fa-spinner' : 'fa-floppy-disk'" class="fa-solid"></i>
-                            <span>{{ isSaving ? 'Đang Lưu Cloud...' : 'Lưu Dữ Liệu Chuyến' }}</span>
+                            <span>{{ isSaving ? 'Đang Lưu Cloud DB...' : 'Lưu Dữ Liệu Chuyến' }}</span>
                         </button>
                     </div>
                 </form>
@@ -999,30 +991,31 @@
             </div>
         </div>
 
-        <!-- Cloud DB Configuration Modal -->
+        <!-- Cloud DB Status Modal -->
         <div v-if="showDbConfigModal" class="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
             <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4 border border-slate-200">
                 <div class="flex items-center justify-between border-b pb-3">
                     <h3 class="font-extrabold text-slate-900 text-sm flex items-center gap-2">
-                        <i class="fa-solid fa-database text-indigo-600"></i> Trạng Thái Kết Nối Database Cloud
+                        <i class="fa-solid fa-database text-indigo-600"></i> Trạng Thái Cloud Database
                     </h3>
                     <button @click="showDbConfigModal = false" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
                 </div>
 
                 <div class="space-y-3 text-xs">
                     <div class="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800">
-                        <p class="font-bold flex items-center gap-1.5"><i class="fa-solid fa-circle-check text-emerald-600"></i> Cloud Realtime DB: Đang Kích Hoạt</p>
-                        <p class="mt-1 text-[11px] text-emerald-700">Dữ liệu chuyến hàng và danh mục được tự động ghi nhận và đồng bộ trực tiếp hai chiều.</p>
+                        <p class="font-bold flex items-center gap-1.5"><i class="fa-solid fa-circle-check text-emerald-600"></i> Cloud DB Realtime Sync: Hoạt Động</p>
+                        <p class="mt-1 text-[11px] text-emerald-700">Tất cả thông tin chuyến xe, khách hàng, nhà xe, kho xưởng và tuyến đường được ghi lại trực tiếp trên Cloud Storage.</p>
                     </div>
-
-                    <div>
-                        <label class="block font-bold text-slate-700 mb-1">Google Apps Script API Endpoint (Tuỳ chọn)</label>
-                        <input v-model="apiUrl" type="text" class="w-full p-2 bg-slate-50 border rounded-xl font-mono-code text-[11px]">
+                    
+                    <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+                        <div class="flex justify-between"><span class="text-slate-500">App ID:</span> <span class="font-mono-code font-bold">{{ cloudAppId }}</span></div>
+                        <div class="flex justify-between"><span class="text-slate-500">Tổng chuyến xe:</span> <span class="font-bold text-indigo-600">{{ records.length }}</span></div>
+                        <div class="flex justify-between"><span class="text-slate-500">Nhà xe / Khách hàng:</span> <span class="font-bold">{{ transporters.length }} / {{ customers.length }}</span></div>
                     </div>
                 </div>
 
-                <div class="pt-2 flex justify-end gap-2">
-                    <button @click="showDbConfigModal = false" class="px-4 py-2 bg-slate-900 text-white font-bold text-xs rounded-xl">Đóng</button>
+                <div class="pt-2 flex justify-end">
+                    <button @click="showDbConfigModal = false" class="px-5 py-2 bg-slate-900 text-white font-bold text-xs rounded-xl hover:bg-slate-800">Đóng</button>
                 </div>
             </div>
         </div>
@@ -1046,34 +1039,27 @@
 
     </div>
 
-    <!-- Firebase Standard Integration Script -->
+    <!-- Firebase Cloud Storage Module Script -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Firebase Config Setup
         const firebaseConfig = typeof __firebase_config !== 'undefined' 
             ? JSON.parse(__firebase_config) 
-            : { apiKey: "demo-key", authDomain: "demo.firebaseapp.com", projectId: "spv-logistics-demo" };
+            : { apiKey: "demo-key", authDomain: "demo.firebaseapp.com", projectId: "spv-logistics-app" };
 
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'spv-shipping-app-v3';
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'spv-logistics-v3';
 
-        let app, auth, db;
-        try {
-            app = initializeApp(firebaseConfig);
-            auth = getAuth(app);
-            db = getFirestore(app);
-        } catch(e) {
-            console.warn("Firebase Init Fallback Mode", e);
-        }
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
 
         window.dbInstance = db;
         window.authInstance = auth;
         window.appIdInstance = appId;
         
-        // Export Firestore helpers to global window for Vue usage
-        window.fsHelpers = { collection, doc, setDoc, deleteDoc, onSnapshot };
+        window.fsHelpers = { collection, doc, setDoc, deleteDoc, onSnapshot, signInAnonymously, signInWithCustomToken };
     </script>
 
     <script>
@@ -1082,13 +1068,13 @@
         createApp({
             data() {
                 return {
-                    // API Endpoint & Cloud State
-                    apiUrl: 'https://script.google.com/macros/s/AKfycbxwIQuKGJm5mhuVz1ozYFHuCvb1fDWQjeu3Wz8599fSURqLBpO262AScDx0GqqBKeErMQ/exec',
+                    isConnected: false,
                     isLoading: false,
                     isSaving: false,
                     showDbConfigModal: false,
+                    cloudAppId: 'spv-logistics-v3',
 
-                    // Tabs & Security
+                    // Security & Navigation
                     activeTab: 'entry', 
                     activeSubTab: 'warehouse',
                     isReportUnlocked: false,
@@ -1097,44 +1083,27 @@
                     authPin: '3713132',
                     authError: '',
 
-                    // Catalog Modals
+                    // Catalog Forms
                     showCatalogModal: false,
                     catalogModalMode: 'add',
                     catalogSubTab: 'warehouse',
                     catalogFormData: {},
                     catalogSearchQuery: '',
 
-                    // Datasets
-                    warehouses: [
-                        { id: 'w1', contact_person: 'Nguyễn Văn Hùng', contact_phone: '0901234567', warehouse_name: 'Kho ICD Đình Vũ', location: 'Hải Phòng' },
-                        { id: 'w2', contact_person: 'Trần Thị Mai', contact_phone: '0912345678', warehouse_name: 'Kho VSIP 1', location: 'Bình Dương' },
-                        { id: 'w3', contact_person: 'Lê Hoàng Anh', contact_phone: '0988776655', warehouse_name: 'Kho KCN Quế Võ', location: 'Bắc Ninh' }
-                    ],
-                    transporters: [
-                        { id: 't1', transporter_name: 'Vận Tải Á Châu', tax_code: '0201234567' },
-                        { id: 't2', transporter_name: 'Vận Tải Hoàng Long', tax_code: '0309876543' },
-                        { id: 't3', transporter_name: 'Vận Tải Việt Hải', tax_code: '0105544332' }
-                    ],
-                    customers: [
-                        { id: 'c1', customer_name: 'Samsung Electronics', tax_code: '0102345678' },
-                        { id: 'c2', customer_name: 'Tập đoàn Hòa Phát', tax_code: '0908765432' },
-                        { id: 'c3', customer_name: 'Foxconn Việt Nam', tax_code: '0301122334' },
-                        { id: 'c4', customer_name: 'LG Display Hải Phòng', tax_code: '0209988776' }
-                    ],
-                    routes: [
-                        { id: 'r1', route_name: 'Hải Phòng - Hà Nội' },
-                        { id: 'r2', route_name: 'Cát Lái - Bình Dương' },
-                        { id: 'r3', route_name: 'Đình Vũ - Bắc Ninh' },
-                        { id: 'r4', route_name: 'Hải Phòng - Thái Nguyên' }
-                    ],
+                    // Primary Catalog Data
+                    warehouses: [],
+                    transporters: [],
+                    customers: [],
+                    routes: [],
 
-                    // Deletion Confirm
+                    // Confirm Deletion
                     showConfirmModal: false,
                     confirmModalText: '',
                     deleteTargetType: 'trip', // 'trip' or 'catalog'
                     itemToDelete: null,
+                    catalogTypeToDelete: '',
 
-                    // Column Definitions
+                    // Table Columns Setup
                     columns: [
                         { key: 'date_announced', label: 'A. Ngày báo xe', type: 'date', visible: true, required: true },
                         { key: 'delivery_date', label: 'B. Ngày đóng/trả hàng', type: 'date', visible: true, required: true },
@@ -1156,58 +1125,15 @@
                         { key: 'sale_price', label: 'R. Giá bán/cont', type: 'currency', visible: true, required: false, restricted: true }
                     ],
 
-                    // Primary Datasets (Shipments)
-                    records: [
-                        { 
-                            id: 'rec_1', 
-                            date_announced: '2026-07-28', 
-                            delivery_date: '2026-07-29', 
-                            route: 'Hải Phòng - Hà Nội', 
-                            transporter: 'Vận Tải Á Châu', 
-                            cont_number: 'TGHU1234567', 
-                            customer: 'Samsung Electronics', 
-                            batch_number: 'NK-2026-088', 
-                            cont_quantity: 2, 
-                            warehouse: 'Kho ICD Đình Vũ', 
-                            contact_person: 'Nguyễn Văn Hùng', 
-                            contact_phone: '0901234567', 
-                            base_price: 4500000, 
-                            sale_price: 5200000, 
-                            phoi_nang: true,
-                            phoi_ha: true,
-                            hd_ha_rong: true,
-                            hd_dich_vu: true,
-                            notes: 'Hàng điện tử dễ vỡ, giao đúng giờ.'
-                        },
-                        { 
-                            id: 'rec_2', 
-                            date_announced: '2026-07-30', 
-                            delivery_date: '2026-07-31', 
-                            route: 'Cát Lái - Bình Dương', 
-                            transporter: 'Vận Tải Hoàng Long', 
-                            cont_number: 'CMAU9876543', 
-                            customer: 'Tập đoàn Hòa Phát', 
-                            batch_number: 'XK-2026-102', 
-                            cont_quantity: 1, 
-                            warehouse: 'Kho VSIP 1', 
-                            contact_person: 'Trần Thị Mai', 
-                            contact_phone: '0912345678', 
-                            base_price: 3800000, 
-                            sale_price: 4300000, 
-                            phoi_nang: true,
-                            phoi_ha: true,
-                            hd_ha_rong: false,
-                            hd_dich_vu: true,
-                            notes: 'Yêu cầu hạ rỗng trước 17h.'
-                        }
-                    ],
+                    // Main Shipments Data
+                    records: [],
 
-                    // Modal Forms
+                    // Shipment Modal Form
                     showModal: false,
                     modalMode: 'add',
                     formData: {},
 
-                    // Filters & Pagination
+                    // Query Filters & Pagination
                     searchQuery: '',
                     filterCustomer: '',
                     filterTransporter: '',
@@ -1350,21 +1276,177 @@
 
             watch: {
                 filteredRecords() {
-                    if (this.activeTab === 'report') {
+                    if (this.activeTab === 'report' && this.isReportUnlocked) {
                         this.$nextTick(() => this.renderChart());
                     }
                 }
             },
 
-            async mounted() {
-                // Tải bộ nhớ tạm LocalStorage
-                this.loadFromLocalStorage();
-
-                // Kết nối Realtime Cloud Database Listener
-                this.initCloudDatabaseSync();
+            mounted() {
+                // Initialize Cloud Firebase Realtime Storage
+                this.initCloudDatabase();
             },
 
             methods: {
+                async initCloudDatabase() {
+                    this.isLoading = true;
+                    try {
+                        const checkEnv = setInterval(() => {
+                            if (window.dbInstance && window.fsHelpers) {
+                                clearInterval(checkEnv);
+                                this.setupRealtimeListeners();
+                            }
+                        }, 100);
+                    } catch (err) {
+                        console.error("Cloud DB Initialization error:", err);
+                        this.showToast("Không thể khởi tạo Cloud Database", "error");
+                    }
+                },
+
+                async setupRealtimeListeners() {
+                    const { collection, onSnapshot, signInAnonymously, signInWithCustomToken } = window.fsHelpers;
+                    const db = window.dbInstance;
+                    const auth = window.authInstance;
+                    const appId = window.appIdInstance;
+                    this.cloudAppId = appId;
+
+                    try {
+                        // Authenticate first before any query
+                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                            await signInWithCustomToken(auth, __initial_auth_token);
+                        } else {
+                            await signInAnonymously(auth);
+                        }
+                    } catch (e) {
+                        console.warn("Auth token fallback:", e);
+                        await signInAnonymously(auth);
+                    }
+
+                    this.isConnected = true;
+
+                    // Public Path format according to Mandatory Rule 1
+                    const getCol = (colName) => collection(db, 'artifacts', appId, 'public', 'data', colName);
+
+                    // 1. Listen to Shipments
+                    onSnapshot(getCol('shipments'), (snapshot) => {
+                        const data = [];
+                        snapshot.forEach((docSnap) => {
+                            data.push({ id: docSnap.id, ...docSnap.data() });
+                        });
+                        this.records = data;
+                        if (data.length === 0) {
+                            this.seedInitialShipments();
+                        }
+                        this.isLoading = false;
+                    }, (err) => {
+                        console.error("Shipments Snapshot Error:", err);
+                    });
+
+                    // 2. Listen to Warehouses
+                    onSnapshot(getCol('warehouses'), (snapshot) => {
+                        const data = [];
+                        snapshot.forEach((docSnap) => {
+                            data.push({ id: docSnap.id, ...docSnap.data() });
+                        });
+                        this.warehouses = data;
+                        if (data.length === 0) this.seedInitialWarehouses();
+                    }, (err) => console.error(err));
+
+                    // 3. Listen to Transporters
+                    onSnapshot(getCol('transporters'), (snapshot) => {
+                        const data = [];
+                        snapshot.forEach((docSnap) => {
+                            data.push({ id: docSnap.id, ...docSnap.data() });
+                        });
+                        this.transporters = data;
+                        if (data.length === 0) this.seedInitialTransporters();
+                    }, (err) => console.error(err));
+
+                    // 4. Listen to Customers
+                    onSnapshot(getCol('customers'), (snapshot) => {
+                        const data = [];
+                        snapshot.forEach((docSnap) => {
+                            data.push({ id: docSnap.id, ...docSnap.data() });
+                        });
+                        this.customers = data;
+                        if (data.length === 0) this.seedInitialCustomers();
+                    }, (err) => console.error(err));
+
+                    // 5. Listen to Routes
+                    onSnapshot(getCol('routes'), (snapshot) => {
+                        const data = [];
+                        snapshot.forEach((docSnap) => {
+                            data.push({ id: docSnap.id, ...docSnap.data() });
+                        });
+                        this.routes = data;
+                        if (data.length === 0) this.seedInitialRoutes();
+                    }, (err) => console.error(err));
+                },
+
+                async seedInitialShipments() {
+                    const defaultRecords = [
+                        { id: 'rec_1', date_announced: '2026-07-28', delivery_date: '2026-07-29', route: 'Hải Phòng - Hà Nội', transporter: 'Vận Tải Á Châu', cont_number: 'TGHU1234567', customer: 'Samsung Electronics', batch_number: 'NK-2026-088', cont_quantity: 2, warehouse: 'Kho ICD Đình Vũ', contact_person: 'Nguyễn Văn Hùng', contact_phone: '0901234567', base_price: 4500000, sale_price: 5200000, phoi_nang: true, phoi_ha: true, hd_ha_rong: true, hd_dich_vu: true, notes: 'Hàng điện tử dễ vỡ, giao đúng giờ.' },
+                        { id: 'rec_2', date_announced: '2026-07-30', delivery_date: '2026-07-31', route: 'Cát Lái - Bình Dương', transporter: 'Vận Tải Hoàng Long', cont_number: 'CMAU9876543', customer: 'Tập đoàn Hòa Phát', batch_number: 'XK-2026-102', cont_quantity: 1, warehouse: 'Kho VSIP 1', contact_person: 'Trần Thị Mai', contact_phone: '0912345678', base_price: 3800000, sale_price: 4300000, phoi_nang: true, phoi_ha: true, hd_ha_rong: false, hd_dich_vu: true, notes: 'Yêu cầu hạ rỗng trước 17h.' }
+                    ];
+                    for (const r of defaultRecords) {
+                        await this.saveToCloud('shipments', r.id, r);
+                    }
+                },
+
+                async seedInitialWarehouses() {
+                    const defaultWh = [
+                        { id: 'w1', contact_person: 'Nguyễn Văn Hùng', contact_phone: '0901234567', warehouse_name: 'Kho ICD Đình Vũ', location: 'Hải Phòng' },
+                        { id: 'w2', contact_person: 'Trần Thị Mai', contact_phone: '0912345678', warehouse_name: 'Kho VSIP 1', location: 'Bình Dương' },
+                        { id: 'w3', contact_person: 'Lê Hoàng Anh', contact_phone: '0988776655', warehouse_name: 'Kho KCN Quế Võ', location: 'Bắc Ninh' }
+                    ];
+                    for (const item of defaultWh) await this.saveToCloud('warehouses', item.id, item);
+                },
+
+                async seedInitialTransporters() {
+                    const defaultTrans = [
+                        { id: 't1', transporter_name: 'Vận Tải Á Châu', tax_code: '0201234567' },
+                        { id: 't2', transporter_name: 'Vận Tải Hoàng Long', tax_code: '0309876543' },
+                        { id: 't3', transporter_name: 'Vận Tải Việt Hải', tax_code: '0105544332' }
+                    ];
+                    for (const item of defaultTrans) await this.saveToCloud('transporters', item.id, item);
+                },
+
+                async seedInitialCustomers() {
+                    const defaultCust = [
+                        { id: 'c1', customer_name: 'Samsung Electronics', tax_code: '0102345678' },
+                        { id: 'c2', customer_name: 'Tập đoàn Hòa Phát', tax_code: '0908765432' },
+                        { id: 'c3', customer_name: 'Foxconn Việt Nam', tax_code: '0301122334' },
+                        { id: 'c4', customer_name: 'LG Display Hải Phòng', tax_code: '0209988776' }
+                    ];
+                    for (const item of defaultCust) await this.saveToCloud('customers', item.id, item);
+                },
+
+                async seedInitialRoutes() {
+                    const defaultRt = [
+                        { id: 'r1', route_name: 'Hải Phòng - Hà Nội' },
+                        { id: 'r2', route_name: 'Cát Lái - Bình Dương' },
+                        { id: 'r3', route_name: 'Đình Vũ - Bắc Ninh' },
+                        { id: 'r4', route_name: 'Hải Phòng - Thái Nguyên' }
+                    ];
+                    for (const item of defaultRt) await this.saveToCloud('routes', item.id, item);
+                },
+
+                async saveToCloud(collectionName, docId, data) {
+                    const { doc, setDoc } = window.fsHelpers;
+                    const db = window.dbInstance;
+                    const appId = window.appIdInstance;
+                    const docRef = doc(db, 'artifacts', appId, 'public', 'data', collectionName, docId);
+                    await setDoc(docRef, data, { merge: true });
+                },
+
+                async deleteFromCloud(collectionName, docId) {
+                    const { doc, deleteDoc } = window.fsHelpers;
+                    const db = window.dbInstance;
+                    const appId = window.appIdInstance;
+                    const docRef = doc(db, 'artifacts', appId, 'public', 'data', collectionName, docId);
+                    await deleteDoc(docRef);
+                },
+
                 showToast(message, type = 'success') {
                     this.toast = { show: true, message, type };
                     setTimeout(() => { this.toast.show = false; }, 3500);
@@ -1375,119 +1457,15 @@
                     return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(value);
                 },
 
-                loadFromLocalStorage() {
-                    try {
-                        const recs = localStorage.getItem('spv_records');
-                        if (recs) this.records = JSON.parse(recs);
-
-                        const whs = localStorage.getItem('spv_warehouses');
-                        if (whs) this.warehouses = JSON.parse(whs);
-
-                        const trans = localStorage.getItem('spv_transporters');
-                        if (trans) this.transporters = JSON.parse(trans);
-
-                        const cust = localStorage.getItem('spv_customers');
-                        if (cust) this.customers = JSON.parse(cust);
-
-                        const rts = localStorage.getItem('spv_routes');
-                        if (rts) this.routes = JSON.parse(rts);
-                    } catch(e) {
-                        console.error('Lỗi đọc LocalStorage:', e);
-                    }
-                },
-
-                saveToLocalStorage() {
-                    try {
-                        localStorage.setItem('spv_records', JSON.stringify(this.records));
-                        localStorage.setItem('spv_warehouses', JSON.stringify(this.warehouses));
-                        localStorage.setItem('spv_transporters', JSON.stringify(this.transporters));
-                        localStorage.setItem('spv_customers', JSON.stringify(this.customers));
-                        localStorage.setItem('spv_routes', JSON.stringify(this.routes));
-                    } catch(e) {
-                        console.error('Lỗi ghi LocalStorage:', e);
-                    }
-                },
-
-                async syncRecordToCloud(recordDoc) {
-                    this.saveToLocalStorage();
-                    
-                    try {
-                        if (window.dbInstance && window.fsHelpers) {
-                            const { doc, setDoc } = window.fsHelpers;
-                            const docRef = doc(window.dbInstance, 'artifacts', window.appIdInstance, 'public', 'data', 'shipments', String(recordDoc.id));
-                            await setDoc(docRef, { ...recordDoc, updatedAt: new Date().toISOString() }, { merge: true });
-                        }
-                    } catch (e) {
-                        console.warn("Lưu Firestore tự động:", e);
-                    }
-                },
-
-                async deleteRecordFromCloud(recordId) {
-                    this.saveToLocalStorage();
-                    try {
-                        if (window.dbInstance && window.fsHelpers) {
-                            const { doc, deleteDoc } = window.fsHelpers;
-                            const docRef = doc(window.dbInstance, 'artifacts', window.appIdInstance, 'public', 'data', 'shipments', String(recordId));
-                            await deleteDoc(docRef);
-                        }
-                    } catch (e) {
-                        console.warn("Xóa Firestore:", e);
-                    }
-                },
-
-                initCloudDatabaseSync() {
-                    setTimeout(() => {
-                        if (window.dbInstance && window.fsHelpers) {
-                            try {
-                                const { collection, onSnapshot } = window.fsHelpers;
-                                const colRef = collection(window.dbInstance, 'artifacts', window.appIdInstance, 'public', 'data', 'shipments');
-                                onSnapshot(colRef, (snapshot) => {
-                                    if (!snapshot.empty) {
-                                        const cloudData = [];
-                                        snapshot.forEach(doc => cloudData.push({ id: doc.id, ...doc.data() }));
-                                        this.records = cloudData;
-                                        this.saveToLocalStorage();
-                                        if (this.activeTab === 'report') this.renderChart();
-                                    }
-                                }, (err) => console.log("Realtime Sync Notice:", err));
-                            } catch(e) {
-                                console.warn("Init DB Sync:", e);
-                            }
-                        }
-                    }, 1000);
-                },
-
-                async forceRefreshFromCloud() {
-                    this.isLoading = true;
-                    try {
-                        if (this.apiUrl) {
-                            const res = await fetch(this.apiUrl);
-                            if (res.ok) {
-                                const data = await res.json();
-                                if (Array.isArray(data) && data.length > 0) {
-                                    this.records = data;
-                                    this.saveToLocalStorage();
-                                    this.showToast('Đã đồng bộ dữ liệu mới nhất từ Cloud!', 'success');
-                                }
-                            }
-                        }
-                    } catch (e) {
-                        this.showToast('Đã làm mới dữ liệu từ bộ nhớ hệ thống.', 'success');
-                    } finally {
-                        this.isLoading = false;
-                    }
-                },
-
-                // Switch Navigation
                 switchTab(tab) {
                     if (tab === 'report' && !this.isReportUnlocked) {
                         this.showAuthModal = true;
-                        this.enteredPin = '';
                         this.authError = '';
+                        this.enteredPin = '';
                         return;
                     }
                     this.activeTab = tab;
-                    if (tab === 'report') {
+                    if (tab === 'report' && this.isReportUnlocked) {
                         this.$nextTick(() => this.renderChart());
                     }
                 },
@@ -1497,20 +1475,19 @@
                         this.isReportUnlocked = true;
                         this.showAuthModal = false;
                         this.activeTab = 'report';
-                        this.showToast('Mở khóa Tab Báo Cáo Tài Chính thành công!', 'success');
+                        this.showToast("Mở khóa Tab Báo Cáo Tài Chính thành công!");
                         this.$nextTick(() => this.renderChart());
                     } else {
-                        this.authError = 'Mã PIN không đúng. Vui lòng thử lại!';
+                        this.authError = 'Mã PIN bảo mật không chính xác!';
                     }
                 },
 
                 lockReportTab() {
                     this.isReportUnlocked = false;
                     this.activeTab = 'entry';
-                    this.showToast('Đã khóa bảo mật Tab Báo Cáo Tài Chính.', 'success');
+                    this.showToast("Đã khóa bảo mật Tab Báo Cáo Tài Chính.");
                 },
 
-                // Shipment Actions
                 openModal(mode, record = null) {
                     this.modalMode = mode;
                     if (mode === 'edit' && record) {
@@ -1518,7 +1495,7 @@
                     } else {
                         const today = new Date().toISOString().split('T')[0];
                         this.formData = {
-                            id: 'rec_' + Date.now(),
+                            id: 'spv_' + Date.now(),
                             date_announced: today,
                             delivery_date: today,
                             route: '',
@@ -1530,10 +1507,10 @@
                             warehouse: '',
                             contact_person: '',
                             contact_phone: '',
-                            phoi_nang: true,
-                            phoi_ha: true,
+                            phoi_nang: false,
+                            phoi_ha: false,
                             hd_ha_rong: false,
-                            hd_dich_vu: true,
+                            hd_dich_vu: false,
                             notes: '',
                             base_price: 0,
                             sale_price: 0
@@ -1557,74 +1534,68 @@
                 async saveRecord() {
                     this.isSaving = true;
                     try {
-                        const idx = this.records.findIndex(r => r.id === this.formData.id);
-                        if (idx !== -1) {
-                            this.records[idx] = { ...this.formData };
-                        } else {
-                            this.records.unshift({ ...this.formData });
-                        }
-
-                        // Cập nhật ngay lập tức lên Cloud DB
-                        await this.syncRecordToCloud(this.formData);
-
-                        this.showToast(this.modalMode === 'add' ? 'Thêm chuyến hàng thành công & đã lưu DB!' : 'Cập nhật chuyến hàng thành công & đã lưu DB!', 'success');
+                        const recId = this.formData.id || ('spv_' + Date.now());
+                        this.formData.id = recId;
+                        await this.saveToCloud('shipments', recId, this.formData);
+                        this.showToast(this.modalMode === 'add' ? 'Thêm chuyến xe mới vào Cloud DB thành công!' : 'Cập nhật chuyến xe thành công!');
                         this.closeModal();
                     } catch (e) {
-                        this.showToast('Có lỗi xảy ra khi lưu dữ liệu.', 'error');
+                        console.error(e);
+                        this.showToast("Có lỗi xảy ra khi lưu lên Cloud DB", "error");
                     } finally {
                         this.isSaving = false;
                     }
                 },
 
-                async toggleCheckboxField(record, fieldKey) {
-                    record[fieldKey] = !record[fieldKey];
-                    await this.syncRecordToCloud(record);
-                    this.showToast(`Đã cập nhật trạng thái ${fieldKey}`, 'success');
+                async toggleCheckboxField(record, key) {
+                    record[key] = !record[key];
+                    await this.saveToCloud('shipments', record.id, record);
+                    this.showToast(`Đã cập nhật trạng thái ${key}`);
                 },
 
                 duplicateRecord(record) {
-                    const newRec = JSON.parse(JSON.stringify(record));
-                    newRec.id = 'rec_' + Date.now();
-                    newRec.cont_number = (newRec.cont_number || '') + '_COPY';
-                    this.records.unshift(newRec);
-                    this.syncRecordToCloud(newRec);
-                    this.showToast('Đã nhân bản chuyến hàng mới!', 'success');
+                    const cloned = JSON.parse(JSON.stringify(record));
+                    cloned.id = 'spv_' + Date.now();
+                    cloned.cont_number = cloned.cont_number + '_COPY';
+                    this.formData = cloned;
+                    this.modalMode = 'add';
+                    this.showModal = true;
                 },
 
                 confirmDeleteTrip(record) {
                     this.deleteTargetType = 'trip';
                     this.itemToDelete = record;
-                    this.confirmModalText = `Bạn có chắc chắn muốn xóa chuyến hàng số cont "${record.cont_number}"? Hành động này sẽ tự động xóa khỏi Database Cloud.`;
+                    this.confirmModalText = `Bạn có chắc muốn xóa chuyến cont ${record.cont_number || ''} (${record.customer || ''})?`;
+                    this.showConfirmModal = true;
+                },
+
+                confirmDeleteCatalog(type, item) {
+                    this.deleteTargetType = 'catalog';
+                    this.catalogTypeToDelete = type;
+                    this.itemToDelete = item;
+                    this.confirmModalText = `Bạn có chắc muốn xóa mục này khỏi danh mục chuẩn?`;
                     this.showConfirmModal = true;
                 },
 
                 async executeConfirmedDelete() {
-                    if (this.deleteTargetType === 'trip' && this.itemToDelete) {
-                        const id = this.itemToDelete.id;
-                        this.records = this.records.filter(r => r.id !== id);
-                        await this.deleteRecordFromCloud(id);
-                        this.showToast('Đã xóa chuyến hàng khỏi Database!', 'success');
-                    } else if (this.deleteTargetType === 'catalog' && this.itemToDelete) {
-                        const { subTab, item } = this.itemToDelete;
-                        if (subTab === 'warehouse') this.warehouses = this.warehouses.filter(x => x.id !== item.id);
-                        if (subTab === 'transporter') this.transporters = this.transporters.filter(x => x.id !== item.id);
-                        if (subTab === 'customer') this.customers = this.customers.filter(x => x.id !== item.id);
-                        if (subTab === 'route') this.routes = this.routes.filter(x => x.id !== item.id);
-                        this.saveToLocalStorage();
-                        this.showToast('Đã xóa danh mục!', 'success');
-                    }
-                    this.showConfirmModal = false;
-                    this.itemToDelete = null;
-                },
-
-                // Catalog Actions
-                getCatalogTitle(subTab) {
-                    switch(subTab) {
-                        case 'warehouse': return 'Thông Tin Kho';
-                        case 'transporter': return 'Nhà Xe';
-                        case 'customer': return 'Khách Hàng';
-                        case 'route': return 'Tuyến Đường';
-                        default: return 'Danh Mục';
+                    try {
+                        if (this.deleteTargetType === 'trip' && this.itemToDelete) {
+                            await this.deleteFromCloud('shipments', this.itemToDelete.id);
+                            this.showToast("Đã xóa chuyến xe khỏi Cloud DB!");
+                        } else if (this.deleteTargetType === 'catalog' && this.itemToDelete) {
+                            const colMap = { warehouse: 'warehouses', transporter: 'transporters', customer: 'customers', route: 'routes' };
+                            const targetCol = colMap[this.catalogTypeToDelete];
+                            if (targetCol) {
+                                await this.deleteFromCloud(targetCol, this.itemToDelete.id);
+                                this.showToast("Đã xóa mục danh mục!");
+                            }
+                        }
+                    } catch (e) {
+                        console.error(e);
+                        this.showToast("Không thể xóa dữ liệu", "error");
+                    } finally {
+                        this.showConfirmModal = false;
+                        this.itemToDelete = null;
                     }
                 },
 
@@ -1634,40 +1605,27 @@
                     if (mode === 'edit' && item) {
                         this.catalogFormData = JSON.parse(JSON.stringify(item));
                     } else {
-                        this.catalogFormData = { id: subTab.charAt(0) + '_' + Date.now() };
+                        this.catalogFormData = { id: 'cat_' + Date.now() };
                     }
                     this.showCatalogModal = true;
                 },
 
-                saveCatalogItem() {
-                    const sub = this.catalogSubTab;
-                    let targetList = this[sub + 's'] || (sub === 'warehouse' ? this.warehouses : []);
+                async saveCatalogItem() {
+                    const colMap = { warehouse: 'warehouses', transporter: 'transporters', customer: 'customers', route: 'routes' };
+                    const targetCol = colMap[this.catalogSubTab];
+                    const catId = this.catalogFormData.id || ('cat_' + Date.now());
+                    this.catalogFormData.id = catId;
 
-                    if (sub === 'warehouse') targetList = this.warehouses;
-                    if (sub === 'transporter') targetList = this.transporters;
-                    if (sub === 'customer') targetList = this.customers;
-                    if (sub === 'route') targetList = this.routes;
-
-                    const idx = targetList.findIndex(x => x.id === this.catalogFormData.id);
-                    if (idx !== -1) {
-                        targetList[idx] = { ...this.catalogFormData };
-                    } else {
-                        targetList.unshift({ ...this.catalogFormData });
-                    }
-
-                    this.saveToLocalStorage();
+                    await this.saveToCloud(targetCol, catId, this.catalogFormData);
+                    this.showToast("Đã lưu danh mục thành công!");
                     this.showCatalogModal = false;
-                    this.showToast('Đã lưu thông tin danh mục thành công!', 'success');
                 },
 
-                deleteCatalogItem(subTab, item) {
-                    this.deleteTargetType = 'catalog';
-                    this.itemToDelete = { subTab, item };
-                    this.confirmModalText = `Xóa mục này khỏi danh mục ${this.getCatalogTitle(subTab)}?`;
-                    this.showConfirmModal = true;
+                getCatalogTitle(subTab) {
+                    const titles = { warehouse: 'Kho/Xưởng', transporter: 'Nhà Xe', customer: 'Khách Hàng', route: 'Tuyến Đường' };
+                    return titles[subTab] || 'Danh Mục';
                 },
 
-                // Filtering & Sorting Helpers
                 sortBy(colKey) {
                     if (this.sortColumn === colKey) {
                         this.sortOrder = this.sortOrder === 'asc' ? 'desc' : 'asc';
@@ -1685,100 +1643,40 @@
                     this.filterDateTo = '';
                 },
 
-                // Financial Chart
-                renderChart() {
-                    const ctx = document.getElementById('financialChart');
-                    if (!ctx) return;
-
-                    if (this.chartInstance) {
-                        this.chartInstance.destroy();
-                    }
-
-                    // Group revenue/cost by customer
-                    const stats = {};
-                    this.filteredRecords.forEach(r => {
-                        const cust = r.customer || 'Khác';
-                        const qty = Number(r.cont_quantity) || 1;
-                        if (!stats[cust]) stats[cust] = { sale: 0, base: 0 };
-                        stats[cust].sale += (Number(r.sale_price) || 0) * qty;
-                        stats[cust].base += (Number(r.base_price) || 0) * qty;
-                    });
-
-                    const labels = Object.keys(stats);
-                    const saleData = labels.map(l => stats[l].sale);
-                    const baseData = labels.map(l => stats[l].base);
-
-                    this.chartInstance = new Chart(ctx, {
-                        type: 'bar',
-                        data: {
-                            labels: labels,
-                            datasets: [
-                                {
-                                    label: 'Doanh Thu (Giá Bán)',
-                                    data: saleData,
-                                    backgroundColor: '#10b981',
-                                    borderRadius: 6
-                                },
-                                {
-                                    label: 'Chi Phí (Giá Gốc)',
-                                    data: baseData,
-                                    backgroundColor: '#64748b',
-                                    borderRadius: 6
-                                }
-                            ]
-                        },
-                        options: {
-                            responsive: true,
-                            maintainAspectRatio: false,
-                            plugins: {
-                                legend: { position: 'top' }
-                            },
-                            scales: {
-                                y: {
-                                    ticks: {
-                                        callback: function(value) {
-                                            return (value / 1000000).toFixed(1) + ' Tr';
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    });
-                },
-
-                // Excel Export/Import & Print
                 exportToExcel() {
-                    try {
-                        const exportData = this.filteredRecords.map((r, i) => ({
-                            'STT': i + 1,
-                            'Ngày báo xe': r.date_announced,
-                            'Ngày đóng/trả hàng': r.delivery_date,
-                            'Tuyến đường': r.route,
-                            'Đơn vị vận chuyển': r.transporter,
-                            'Số cont': r.cont_number,
-                            'Khách hàng': r.customer,
-                            'Số lô': r.batch_number,
-                            'Số lượng cont': r.cont_quantity,
-                            'Kho/xưởng': r.warehouse,
-                            'Người nhận': r.contact_person,
-                            'SĐT người nhận': r.contact_phone,
-                            'Phơi nâng': r.phoi_nang ? 'Có' : 'Không',
-                            'Phơi hạ': r.phoi_ha ? 'Có' : 'Không',
-                            'HĐ hạ rỗng': r.hd_ha_rong ? 'Có' : 'Không',
-                            'HĐ dịch vụ': r.hd_dich_vu ? 'Có' : 'Không',
-                            'Ghi chú': r.notes,
-                            'Giá gốc/cont': r.base_price,
-                            'Giá bán/cont': r.sale_price
-                        }));
-
-                        const ws = XLSX.utils.json_to_sheet(exportData);
-                        const wb = XLSX.utils.book_new();
-                        XLSX.utils.book_append_sheet(wb, ws, "Báo Cáo SPV");
-                        XLSX.writeFile(wb, `Bao_Cao_Van_Chuyen_SPV_${new Date().toISOString().split('T')[0]}.xlsx`);
-                        this.showToast('Đã xuất báo cáo Excel thành công!', 'success');
-                    } catch (e) {
-                        this.showToast('Không thể xuất Excel.', 'error');
+                    if (typeof XLSX === 'undefined') {
+                        this.showToast("Thư viện SheetJS chưa sẵn sàng", "error");
+                        return;
                     }
+                    const exportData = this.filteredRecords.map((r, i) => ({
+                        'STT': i + 1,
+                        'A. Ngày báo xe': r.date_announced,
+                        'B. Ngày đóng/trả hàng': r.delivery_date,
+                        'C. Tuyến đường': r.route,
+                        'D. Đơn vị vận chuyển': r.transporter,
+                        'E. Số cont': r.cont_number,
+                        'F. Khách hàng': r.customer,
+                        'G. Số lô': r.batch_number,
+                        'H. Số lượng cont': r.cont_quantity,
+                        'I. Kho/xưởng': r.warehouse,
+                        'J. Người giao nhận': r.contact_person,
+                        'K. SĐT nhận': r.contact_phone,
+                        'L. Phơi nâng': r.phoi_nang ? 'Có' : 'Không',
+                        'M. Phơi hạ': r.phoi_ha ? 'Có' : 'Không',
+                        'N. HĐ Hạ rỗng': r.hd_ha_rong ? 'Có' : 'Không',
+                        'O. HĐ Dịch vụ': r.hd_dich_vu ? 'Có' : 'Không',
+                        'P. Ghi chú': r.notes,
+                        'Q. Giá gốc/cont (VND)': r.base_price,
+                        'R. Giá bán/cont (VND)': r.sale_price,
+                        'Tổng Doanh Thu (VND)': (r.sale_price || 0) * (r.cont_quantity || 1),
+                        'Tổng Chi Phí (VND)': (r.base_price || 0) * (r.cont_quantity || 1)
+                    }));
+
+                    const worksheet = XLSX.utils.json_to_sheet(exportData);
+                    const workbook = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(workbook, worksheet, "Báo Cáo SPV");
+                    XLSX.writeFile(workbook, `Bao_Cao_SPV_Logistics_${new Date().toISOString().split('T')[0]}.xlsx`);
+                    this.showToast("Đã xuất báo cáo Excel thành công!");
                 },
 
                 importFromFile(event) {
@@ -1786,46 +1684,115 @@
                     if (!file) return;
 
                     const reader = new FileReader();
-                    reader.onload = (e) => {
+                    reader.onload = async (e) => {
                         try {
                             const data = new Uint8Array(e.target.result);
                             const workbook = XLSX.read(data, { type: 'array' });
-                            const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-                            const jsonData = XLSX.utils.sheet_to_json(firstSheet);
+                            const firstSheet = workbook.SheetNames[0];
+                            const worksheet = workbook.Sheets[firstSheet];
+                            const json = XLSX.utils.sheet_to_json(worksheet);
 
-                            if (jsonData && jsonData.length > 0) {
-                                const imported = jsonData.map((item, idx) => ({
-                                    id: 'rec_imp_' + Date.now() + '_' + idx,
-                                    date_announced: item['Ngày báo xe'] || new Date().toISOString().split('T')[0],
-                                    delivery_date: item['Ngày đóng/trả hàng'] || new Date().toISOString().split('T')[0],
-                                    route: item['Tuyến đường'] || '',
-                                    transporter: item['Đơn vị vận chuyển'] || '',
-                                    cont_number: item['Số cont'] || 'CONT' + idx,
-                                    customer: item['Khách hàng'] || '',
-                                    batch_number: item['Số lô'] || '',
-                                    cont_quantity: Number(item['Số lượng cont']) || 1,
-                                    warehouse: item['Kho/xưởng'] || '',
-                                    contact_person: item['Người nhận'] || '',
-                                    contact_phone: item['SĐT người nhận'] || '',
-                                    phoi_nang: item['Phơi nâng'] === 'Có' || item['Phơi nâng'] === true,
-                                    phoi_ha: item['Phơi hạ'] === 'Có' || item['Phơi hạ'] === true,
-                                    hd_ha_rong: item['HĐ hạ rỗng'] === 'Có' || item['HĐ hạ rỗng'] === true,
-                                    hd_dich_vu: item['HĐ dịch vụ'] === 'Có' || item['HĐ dịch vụ'] === true,
-                                    notes: item['Ghi chú'] || '',
-                                    base_price: Number(item['Giá gốc/cont']) || 0,
-                                    sale_price: Number(item['Giá bán/cont']) || 0
-                                }));
+                            let importedCount = 0;
+                            for (const row of json) {
+                                const newRec = {
+                                    id: 'spv_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+                                    date_announced: row['A. Ngày báo xe'] || row['Ngày báo xe'] || new Date().toISOString().split('T')[0],
+                                    delivery_date: row['B. Ngày đóng/trả hàng'] || row['Ngày đóng/trả hàng'] || new Date().toISOString().split('T')[0],
+                                    route: row['C. Tuyến đường'] || row['Tuyến đường'] || 'N/A',
+                                    transporter: row['D. Đơn vị vận chuyển'] || row['Đơn vị vận chuyển'] || 'N/A',
+                                    cont_number: row['E. Số cont'] || row['Số cont'] || 'CONT' + Math.floor(Math.random()*1000000),
+                                    customer: row['F. Khách hàng'] || row['Khách hàng'] || 'N/A',
+                                    batch_number: row['G. Số lô'] || row['Số lô'] || '',
+                                    cont_quantity: Number(row['H. Số lượng cont'] || row['Số lượng cont']) || 1,
+                                    warehouse: row['I. Kho/xưởng'] || row['Kho/xưởng'] || '',
+                                    contact_person: row['J. Người giao nhận'] || row['Người giao nhận'] || '',
+                                    contact_phone: row['K. SĐT nhận'] || row['SĐT nhận'] || '',
+                                    phoi_nang: String(row['L. Phơi nâng']).toLowerCase() === 'có' || row['Phơi nâng'] === true,
+                                    phoi_ha: String(row['M. Phơi hạ']).toLowerCase() === 'có' || row['Phơi hạ'] === true,
+                                    hd_ha_rong: String(row['N. HĐ Hạ rỗng']).toLowerCase() === 'có' || row['HĐ Hạ rỗng'] === true,
+                                    hd_dich_vu: String(row['O. HĐ Dịch vụ']).toLowerCase() === 'có' || row['HĐ Dịch vụ'] === true,
+                                    notes: row['P. Ghi chú'] || row['Ghi chú'] || '',
+                                    base_price: Number(row['Q. Giá gốc/cont (VND)'] || row['Giá gốc/cont']) || 0,
+                                    sale_price: Number(row['R. Giá bán/cont (VND)'] || row['Giá bán/cont']) || 0
+                                };
 
-                                this.records = [...imported, ...this.records];
-                                this.saveToLocalStorage();
-                                imported.forEach(rec => this.syncRecordToCloud(rec));
-                                this.showToast(`Đã nhập thành công ${imported.length} chuyến từ Excel & lưu Database!`, 'success');
+                                await this.saveToCloud('shipments', newRec.id, newRec);
+                                importedCount++;
                             }
+
+                            this.showToast(`Đã nhập thành công ${importedCount} chuyến hàng từ tệp Excel!`);
                         } catch (err) {
-                            this.showToast('File Excel không đúng định dạng mẫu.', 'error');
+                            console.error(err);
+                            this.showToast("Lỗi khi đọc file Excel!", "error");
                         }
                     };
                     reader.readAsArrayBuffer(file);
+                },
+
+                renderChart() {
+                    const ctx = document.getElementById('financialChart');
+                    if (!ctx) return;
+
+                    // Group revenue and base price by Customer
+                    const customerMap = {};
+                    this.filteredRecords.forEach(r => {
+                        const cust = r.customer || 'Khác';
+                        if (!customerMap[cust]) {
+                            customerMap[cust] = { revenue: 0, cost: 0 };
+                        }
+                        const qty = Number(r.cont_quantity) || 1;
+                        customerMap[cust].revenue += (Number(r.sale_price) || 0) * qty;
+                        customerMap[cust].cost += (Number(r.base_price) || 0) * qty;
+                    });
+
+                    const labels = Object.keys(customerMap);
+                    const revenues = labels.map(l => customerMap[l].revenue);
+                    const costs = labels.map(l => customerMap[l].cost);
+
+                    if (this.chartInstance) {
+                        this.chartInstance.destroy();
+                    }
+
+                    this.chartInstance = new Chart(ctx, {
+                        type: 'bar',
+                        data: {
+                            labels: labels.length ? labels : ['Chưa có dữ liệu'],
+                            datasets: [
+                                {
+                                    label: 'Doanh Thu (VNĐ)',
+                                    data: revenues.length ? revenues : [0],
+                                    backgroundColor: '#10b981',
+                                    borderRadius: 8
+                                },
+                                {
+                                    label: 'Chi Phí Gốc (VNĐ)',
+                                    data: costs.length ? costs : [0],
+                                    backgroundColor: '#64748b',
+                                    borderRadius: 8
+                                }
+                            ]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: { position: 'top' },
+                                tooltip: {
+                                    callbacks: {
+                                        label: (context) => context.dataset.label + ': ' + this.formatCurrency(context.raw)
+                                    }
+                                }
+                            },
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    ticks: {
+                                        callback: (val) => (val / 1000000).toFixed(0) + ' Tr'
+                                    }
+                                }
+                            }
+                        }
+                    });
                 },
 
                 printTable() {
