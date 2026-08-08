@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hệ Thống Quản Lý Đơn Vận Chuyển SPV - Supabase Realtime SQL</title>
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+    <!-- Vue 3 CDN -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+
+    <!-- SheetJS XLSX Library for Excel Import/Export -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+    <!-- Chart.js for Visual Analytics -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- Supabase JS Client v2 (SQL Realtime DB) -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #f8fafc; }
+        .font-mono-code { font-family: 'JetBrains Mono', monospace; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 9999px; }
+        .glass-header { background: rgba(15, 23, 42, 0.95); backdrop-filter: blur(12px); }
+        .card-glow:hover { box-shadow: 0 10px 25px -5px rgba(79, 70, 229, 0.15), 0 8px 10px -6px rgba(79, 70, 229, 0.1); }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        @media print {
+            body * { visibility: hidden; }
+            .no-print, .no-print * { display: none !important; }
+            #printable-receipt-modal, #printable-receipt-modal * { visibility: visible; }
+            #printable-receipt-modal {
+                position: absolute; left: 0; top: 0; width: 100%; height: auto;
+                background: white !important; padding: 0 !important; margin: 0 !important;
+                box-shadow: none !important; border: none !important;
+            }
+        }
+        .fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease; }
+        .fade-enter-from, .fade-leave-to { opacity: 0; }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 min-h-screen flex flex-col selection:bg-indigo-500 selection:text-white">
+    
+    <div id="app" class="flex flex-col min-h-screen">
+        
+        <!-- HEADER NAVBAR -->
+        <header class="glass-header text-white shadow-xl no-print sticky top-0 z-30 border-b border-indigo-500/20">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex items-center justify-between h-16">
+                    <div class="flex items-center space-x-3.5">
+                        <div class="bg-gradient-to-tr from-indigo-600 via-indigo-500 to-sky-400 p-2.5 rounded-xl shadow-lg shadow-indigo-500/30">
+                            <i class="fa-solid fa-truck-fast text-xl text-white"></i>
+                        </div>
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <h1 class="font-extrabold text-base sm:text-lg bg-clip-text text-transparent bg-gradient-to-r from-white via-slate-100 to-indigo-200">
+                                    Hệ Thống Quản Lý Đơn Vận Chuyển SPV
+                                </h1>
+                                <span class="bg-emerald-500/20 text-emerald-300 text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-400/30 flex items-center gap-1">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                                    {{ isConnected ? 'Supabase SQL Realtime Active' : 'Connecting Supabase...' }}
+                                </span>
+                            </div>
+                            <p class="text-xs text-slate-400 font-medium hidden sm:block">Đồng bộ PostgreSQL Cloud DB Realtime & Bảo mật doanh thu</p>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center space-x-2.5">
+                        <button @click="showDbConfigModal = true" class="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-3 py-1.5 rounded-xl text-xs font-semibold">
+                            <i class="fa-solid fa-database text-amber-400"></i>
+                            <span class="hidden sm:inline">Cấu Hình Supabase DB</span>
+                        </button>
+
+                        <button v-if="activeTab === 'entry'" @click="openModal('add')" class="bg-gradient-to-r from-indigo-500 to-indigo-600 text-white font-semibold px-4 py-2 rounded-xl text-xs sm:text-sm flex items-center gap-2">
+                            <i class="fa-solid fa-plus-circle"></i>
+                            <span class="hidden sm:inline">Nhập Chuyến Mới</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Tabs Navigation -->
+                <div class="flex space-x-1.5 pt-1 overflow-x-auto no-scrollbar">
+                    <button @click="switchTab('entry')" :class="activeTab === 'entry' ? 'bg-white text-indigo-950 font-bold shadow-md' : 'bg-white/10 text-slate-300'" class="px-4 py-2.5 rounded-t-xl text-xs sm:text-sm transition flex items-center gap-2 shrink-0">
+                        <i class="fa-solid fa-list-check text-indigo-500"></i>
+                        <span>Nhập liệu & Tra Cứu</span>
+                        <span class="bg-indigo-100 text-indigo-800 text-[11px] font-bold px-2 py-0.5 rounded-full">{{ records.length }}</span>
+                    </button>
+
+                    <button @click="switchTab('category')" :class="activeTab === 'category' ? 'bg-white text-indigo-950 font-bold shadow-md' : 'bg-white/10 text-slate-300'" class="px-4 py-2.5 rounded-t-xl text-xs sm:text-sm transition flex items-center gap-2 shrink-0">
+                        <i class="fa-solid fa-folder-tree text-indigo-500"></i>
+                        <span>Danh Mục Chuẩn</span>
+                    </button>
+
+                    <button @click="switchTab('report')" :class="activeTab === 'report' ? 'bg-white text-slate-900 font-bold shadow-md' : 'bg-white/10 text-slate-300'" class="px-4 py-2.5 rounded-t-xl text-xs sm:text-sm transition flex items-center gap-2 shrink-0">
+                        <i :class="isReportUnlocked ? 'fa-chart-pie text-emerald-500' : 'fa-lock text-amber-400'" class="fa-solid"></i>
+                        <span>Báo Cáo Tài Chính</span>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- MAIN BODY CONTENTS -->
+        <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+            
+            <transition name="fade">
+                <div v-if="toast.show" :class="toast.type === 'success' ? 'bg-slate-900 text-white border-emerald-500/50' : 'bg-rose-950 text-white border-rose-500/50'" class="fixed bottom-6 right-6 z-50 px-5 py-3.5 rounded-2xl shadow-2xl border-2 flex items-center gap-3.5 max-w-md transition-all no-print">
+                    <i :class="toast.type === 'success' ? 'fa-circle-check text-emerald-400' : 'fa-triangle-exclamation text-rose-400'" class="fa-solid text-xl"></i>
+                    <div class="flex-grow text-xs sm:text-sm font-semibold">{{ toast.message }}</div>
+                    <button @click="toast.show = false" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+            </transition>
+
+            <!-- TAB 1: OPERATIONAL ENTRY & LIST -->
+            <div v-if="activeTab === 'entry'" class="space-y-6">
+                <!-- Data Table Summary -->
+                <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm card-glow">
+                        <p class="text-[11px] font-bold uppercase text-slate-400">Tổng Chuyến Xe</p>
+                        <p class="text-2xl font-extrabold text-slate-800 mt-1">{{ records.length }}</p>
+                    </div>
+                    <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm card-glow">
+                        <p class="text-[11px] font-bold uppercase text-slate-400">Tổng Số Container</p>
+                        <p class="text-2xl font-extrabold text-blue-600 mt-1">{{ totalContQuantity }}</p>
+                    </div>
+                    <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm card-glow">
+                        <p class="text-[11px] font-bold uppercase text-slate-400">Khách Hàng</p>
+                        <p class="text-2xl font-extrabold text-emerald-600 mt-1">{{ uniqueCustomers.length }}</p>
+                    </div>
+                    <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm card-glow">
+                        <p class="text-[11px] font-bold uppercase text-slate-400">Nhà Xe / ĐVVC</p>
+                        <p class="text-2xl font-extrabold text-purple-600 mt-1">{{ uniqueTransporters.length }}</p>
+                    </div>
+                </div>
+
+                <!-- Main Data Table -->
+                <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-slate-100/90 border-b border-slate-200 text-slate-600 text-[11px] font-bold uppercase">
+                                    <th class="p-3.5 w-12 text-center">STT</th>
+                                    <th v-for="col in entryColumns" :key="col.key" @click="sortBy(col.key)" class="p-3.5 cursor-pointer hover:bg-slate-200/60 whitespace-nowrap">
+                                        {{ col.label }}
+                                    </th>
+                                    <th class="p-3.5 text-right w-36 whitespace-nowrap">Thao tác</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100 text-xs sm:text-sm">
+                                <tr v-for="(record, index) in paginatedRecords" :key="record.id" class="hover:bg-indigo-50/40 transition">
+                                    <td class="p-3.5 text-center font-bold text-slate-400">{{ (currentPage - 1) * itemsPerPage + index + 1 }}</td>
+                                    <td v-for="col in entryColumns" :key="col.key" class="p-3.5 text-slate-700 whitespace-nowrap">
+                                        <template v-if="col.type === 'checkbox'">
+                                            <button @click="toggleCheckboxField(record, col.key)" :class="record[col.key] ? 'bg-emerald-50 text-emerald-700 border-emerald-300' : 'bg-slate-100 text-slate-400'" class="px-2.5 py-1 rounded-full text-xs font-semibold border">
+                                                {{ record[col.key] ? 'Có' : 'Không' }}
+                                            </button>
+                                        </template>
+                                        <template v-else-if="col.key === 'cont_number'">
+                                            <span class="font-mono-code bg-indigo-50 text-indigo-700 px-2 py-1 rounded-lg border border-indigo-200 text-xs font-bold">{{ record[col.key] || '—' }}</span>
+                                        </template>
+                                        <template v-else>{{ record[col.key] ?? '—' }}</template>
+                                    </td>
+                                    <td class="p-3.5 text-right space-x-1 whitespace-nowrap">
+                                        <button @click="openReceiptModal(record)" class="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg"><i class="fa-solid fa-file-invoice"></i></button>
+                                        <button @click="openModal('edit', record)" class="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg"><i class="fa-solid fa-pen-to-square"></i></button>
+                                        <button @click="confirmDeleteTrip(record)" class="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg"><i class="fa-solid fa-trash-can"></i></button>
+                                    </td>
+                                </tr>
+                                <tr v-if="paginatedRecords.length === 0">
+                                    <td :colspan="entryColumns.length + 2" class="p-8 text-center text-slate-400 font-semibold">Chưa có dữ liệu chuyến xe từ Supabase DB.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 2: CATALOG MANAGEMENT -->
+            <div v-else-if="activeTab === 'category'" class="space-y-6">
+                <div class="bg-white p-2 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap gap-2">
+                    <button @click="activeSubTab = 'warehouse'" :class="activeSubTab === 'warehouse' ? 'bg-indigo-600 text-white' : 'bg-slate-50 text-slate-600'" class="px-4 py-2 rounded-xl text-xs sm:text-sm font-bold">Kho / Xưởng ({{ warehouses.length }})</button>
+                    <button @click="activeSubTab = 'transporter'" :class="activeSubTab === 'transporter' ? 'bg-indigo-600 text-white' : 'bg-slate-50 text-slate-600'" class="px-4 py-2 rounded-xl text-xs sm:text-sm font-bold">Nhà Xe ({{ transporters.length }})</button>
+                    <button @click="activeSubTab = 'customer'" :class="activeSubTab === 'customer' ? 'bg-indigo-600 text-white' : 'bg-slate-50 text-slate-600'" class="px-4 py-2 rounded-xl text-xs sm:text-sm font-bold">Khách Hàng ({{ customers.length }})</button>
+                    <button @click="activeSubTab = 'route'" :class="activeSubTab === 'route' ? 'bg-indigo-600 text-white' : 'bg-slate-50 text-slate-600'" class="px-4 py-2 rounded-xl text-xs sm:text-sm font-bold">Tuyến Đường ({{ routes.length }})</button>
+                </div>
+            </div>
+
+            <!-- TAB 3: FINANCIAL REPORT -->
+            <div v-else-if="activeTab === 'report'" class="space-y-6">
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                        <p class="text-xs text-slate-400 font-bold uppercase">Tổng Doanh Thu (Giá Bán)</p>
+                        <p class="text-2xl font-black text-emerald-600 mt-1">{{ formatCurrency(totalSalePrice) }}</p>
+                    </div>
+                    <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                        <p class="text-xs text-slate-400 font-bold uppercase">Tổng Chi Phí (Giá Gốc)</p>
+                        <p class="text-2xl font-black text-slate-700 mt-1">{{ formatCurrency(totalBasePrice) }}</p>
+                    </div>
+                    <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                        <p class="text-xs text-slate-400 font-bold uppercase">Lợi Nhuận Ước Tính</p>
+                        <p class="text-2xl font-black text-indigo-600 mt-1">{{ formatCurrency(totalSalePrice - totalBasePrice) }}</p>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+
+        <!-- CONFIGURATION MODAL FOR SUPABASE -->
+        <div v-if="showDbConfigModal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+            <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4 border border-slate-200">
+                <div class="flex items-center justify-between border-b pb-3">
+                    <h3 class="font-extrabold text-slate-900 text-sm flex items-center gap-2">
+                        <i class="fa-solid fa-database text-indigo-600"></i> Cấu Hình Supabase SQL DB
+                    </h3>
+                    <button @click="showDbConfigModal = false" class="text-slate-400"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+
+                <div class="space-y-3 text-xs">
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">Supabase Project URL:</label>
+                        <input v-model="supabaseUrl" type="text" placeholder="https://xyz.supabase.co" class="w-full p-2 border rounded-xl font-mono-code">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">Supabase Anon Key:</label>
+                        <input v-model="supabaseKey" type="password" placeholder="eyJhbGciOi..." class="w-full p-2 border rounded-xl font-mono-code">
+                    </div>
+                    <button @click="connectSupabase" class="w-full py-2 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700">
+                        Kết Nối Lại Supabase
+                    </button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- SUPABASE REALTIME JAVASCRIPT ENGINE -->
+    <script>
+        const { createApp } = Vue;
+
+        // CẤU HÌNH CƠ SỞ DỮ LIỆU SUPABASE
+        // Thay thế bằng URL và Anon Key dự án Supabase của bạn
+        const DEFAULT_SUPABASE_URL = "https://your-supabase-project.supabase.co";
+        const DEFAULT_SUPABASE_KEY = "your-supabase-anon-key";
+
+        createApp({
+            data() {
+                return {
+                    supabaseClient: null,
+                    supabaseUrl: localStorage.getItem('spv_supabase_url') || DEFAULT_SUPABASE_URL,
+                    supabaseKey: localStorage.getItem('spv_supabase_key') || DEFAULT_SUPABASE_KEY,
+                    
+                    isConnected: false,
+                    isSaving: false,
+                    showDbConfigModal: false,
+                    
+                    activeTab: 'entry',
+                    activeSubTab: 'warehouse',
+                    isReportUnlocked: false,
+                    showAuthModal: false,
+                    enteredPin: '',
+                    authPin: '3713132',
+                    authError: '',
+
+                    // Main App Collections (Stored in Supabase SQL Tables)
+                    records: [],
+                    warehouses: [],
+                    transporters: [],
+                    customers: [],
+                    routes: [],
+
+                    // Table Form Schema
+                    columns: [
+                        { key: 'date_announced', label: 'A. Ngày báo xe', type: 'date' },
+                        { key: 'delivery_date', label: 'B. Ngày đóng/trả hàng', type: 'date' },
+                        { key: 'route', label: 'C. Tuyến đường', type: 'text' },
+                        { key: 'transporter', label: 'D. Đơn vị vận chuyển', type: 'text' },
+                        { key: 'cont_number', label: 'E. Số cont', type: 'text' },
+                        { key: 'customer', label: 'F. Khách hàng', type: 'text' },
+                        { key: 'cont_quantity', label: 'H. Số lượng cont', type: 'number' },
+                        { key: 'base_price', label: 'Q. Giá gốc/cont', type: 'currency', restricted: true },
+                        { key: 'sale_price', label: 'R. Giá bán/cont', type: 'currency', restricted: true }
+                    ],
+
+                    showModal: false,
+                    modalMode: 'add',
+                    formData: {},
+
+                    searchQuery: '',
+                    sortColumn: 'created_at',
+                    sortOrder: 'desc',
+                    currentPage: 1,
+                    itemsPerPage: 10,
+                    toast: { show: false, message: '', type: 'success' }
+                };
+            },
+
+            computed: {
+                entryColumns() {
+                    return this.columns.filter(c => !c.restricted);
+                },
+                uniqueCustomers() {
+                    return [...new Set(this.records.map(r => r.customer).filter(Boolean))];
+                },
+                uniqueTransporters() {
+                    return [...new Set(this.records.map(r => r.transporter).filter(Boolean))];
+                },
+                filteredRecords() {
+                    let result = [...this.records];
+                    if (this.searchQuery.trim()) {
+                        const q = this.searchQuery.toLowerCase();
+                        result = result.filter(rec => Object.values(rec).some(val => String(val || '').toLowerCase().includes(q)));
+                    }
+                    return result;
+                },
+                totalPages() {
+                    return Math.ceil(this.filteredRecords.length / this.itemsPerPage) || 1;
+                },
+                paginatedRecords() {
+                    const start = (this.currentPage - 1) * this.itemsPerPage;
+                    return this.filteredRecords.slice(start, start + this.itemsPerPage);
+                },
+                totalContQuantity() {
+                    return this.filteredRecords.reduce((sum, r) => sum + (Number(r.cont_quantity) || 0), 0);
+                },
+                totalBasePrice() {
+                    return this.filteredRecords.reduce((sum, r) => sum + (Number(r.base_price) || 0) * (Number(r.cont_quantity) || 1), 0);
+                },
+                totalSalePrice() {
+                    return this.filteredRecords.reduce((sum, r) => sum + (Number(r.sale_price) || 0) * (Number(r.cont_quantity) || 1), 0);
+                }
+            },
+
+            mounted() {
+                this.initSupabase();
+            },
+
+            methods: {
+                // Khởi tạo Supabase Client & Realtime WebSocket Subscriptions
+                initSupabase() {
+                    try {
+                        if (!this.supabaseUrl || !this.supabaseKey || this.supabaseUrl === DEFAULT_SUPABASE_URL) {
+                            this.isConnected = false;
+                            this.showToast('Vui lòng thiết lập cấu hình Supabase URL & Key!', 'error');
+                            return;
+                        }
+
+                        this.supabaseClient = supabase.createClient(this.supabaseUrl, this.supabaseKey);
+                        this.isConnected = true;
+
+                        // Tải dữ liệu ban đầu từ SQL Database
+                        this.fetchAllTablesData();
+
+                        // Đăng ký nhận thông báo biến động dữ liệu Realtime (Insert, Update, Delete)
+                        this.subscribeRealtimeChanges();
+
+                    } catch (e) {
+                        console.error("Supabase Init Error:", e);
+                        this.isConnected = false;
+                        this.showToast('Không thể kết nối Supabase: ' + e.message, 'error');
+                    }
+                },
+
+                connectSupabase() {
+                    localStorage.setItem('spv_supabase_url', this.supabaseUrl);
+                    localStorage.setItem('spv_supabase_key', this.supabaseKey);
+                    this.initSupabase();
+                    this.showDbConfigModal = false;
+                },
+
+                // Lấy toàn bộ dữ liệu từ các Bảng Postgres SQL
+                async fetchAllTablesData() {
+                    if (!this.supabaseClient) return;
+
+                    const tables = [
+                        { name: 'shipments', target: 'records' },
+                        { name: 'warehouses', target: 'warehouses' },
+                        { name: 'transporters', target: 'transporters' },
+                        { name: 'customers', target: 'customers' },
+                        { name: 'routes', target: 'routes' }
+                    ];
+
+                    for (const table of tables) {
+                        const { data, error } = await this.supabaseClient
+                            .from(table.name)
+                            .select('*')
+                            .order('created_at', { ascending: false });
+
+                        if (error) {
+                            console.warn(`Lỗi lấy bảng ${table.name}:`, error.message);
+                        } else {
+                            this[table.target] = data || [];
+                        }
+                    }
+                },
+
+                // Thiết lập Supabase Realtime Channel
+                subscribeRealtimeChanges() {
+                    const tables = ['shipments', 'warehouses', 'transporters', 'customers', 'routes'];
+
+                    tables.forEach(tableName => {
+                        this.supabaseClient
+                            .channel(`public:${tableName}`)
+                            .on('postgres_changes', { event: '*', schema: 'public', table: tableName }, (payload) => {
+                                this.handleRealtimeEvent(tableName, payload);
+                            })
+                            .subscribe();
+                    });
+                },
+
+                // Xử lý sự kiện Realtime Đồng bộ trực tiếp màn hình
+                handleRealtimeEvent(tableName, payload) {
+                    const targetMap = {
+                        shipments: 'records',
+                        warehouses: 'warehouses',
+                        transporters: 'transporters',
+                        customers: 'customers',
+                        routes: 'routes'
+                    };
+                    const prop = targetMap[tableName];
+                    if (!prop) return;
+
+                    if (payload.eventType === 'INSERT') {
+                        this[prop].unshift(payload.new);
+                        this.showToast(`Dữ liệu mới được thêm vào ${tableName}`, 'success');
+                    } else if (payload.eventType === 'UPDATE') {
+                        const idx = this[prop].findIndex(x => x.id === payload.new.id);
+                        if (idx !== -1) this[prop][idx] = payload.new;
+                    } else if (payload.eventType === 'DELETE') {
+                        this[prop] = this[prop].filter(x => x.id !== payload.old.id);
+                        this.showToast(`Đã xóa 1 bản ghi khỏi ${tableName}`, 'success');
+                    }
+                },
+
+                // CRUD: Thêm / Cập nhật Chuyến hàng vào Supabase SQL Table
+                async saveRecord() {
+                    if (!this.formData.cont_number || !this.formData.customer) {
+                        this.showToast('Vui lòng điền đủ Số Container & Khách Hàng', 'error');
+                        return;
+                    }
+
+                    this.isSaving = true;
+                    try {
+                        const payload = { ...this.formData };
+
+                        if (this.modalMode === 'add') {
+                            delete payload.id; // Để PostgreSQL tự sinh UUID/ID
+                            const { error } = await this.supabaseClient.from('shipments').insert([payload]);
+                            if (error) throw error;
+                            this.showToast('Thêm mới chuyến hàng thành công vào Supabase!');
+                        } else {
+                            const { error } = await this.supabaseClient.from('shipments').update(payload).eq('id', payload.id);
+                            if (error) throw error;
+                            this.showToast('Cập nhật chuyến hàng thành công!');
+                        }
+
+                        this.closeModal();
+                    } catch (e) {
+                        this.showToast('Lỗi Supabase SQL: ' + e.message, 'error');
+                    } finally {
+                        this.isSaving = false;
+                    }
+                },
+
+                // CRUD: Xóa Chuyến xe khỏi Supabase SQL
+                async confirmDeleteTrip(record) {
+                    if (confirm(`Bạn có chắc muốn xóa chuyến cont: ${record.cont_number}?`)) {
+                        try {
+                            const { error } = await this.supabaseClient.from('shipments').delete().eq('id', record.id);
+                            if (error) throw error;
+                            this.showToast('Đã xóa thành công!');
+                        } catch (e) {
+                            this.showToast('Xóa thất bại: ' + e.message, 'error');
+                        }
+                    }
+                },
+
+                // CRUD: Cập nhật nhanh Checkbox Trạng Thái
+                async toggleCheckboxField(record, key) {
+                    const newValue = !record[key];
+                    record[key] = newValue;
+
+                    try {
+                        const { error } = await this.supabaseClient
+                            .from('shipments')
+                            .update({ [key]: newValue })
+                            .eq('id', record.id);
+
+                        if (error) throw error;
+                    } catch (e) {
+                        record[key] = !newValue; // Rollback nếu lỗi
+                        this.showToast('Cập nhật thất bại: ' + e.message, 'error');
+                    }
+                },
+
+                formatCurrency(amount) {
+                    return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount || 0);
+                },
+
+                switchTab(tab) {
+                    if (tab === 'report' && !this.isReportUnlocked) {
+                        const pin = prompt('Nhập mã PIN bảo mật báo cáo:');
+                        if (pin === this.authPin) {
+                            this.isReportUnlocked = true;
+                            this.activeTab = 'report';
+                        } else {
+                            alert('Mã PIN không chính xác!');
+                        }
+                        return;
+                    }
+                    this.activeTab = tab;
+                },
+
+                openModal(mode, record = null) {
+                    this.modalMode = mode;
+                    this.formData = record ? JSON.parse(JSON.stringify(record)) : {
+                        date_announced: new Date().toISOString().split('T')[0],
+                        delivery_date: new Date().toISOString().split('T')[0],
+                        cont_quantity: 1, base_price: 0, sale_price: 0
+                    };
+                    this.showModal = true;
+                },
+
+                closeModal() { this.showModal = false; },
+
+                showToast(message, type = 'success') {
+                    this.toast = { show: true, message, type };
+                    setTimeout(() => { this.toast.show = false; }, 4000);
+                }
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
