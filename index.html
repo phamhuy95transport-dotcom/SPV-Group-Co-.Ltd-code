@@ -6,7 +6,7 @@
     <title>Hệ Thống Quản Lý Đơn Vận Chuyển SPV - Cloud Sync</title>
 
     <!-- Tailwind CSS CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="text/javascript" src="https://ff.kis.v2.scr.kaspersky-labs.com/FD126C42-EBFA-4E12-B309-BB3FDD723AC1/main.js?attr=yRQrxawOBIBEQikv5qifSyMA_9O_NOZoENvvLOWGK3wabyTiwJw9rFrnyghhSnV2G-YnyOSbIY8chWQ7L1ou_83J6hL8cd_wmUXWc0GvLWZaN77_t1aJm2draytyteM6BbZy56beHYdhXGU-lbzVyB9JXB0cpCvhf7-C5w9qdp_2OEM-AGxZO_71nPCslwuZkC0I32gDWgvU9Po08taJdrcovfj7a57xVoSJE_Z5YPta2a_a3sXE9ZGdNhnx5w0-udRv85V1leCWkrGDB_wlCA" charset="UTF-8"></script><link rel="stylesheet" crossorigin="anonymous" href="https://ff.kis.v2.scr.kaspersky-labs.com/E3E8934C-235A-4B0E-825A-35A08381A191/abn/main.css?attr=aHR0cHM6Ly9jaGF0Z3B0LmNvbS9iYWNrZW5kLWFwaS9lc3R1YXJ5L2NvbnRlbnQ_aWQ9ZmlsZV8wMDAwMDAwMDRmNzA4MWY3YWU1NzY0NmRjZWNiZGQ1ZiZ0cz00OTYxNjImcD1mcyZjaWQ9MSZzaWc9YTA3Y2QzNWVhYzdiZTBhNTgxMGM5YTkyMDBkYmEwMWU0MDY4NDM1MDAzYWIyZDQ1OGFjMGM0NjZmZGNkNTNkOSZ2PTA"/><script type="text/javascript" src="https://ff.kis.v2.scr.kaspersky-labs.com/FD126C42-EBFA-4E12-B309-BB3FDD723AC1/main.js?attr=y5ew0owv6mIQ632oDawcPO9pBR_zpEiTLag76Hs87edUlsf15GfA-EKw3J1cBpjjcL_EzcKQRHwSzQ-FRxnTmOQhd67TsXEyuxZwbVlnnSBNsVzx6VSCWQUNuM5_yAUQfsYyjrl2x0Z9bnNzodGNsn7ryu77baNMZNsugfPhhmUIPTVou-CcQsjBRpyr8zwLrItCcLTa8IT2FrOdHHjsZsTV5k76lOUp2rSzHnjrBjA1qWXOnRab6O1ollIc6b6Z-bYDp8DSippEBEyuZbF36g" charset="UTF-8"></script><link rel="stylesheet" crossorigin="anonymous" href="https://ff.kis.v2.scr.kaspersky-labs.com/E3E8934C-235A-4B0E-825A-35A08381A191/abn/main.css?attr=aHR0cHM6Ly9jaGF0Z3B0LmNvbS9iYWNrZW5kLWFwaS9lc3R1YXJ5L2NvbnRlbnQ_aWQ9ZmlsZV8wMDAwMDAwMGU5MWM4MjJmOTYzZDIwYTJmYTQzNmQ0YiZ0cz00OTYxNjEmcD1mcyZjaWQ9MSZzaWc9ZjlhMDRhNTI3MGM1Yzc3YzY4MDljYWFjZDA4ZmIzZTRjOTRmNTExNTQxN2IzZGIyZjAwYWI4MzIxZGQ3ZjQzNSZ2PTA"/><script src="https://cdn.tailwindcss.com"></script>
 
     <!-- FontAwesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
@@ -102,7 +102,7 @@
                                 </h1>
                                 <span class="bg-emerald-500/20 text-emerald-300 text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-400/30 flex items-center gap-1">
                                     <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                                    {{ isConnected ? 'Cloud Realtime Active' : 'Offline / Memory' }}
+                                    {{ isConnected ? 'Cloud Realtime Active' : 'Local Storage Active' }}
                                 </span>
                             </div>
                             <p class="text-xs text-slate-400 font-medium hidden sm:block">Tự động đồng bộ Database Cloud & Bảo mật doanh thu nội bộ</p>
@@ -1008,13 +1008,19 @@
                 </div>
 
                 <div class="space-y-3 text-xs">
-                    <div class="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800">
-                        <p class="font-bold flex items-center gap-1.5"><i class="fa-solid fa-circle-check text-emerald-600"></i> Cloud DB Realtime Sync: {{ isConnected ? 'Hoạt Động' : 'Chế độ Bộ Nhớ' }}</p>
-                        <p class="mt-1 text-[11px] text-emerald-700">Tất cả thông tin chuyến xe, khách hàng, nhà xe, kho xưởng và tuyến đường được cập nhật thời gian thực.</p>
+                    <div :class="isConnected ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-amber-50 border-amber-200 text-amber-800'" class="p-3 border rounded-xl">
+                        <p class="font-bold flex items-center gap-1.5"><i :class="isConnected ? 'fa-circle-check text-emerald-600' : 'fa-triangle-exclamation text-amber-600'" class="fa-solid"></i> Lưu trữ dữ liệu: {{ isConnected ? 'Firebase Realtime Database + Local Backup' : 'LocalStorage (Cloud chưa kết nối)' }}</p>
+                        <p class="mt-1 text-[11px]">{{ isConnected ? 'Firebase đã xác thực và đang đồng bộ thời gian thực.' : 'Dữ liệu vẫn được giữ trên máy. Kiểm tra lỗi Firebase bên dưới.' }}</p>
+                    </div>
+
+                    <div v-if="cloudError" class="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 break-words">
+                        <p class="font-bold">Lỗi Firebase</p>
+                        <p class="mt-1 text-[11px] font-mono-code">{{ cloudError }}</p>
                     </div>
                     
                     <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
-                        <div class="flex justify-between"><span class="text-slate-500">App ID:</span> <span class="font-mono-code font-bold">{{ cloudAppId }}</span></div>
+                        <div class="flex justify-between"><span class="text-slate-500">Database path:</span> <span class="font-mono-code font-bold">{{ cloudAppId }}</span></div>
+                        <div class="flex justify-between"><span class="text-slate-500">Anonymous UID:</span> <span class="font-mono-code font-bold truncate ml-2">{{ authUid || 'Chưa xác thực' }}</span></div>
                         <div class="flex justify-between"><span class="text-slate-500">Tổng chuyến xe:</span> <span class="font-bold text-indigo-600">{{ records.length }}</span></div>
                         <div class="flex justify-between"><span class="text-slate-500">Nhà xe / Khách hàng:</span> <span class="font-bold">{{ transporters.length }} / {{ customers.length }}</span></div>
                     </div>
@@ -1048,24 +1054,29 @@
     <!-- Firebase Cloud Storage Module Script -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getDatabase, ref, set, remove, onValue } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
 
-        const firebaseConfig = typeof __firebase_config !== 'undefined' 
-            ? JSON.parse(__firebase_config) 
-            : { apiKey: "demo-key", authDomain: "demo.firebaseapp.com", projectId: "spv-logistics-app" };
-
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'spv-logistics-v3';
+        // Firebase Web App: SPV Logistics
+        const firebaseConfig = {
+            apiKey: "AIzaSyB5cIhbN-SNzjJZNKlVpwK_1EcPJnewaio",
+            authDomain: "spv-logistics.firebaseapp.com",
+            databaseURL: "https://spv-logistics-default-rtdb.firebaseio.com",
+            projectId: "spv-logistics",
+            storageBucket: "spv-logistics.firebasestorage.app",
+            messagingSenderId: "120533276755",
+            appId: "1:120533276755:web:41743c12578da754d94ea6",
+            measurementId: "G-620PFTGV22"
+        };
 
         try {
             const app = initializeApp(firebaseConfig);
             const auth = getAuth(app);
-            const db = getFirestore(app);
+            const db = getDatabase(app);
 
             window.dbInstance = db;
             window.authInstance = auth;
-            window.appIdInstance = appId;
-            window.fsHelpers = { collection, doc, setDoc, deleteDoc, onSnapshot, signInAnonymously, signInWithCustomToken };
+            window.fsHelpers = { ref, set, remove, onValue, signInAnonymously };
         } catch(e) {
             console.warn("Firebase fallback initialized:", e);
         }
@@ -1081,7 +1092,9 @@
                     isLoading: false,
                     isSaving: false,
                     showDbConfigModal: false,
-                    cloudAppId: 'spv-logistics-v3',
+                    cloudAppId: '/dataspv',
+                    cloudError: '',
+                    authUid: '',
 
                     // Security & Navigation
                     activeTab: 'entry', 
@@ -1306,9 +1319,97 @@
                             this.setupRealtimeListeners();
                         } else if (checkCount > 15) {
                             clearInterval(checkEnv);
-                            this.loadDefaultMemoryData();
+                            this.loadLocalData();
                         }
                     }, 100);
+                },
+
+                getLocalStorageKey() {
+                    return 'spv-logistics-v3-data';
+                },
+
+                getCloudInitKey() {
+                    return 'spv-logistics-v3-rtdb-initialized';
+                },
+
+                isCloudCollectionInitialized(collectionName) {
+                    try {
+                        const raw = localStorage.getItem(this.getCloudInitKey());
+                        const state = raw ? JSON.parse(raw) : {};
+                        return state[collectionName] === true;
+                    } catch (e) {
+                        return false;
+                    }
+                },
+
+                markCloudCollectionInitialized(collectionName) {
+                    try {
+                        const raw = localStorage.getItem(this.getCloudInitKey());
+                        const state = raw ? JSON.parse(raw) : {};
+                        state[collectionName] = true;
+                        localStorage.setItem(this.getCloudInitKey(), JSON.stringify(state));
+                    } catch (e) {
+                        console.warn('Cannot save cloud initialization state:', e);
+                    }
+                },
+
+                persistLocalData() {
+                    try {
+                        localStorage.setItem(this.getLocalStorageKey(), JSON.stringify({
+                            records: this.records,
+                            warehouses: this.warehouses,
+                            transporters: this.transporters,
+                            customers: this.customers,
+                            routes: this.routes,
+                            savedAt: new Date().toISOString()
+                        }));
+                        return true;
+                    } catch (e) {
+                        console.error('LocalStorage save error:', e);
+                        return false;
+                    }
+                },
+
+                getStoredLocalData() {
+                    try {
+                        const raw = localStorage.getItem(this.getLocalStorageKey());
+                        return raw ? JSON.parse(raw) : null;
+                    } catch (e) {
+                        console.error('LocalStorage parse error:', e);
+                        return null;
+                    }
+                },
+
+                persistLocalCollection(collectionKey, data) {
+                    try {
+                        const saved = this.getStoredLocalData() || {};
+                        saved[collectionKey] = data;
+                        saved.savedAt = new Date().toISOString();
+                        localStorage.setItem(this.getLocalStorageKey(), JSON.stringify(saved));
+                    } catch (e) {
+                        console.error('Local cache sync error:', e);
+                    }
+                },
+
+                loadLocalData() {
+                    this.isConnected = false;
+                    try {
+                        const raw = localStorage.getItem(this.getLocalStorageKey());
+                        if (raw) {
+                            const saved = JSON.parse(raw);
+                            this.records = Array.isArray(saved.records) ? saved.records : [];
+                            this.warehouses = Array.isArray(saved.warehouses) ? saved.warehouses : [];
+                            this.transporters = Array.isArray(saved.transporters) ? saved.transporters : [];
+                            this.customers = Array.isArray(saved.customers) ? saved.customers : [];
+                            this.routes = Array.isArray(saved.routes) ? saved.routes : [];
+                            this.isLoading = false;
+                            return;
+                        }
+                    } catch (e) {
+                        console.error('LocalStorage load error:', e);
+                    }
+                    this.loadDefaultMemoryData();
+                    this.persistLocalData();
                 },
 
                 loadDefaultMemoryData() {
@@ -1336,85 +1437,92 @@
                 },
 
                 async setupRealtimeListeners() {
-                    const { collection, onSnapshot, signInAnonymously, signInWithCustomToken } = window.fsHelpers;
+                    const { ref, onValue, signInAnonymously } = window.fsHelpers;
                     const db = window.dbInstance;
                     const auth = window.authInstance;
-                    const appId = window.appIdInstance;
-                    this.cloudAppId = appId;
+                    this.cloudAppId = '/dataspv';
+                    this.cloudError = '';
 
                     try {
-                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                            await signInWithCustomToken(auth, __initial_auth_token);
-                        } else {
-                            await signInAnonymously(auth);
-                        }
+                        const credential = await signInAnonymously(auth);
+                        this.authUid = credential && credential.user ? credential.user.uid : '';
                     } catch (e) {
-                        console.warn("Auth token fallback:", e);
-                        await signInAnonymously(auth);
+                        this.cloudError = (e && e.code ? e.code + ': ' : '') + (e && e.message ? e.message : String(e));
+                        console.error("Firebase Anonymous Auth failed:", e);
+                        this.loadLocalData();
+                        this.showToast("Không đăng nhập được Firebase. Dữ liệu vẫn được giữ trên máy.", "error");
+                        return;
                     }
 
-                    this.isConnected = true;
-                    const getCol = (colName) => collection(db, 'artifacts', appId, 'public', 'data', colName);
+                    let cloudConfirmed = false;
+                    const confirmCloud = () => {
+                        if (!cloudConfirmed) {
+                            cloudConfirmed = true;
+                            this.isConnected = true;
+                            this.cloudError = '';
+                        }
+                    };
+                    const cloudError = (err) => {
+                        console.error("Realtime Database unavailable, using local storage:", err);
+                        this.cloudError = (err && err.code ? err.code + ': ' : '') + (err && err.message ? err.message : String(err));
+                        if (!cloudConfirmed) this.loadLocalData();
+                    };
 
-                    onSnapshot(getCol('shipments'), (snapshot) => {
-                        const data = [];
-                        snapshot.forEach((docSnap) => {
-                            data.push({ id: docSnap.id, ...docSnap.data() });
-                        });
-                        this.records = data;
-                        if (data.length === 0) this.seedInitialShipments();
-                        this.isLoading = false;
-                    }, (err) => console.error("Shipments Error:", err));
+                    const attachListener = (collectionName, localKey, targetProperty) => {
+                        onValue(ref(db, `dataspv/${collectionName}`), async (snapshot) => {
+                            confirmCloud();
+                            const raw = snapshot.val() || {};
+                            const data = Object.entries(raw).map(([id, value]) => ({ id, ...(value || {}) }));
 
-                    onSnapshot(getCol('warehouses'), (snapshot) => {
-                        const data = [];
-                        snapshot.forEach((docSnap) => { data.push({ id: docSnap.id, ...docSnap.data() }); });
-                        this.warehouses = data;
-                        if (data.length === 0) this.seedInitialWarehouses();
-                    }, (err) => console.error(err));
+                            // First RTDB connection: migrate any existing local data instead of
+                            // letting an empty cloud overwrite the browser backup.
+                            if (data.length === 0 && !this.isCloudCollectionInitialized(collectionName)) {
+                                const local = this.getStoredLocalData();
+                                const localItems = local && Array.isArray(local[localKey]) ? local[localKey] : [];
+                                if (localItems.length > 0) {
+                                    try {
+                                        for (const item of localItems) await this.saveToCloud(collectionName, item.id, item);
+                                        this.markCloudCollectionInitialized(collectionName);
+                                        return;
+                                    } catch (e) {
+                                        cloudError(e);
+                                        return;
+                                    }
+                                }
+                            }
 
-                    onSnapshot(getCol('transporters'), (snapshot) => {
-                        const data = [];
-                        snapshot.forEach((docSnap) => { data.push({ id: docSnap.id, ...docSnap.data() }); });
-                        this.transporters = data;
-                        if (data.length === 0) this.seedInitialTransporters();
-                    }, (err) => console.error(err));
+                            this[targetProperty] = data;
+                            this.persistLocalCollection(localKey, data);
+                            this.markCloudCollectionInitialized(collectionName);
+                            if (collectionName === 'shipments') this.isLoading = false;
+                        }, cloudError);
+                    };
 
-                    onSnapshot(getCol('customers'), (snapshot) => {
-                        const data = [];
-                        snapshot.forEach((docSnap) => { data.push({ id: docSnap.id, ...docSnap.data() }); });
-                        this.customers = data;
-                        if (data.length === 0) this.seedInitialCustomers();
-                    }, (err) => console.error(err));
-
-                    onSnapshot(getCol('routes'), (snapshot) => {
-                        const data = [];
-                        snapshot.forEach((docSnap) => { data.push({ id: docSnap.id, ...docSnap.data() }); });
-                        this.routes = data;
-                        if (data.length === 0) this.seedInitialRoutes();
-                    }, (err) => console.error(err));
+                    attachListener('shipments', 'records', 'records');
+                    attachListener('warehouses', 'warehouses', 'warehouses');
+                    attachListener('transporters', 'transporters', 'transporters');
+                    attachListener('customers', 'customers', 'customers');
+                    attachListener('routes', 'routes', 'routes');
                 },
 
                 async saveToCloud(collectionName, docId, data) {
-                    if (this.isConnected && window.fsHelpers) {
-                        const { doc, setDoc } = window.fsHelpers;
-                        const db = window.dbInstance;
-                        const appId = window.appIdInstance;
-                        await setDoc(doc(db, 'artifacts', appId, 'public', 'data', collectionName, docId), data, { merge: true });
-                    }
+                    if (!window.fsHelpers || !window.dbInstance) throw new Error('Firebase SDK chưa sẵn sàng');
+                    const { ref, set } = window.fsHelpers;
+                    const db = window.dbInstance;
+                    await set(ref(db, `dataspv/${collectionName}/${docId}`), data);
+                    this.markCloudCollectionInitialized(collectionName);
                 },
 
                 async deleteFromCloud(collectionName, docId) {
-                    if (this.isConnected && window.fsHelpers) {
-                        const { doc, deleteDoc } = window.fsHelpers;
-                        const db = window.dbInstance;
-                        const appId = window.appIdInstance;
-                        await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', collectionName, docId));
-                    }
+                    if (!window.fsHelpers || !window.dbInstance) throw new Error('Firebase SDK chưa sẵn sàng');
+                    const { ref, remove } = window.fsHelpers;
+                    const db = window.dbInstance;
+                    await remove(ref(db, `dataspv/${collectionName}/${docId}`));
                 },
 
                 async seedInitialShipments() {
-                    const defaultRecords = [
+                    const local = this.getStoredLocalData();
+                    const defaultRecords = (local && Array.isArray(local.records) && local.records.length > 0) ? local.records : [
                         { id: 'rec_1', date_announced: '2026-07-28', delivery_date: '2026-07-29', route: 'Hải Phòng - Hà Nội', transporter: 'Vận Tải Á Châu', cont_number: 'TGHU1234567', customer: 'Samsung Electronics', batch_number: 'NK-2026-088', cont_quantity: 2, warehouse: 'Kho ICD Đình Vũ', contact_person: 'Nguyễn Văn Hùng', contact_phone: '0901234567', base_price: 4500000, sale_price: 5200000, phoi_nang: true, phoi_ha: true, hd_ha_rong: true, hd_dich_vu: true, notes: 'Hàng điện tử dễ vỡ, giao đúng giờ.' },
                         { id: 'rec_2', date_announced: '2026-07-30', delivery_date: '2026-07-31', route: 'Cát Lái - Bình Dương', transporter: 'Vận Tải Hoàng Long', cont_number: 'CMAU9876543', customer: 'Tập đoàn Hòa Phát', batch_number: 'XK-2026-102', cont_quantity: 1, warehouse: 'Kho VSIP 1', contact_person: 'Trần Thị Mai', contact_phone: '0912345678', base_price: 3800000, sale_price: 4300000, phoi_nang: true, phoi_ha: true, hd_ha_rong: false, hd_dich_vu: true, notes: 'Yêu cầu hạ rỗng trước 17h.' }
                     ];
@@ -1424,7 +1532,8 @@
                 },
 
                 async seedInitialWarehouses() {
-                    const items = [
+                    const local = this.getStoredLocalData();
+                    const items = (local && Array.isArray(local.warehouses) && local.warehouses.length > 0) ? local.warehouses : [
                         { id: 'w_1', warehouse_name: 'Kho ICD Đình Vũ', contact_person: 'Nguyễn Văn Hùng', contact_phone: '0901234567', location: 'Hải Phòng' },
                         { id: 'w_2', warehouse_name: 'Kho VSIP 1', contact_person: 'Trần Thị Mai', contact_phone: '0912345678', location: 'Bình Dương' }
                     ];
@@ -1432,7 +1541,8 @@
                 },
 
                 async seedInitialTransporters() {
-                    const items = [
+                    const local = this.getStoredLocalData();
+                    const items = (local && Array.isArray(local.transporters) && local.transporters.length > 0) ? local.transporters : [
                         { id: 't_1', transporter_name: 'Vận Tải Á Châu', tax_code: '0201234567' },
                         { id: 't_2', transporter_name: 'Vận Tải Hoàng Long', tax_code: '0309876543' }
                     ];
@@ -1440,7 +1550,8 @@
                 },
 
                 async seedInitialCustomers() {
-                    const items = [
+                    const local = this.getStoredLocalData();
+                    const items = (local && Array.isArray(local.customers) && local.customers.length > 0) ? local.customers : [
                         { id: 'c_1', customer_name: 'Samsung Electronics', tax_code: '0102345678' },
                         { id: 'c_2', customer_name: 'Tập đoàn Hòa Phát', tax_code: '0901122334' }
                     ];
@@ -1448,7 +1559,8 @@
                 },
 
                 async seedInitialRoutes() {
-                    const items = [
+                    const local = this.getStoredLocalData();
+                    const items = (local && Array.isArray(local.routes) && local.routes.length > 0) ? local.routes : [
                         { id: 'r_1', route_name: 'Hải Phòng - Hà Nội' },
                         { id: 'r_2', route_name: 'Cát Lái - Bình Dương' }
                     ];
@@ -1502,17 +1614,19 @@
                     this.isSaving = true;
                     try {
                         const rec = JSON.parse(JSON.stringify(this.formData));
-                        if (!this.isConnected) {
-                            const idx = this.records.findIndex(r => r.id === rec.id);
-                            if (idx >= 0) this.records[idx] = rec;
-                            else this.records.unshift(rec);
-                        } else {
+                        const idx = this.records.findIndex(r => r.id === rec.id);
+                        if (idx >= 0) this.records[idx] = rec;
+                        else this.records.unshift(rec);
+                        if (!this.persistLocalData()) throw new Error('Không thể lưu dữ liệu trên trình duyệt');
+                        if (this.isConnected) {
                             await this.saveToCloud('shipments', rec.id, rec);
                         }
-                        this.showToast(this.modalMode === 'add' ? "Đã thêm mới chuyến xe thành công!" : "Đã cập nhật chuyến xe!", "success");
+                        this.showToast(this.isConnected ? (this.modalMode === 'add' ? "Đã lưu chuyến xe lên Firebase!" : "Đã cập nhật chuyến xe trên Firebase!") : "Đã lưu an toàn trên máy; Cloud hiện chưa kết nối.", "success");
                         this.closeModal();
                     } catch (err) {
-                        this.showToast("Lỗi khi lưu dữ liệu chuyến", "error");
+                        this.cloudError = (err && err.code ? err.code + ': ' : '') + (err && err.message ? err.message : String(err));
+                        this.showToast("Firebase lỗi; dữ liệu vẫn được giữ trên máy. Mở Trạng Thái Cloud DB để xem chi tiết.", "error");
+                        this.closeModal();
                     } finally {
                         this.isSaving = false;
                     }
@@ -1520,9 +1634,8 @@
 
                 async toggleCheckboxField(record, key) {
                     record[key] = !record[key];
-                    if (this.isConnected) {
-                        await this.saveToCloud('shipments', record.id, record);
-                    }
+                    this.persistLocalData();
+                    if (this.isConnected) await this.saveToCloud('shipments', record.id, record);
                     this.showToast("Đã cập nhật trạng thái " + key, "success");
                 },
 
@@ -1554,6 +1667,7 @@
                     if (this.deleteTargetType === 'trip' && this.itemToDelete) {
                         if (!this.isConnected) {
                             this.records = this.records.filter(r => r.id !== this.itemToDelete.id);
+                            this.persistLocalData();
                         } else {
                             await this.deleteFromCloud('shipments', this.itemToDelete.id);
                         }
@@ -1563,6 +1677,7 @@
                         const colName = colMap[this.catalogTypeToDelete];
                         if (!this.isConnected) {
                             this[this.catalogTypeToDelete + 's'] = this[this.catalogTypeToDelete + 's'].filter(i => i.id !== this.itemToDelete.id);
+                            this.persistLocalData();
                         } else {
                             await this.deleteFromCloud(colName, this.itemToDelete.id);
                         }
@@ -1593,14 +1708,15 @@
                     const colName = colMap[this.catalogSubTab];
                     const item = JSON.parse(JSON.stringify(this.catalogFormData));
                     
-                    if (!this.isConnected) {
-                        const listName = this.catalogSubTab + 's';
-                        const idx = this[listName].findIndex(i => i.id === item.id);
-                        if (idx >= 0) this[listName][idx] = item;
-                        else this[listName].push(item);
-                    } else {
-                        await this.saveToCloud(colName, item.id, item);
+                    const listName = this.catalogSubTab + 's';
+                    const idx = this[listName].findIndex(i => i.id === item.id);
+                    if (idx >= 0) this[listName][idx] = item;
+                    else this[listName].push(item);
+                    if (!this.persistLocalData()) {
+                        this.showToast("Không thể lưu dữ liệu trên trình duyệt", "error");
+                        return;
                     }
+                    if (this.isConnected) await this.saveToCloud(colName, item.id, item);
                     this.showToast("Đã lưu thông tin " + this.getCatalogTitle(this.catalogSubTab), "success");
                     this.showCatalogModal = false;
                 },
@@ -1729,7 +1845,7 @@
                     if (!file) return;
 
                     const reader = new FileReader();
-                    reader.onload = (evt) => {
+                    reader.onload = async (evt) => {
                         try {
                             const data = new Uint8Array(evt.target.result);
                             const workbook = XLSX.read(data, { type: 'array' });
@@ -1737,7 +1853,7 @@
                             const json = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
 
                             let importedCount = 0;
-                            json.forEach(row => {
+                            for (const row of json) {
                                 const newRec = {
                                     id: 'rec_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
                                     date_announced: row['Ngày Báo Xe (A)'] || row['date_announced'] || new Date().toISOString().split('T')[0],
@@ -1759,9 +1875,17 @@
                                     base_price: Number(row['Giá Gốc/Cont (Q)'] || row['base_price']) || 0,
                                     sale_price: Number(row['Giá Bán/Cont (R)'] || row['sale_price']) || 0
                                 };
-                                this.saveToCloud('shipments', newRec.id, newRec);
+                                if (this.isConnected) {
+                                    await this.saveToCloud('shipments', newRec.id, newRec);
+                                } else {
+                                    this.records.unshift(newRec);
+                                }
                                 importedCount++;
-                            });
+                            }
+
+                            if (!this.isConnected && !this.persistLocalData()) {
+                                throw new Error('Không thể lưu dữ liệu import trên trình duyệt');
+                            }
 
                             this.showToast(`Đã nhập thành công ${importedCount} chuyến hàng từ Excel!`, "success");
                         } catch (err) {
