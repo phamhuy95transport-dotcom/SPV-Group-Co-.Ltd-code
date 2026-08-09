@@ -111,7 +111,22 @@ export default function App() {
     });
 
     const unsubUsers = subscribeToCloudCollection('users', (data) => {
-      if (data && data.length > 0) setUsers(data as UserAccount[]);
+      const userMap = new Map<string, UserAccount & { password?: string }>();
+      DEFAULT_USERS.forEach(u => userMap.set(u.email.toLowerCase(), { ...u }));
+      if (data && Array.isArray(data) && data.length > 0) {
+        data.forEach((u: any) => {
+          if (u && u.email) {
+            const emailKey = u.email.toLowerCase();
+            const existing = userMap.get(emailKey);
+            userMap.set(emailKey, {
+              ...existing,
+              ...u,
+              password: u.password || existing?.password || (u.role === 'admin' ? 'admin123' : u.role === 'employee' ? 'nv123' : 'kh123')
+            });
+          }
+        });
+      }
+      setUsers(Array.from(userMap.values()));
     });
 
     return () => {
@@ -204,16 +219,28 @@ export default function App() {
   };
 
   const handleUpdateUser2FA = async (userId: string, secret: string, enabled: boolean) => {
+    let updatedUser: UserAccount | null = null;
+
     setUsers(prev =>
-      prev.map(u => (u.id === userId ? { ...u, totpSecret: secret, totpEnabled: enabled } : u))
+      prev.map(u => {
+        if (u.id === userId) {
+          updatedUser = { ...u, totpSecret: secret, totpEnabled: enabled };
+          return updatedUser;
+        }
+        return u;
+      })
     );
+
     if (currentUser?.id === userId) {
-      setCurrentUser(prev => prev ? { ...prev, totpSecret: secret, totpEnabled: enabled } : null);
+      setCurrentUser(prev => (prev ? { ...prev, totpSecret: secret, totpEnabled: enabled } : null));
     }
-    const updated = users.find(u => u.id === userId);
-    if (updated) {
-      await saveRecordToCloud('users', userId, { ...updated, totpSecret: secret, totpEnabled: enabled });
+
+    const userToSave = updatedUser || (currentUser?.id === userId ? { ...currentUser, totpSecret: secret, totpEnabled: enabled } : users.find(u => u.id === userId));
+    if (userToSave) {
+      const recordToSave = { ...userToSave, totpSecret: secret, totpEnabled: enabled };
+      await saveRecordToCloud('users', userId, recordToSave);
     }
+
     showToast('Đã kích hoạt Google Authenticator 2FA thành công!');
   };
 
