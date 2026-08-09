@@ -31,8 +31,8 @@ export const DEFAULT_USERS: (UserAccount & { password?: string })[] = [
     role: 'admin',
     status: 'active',
     createdAt: '2026-08-01T08:00:00Z',
-    totpEnabled: true,
-    totpSecret: 'JBSWY3DPEHPK3PXP' // Demo TOTP secret
+    totpEnabled: false,
+    totpSecret: 'JBSWY3DPEHPK3PXP' // Demo TOTP secret available for optional 2FA setup
   },
   {
     id: 'u_emp_1',
