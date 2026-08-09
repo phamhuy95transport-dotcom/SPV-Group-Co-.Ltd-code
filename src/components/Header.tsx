@@ -1,0 +1,243 @@
+import React from 'react';
+import {
+  Truck,
+  Database,
+  PlusCircle,
+  ListCheck,
+  FolderTree,
+  ChartPie,
+  ShieldAlert,
+  Users,
+  LogOut,
+  LogIn,
+  KeyRound,
+  ShieldCheck,
+  UserCheck
+} from 'lucide-react';
+import { ActiveTab, UserAccount } from '../types';
+
+interface HeaderProps {
+  currentUser: UserAccount | null;
+  activeTab: ActiveTab;
+  switchTab: (tab: ActiveTab) => void;
+  isConnected: boolean;
+  totalRecordsCount: number;
+  pendingUsersCount: number;
+  onOpenLoginModal: () => void;
+  onLogout: () => void;
+  onOpen2FASetup: () => void;
+  onOpenNewTripModal: () => void;
+}
+
+export const Header: React.FC<HeaderProps> = ({
+  currentUser,
+  activeTab,
+  switchTab,
+  isConnected,
+  totalRecordsCount,
+  pendingUsersCount,
+  onOpenLoginModal,
+  onLogout,
+  onOpen2FASetup,
+  onOpenNewTripModal,
+}) => {
+  const isCustomer = currentUser?.role === 'customer';
+  const isEmployee = currentUser?.role === 'employee';
+  const isAdmin = currentUser?.role === 'admin';
+
+  return (
+    <header className="bg-[#1E293B] text-white shadow-md no-print sticky top-0 z-30 border-b border-slate-700">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Top Header Bar */}
+        <div className="flex items-center justify-between h-16 gap-4">
+          {/* Logo & Title */}
+          <div className="flex items-center space-x-3">
+            <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center shrink-0 shadow-sm">
+              <Truck className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="font-bold text-white tracking-tight text-sm sm:text-base uppercase">
+                  SPV LOGISTICS SYSTEM
+                </h1>
+                <span className="bg-green-100 text-green-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-green-200 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
+                  {isConnected ? 'Firebase Realtime' : 'Local Backup'}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-400 font-medium hidden sm:block">
+                Hệ thống phân quyền 3 cấp (Admin - Staff - Customer) & Xác thực Google 2FA
+              </p>
+            </div>
+          </div>
+
+          {/* Right Header Controls */}
+          <div className="flex items-center space-x-2.5">
+            {/* User Account Info / Role Badge */}
+            {currentUser ? (
+              <div className="flex items-center gap-2 bg-slate-900/60 border border-slate-700 rounded-lg p-1.5 pr-3 text-xs">
+                <div
+                  className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-white text-xs border border-white/10 ${
+                    isAdmin
+                      ? 'bg-orange-500'
+                      : isEmployee
+                      ? 'bg-blue-600'
+                      : 'bg-emerald-600'
+                  }`}
+                >
+                  {currentUser.name ? currentUser.name.charAt(0).toUpperCase() : 'U'}
+                </div>
+                <div className="hidden md:block">
+                  <p className="font-semibold text-white leading-tight truncate max-w-[140px] text-xs">
+                    {currentUser.name}
+                  </p>
+                  <p className="text-[10px] text-slate-400 font-medium capitalize flex items-center gap-1">
+                    <span
+                      className={`inline-block w-1.5 h-1.5 rounded-full ${
+                        isAdmin ? 'bg-orange-400' : isEmployee ? 'bg-blue-400' : 'bg-emerald-400'
+                      }`}
+                    ></span>
+                    {isAdmin ? 'Administrator (Full Access)' : isEmployee ? 'Nhân viên (Staff)' : 'Khách hàng (Customer)'}
+                  </p>
+                </div>
+
+                {/* 2FA Badge & Button */}
+                <button
+                  onClick={onOpen2FASetup}
+                  title={currentUser.totpEnabled ? 'Google Authenticator 2FA Active' : 'Thiết lập 2FA Google Authenticator'}
+                  className={`p-1 rounded-md border transition ${
+                    currentUser.totpEnabled
+                      ? 'bg-green-500/20 text-green-400 border-green-500/30 hover:bg-green-500/30'
+                      : 'bg-orange-500/20 text-orange-400 border-orange-500/30 hover:bg-orange-500/30'
+                  }`}
+                >
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                </button>
+
+                {/* Logout Button */}
+                <button
+                  onClick={onLogout}
+                  title="Đăng xuất"
+                  className="p-1 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-md transition"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={onOpenLoginModal}
+                className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-3.5 py-1.5 rounded-md text-xs transition flex items-center gap-1.5 shadow-sm"
+              >
+                <LogIn className="w-3.5 h-3.5" />
+                <span>Đăng Nhập</span>
+              </button>
+            )}
+
+            {/* Admin Pending Staff Approvals Button */}
+            {isAdmin && (
+              <button
+                onClick={() => switchTab('users')}
+                className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold border transition ${
+                  activeTab === 'users'
+                    ? 'bg-orange-500 text-white border-orange-400 font-bold shadow-sm'
+                    : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
+                }`}
+              >
+                <UserCheck className="w-3.5 h-3.5 text-orange-300" />
+                <span className="hidden sm:inline">Duyệt Tài Khoản</span>
+                {pendingUsersCount > 0 && (
+                  <span className="bg-rose-500 text-white text-[10px] font-black px-1.5 py-0.2 rounded-full animate-pulse">
+                    {pendingUsersCount}
+                  </span>
+                )}
+              </button>
+            )}
+
+            {/* Add Shipment Button (Disabled for Read-Only Customer) */}
+            {!isCustomer && activeTab === 'entry' && (
+              <button
+                onClick={onOpenNewTripModal}
+                className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-3.5 py-1.5 rounded-md text-xs shadow-sm transition flex items-center gap-1.5"
+              >
+                <PlusCircle className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Thêm Chuyến Mới</span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Navigation Tabs */}
+        <div className="flex space-x-1 pt-1 pb-1 overflow-x-auto no-scrollbar">
+          {/* Tab 1: Nhập liệu & Tra cứu (Visible to All Roles) */}
+          <button
+            onClick={() => switchTab('entry')}
+            className={`px-3.5 py-2 rounded-md text-xs font-medium transition-colors flex items-center gap-2 shrink-0 ${
+              activeTab === 'entry'
+                ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30 font-semibold'
+                : 'text-slate-300 hover:bg-slate-800'
+            }`}
+          >
+            <ListCheck className="w-4 h-4" />
+            <span>Nhập liệu & Tra cứu</span>
+            <span className="bg-slate-800 text-slate-300 text-[10px] font-bold px-2 py-0.5 rounded-full border border-slate-700">
+              {totalRecordsCount}
+            </span>
+          </button>
+
+          {/* Tab 2: Danh Mục Chuẩn (Hidden for Customer as per Requirement 2) */}
+          {!isCustomer && (
+            <button
+              onClick={() => switchTab('category')}
+              className={`px-3.5 py-2 rounded-md text-xs font-medium transition-colors flex items-center gap-2 shrink-0 ${
+                activeTab === 'category'
+                  ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30 font-semibold'
+                  : 'text-slate-300 hover:bg-slate-800'
+              }`}
+            >
+              <FolderTree className="w-4 h-4" />
+              <span>Kho & Vận chuyển</span>
+            </button>
+          )}
+
+          {/* Tab 3: Báo Cáo Tài Chính (Visible ONLY to Admin as per Requirements 2 & 3) */}
+          {isAdmin && (
+            <button
+              onClick={() => switchTab('report')}
+              className={`px-3.5 py-2 rounded-md text-xs font-medium transition-colors flex items-center gap-2 shrink-0 ${
+                activeTab === 'report'
+                  ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30 font-semibold'
+                  : 'text-slate-300 hover:bg-slate-800'
+              }`}
+            >
+              <ChartPie className="w-4 h-4" />
+              <span>Báo Cáo Tài Chính</span>
+              <span className="bg-amber-400/20 text-amber-300 text-[9px] font-bold px-1.5 py-0.5 rounded border border-amber-400/30 uppercase">
+                Admin
+              </span>
+            </button>
+          )}
+
+          {/* Tab 4: Quản lý người dùng (Admin Only) */}
+          {isAdmin && (
+            <button
+              onClick={() => switchTab('users')}
+              className={`px-3.5 py-2 rounded-md text-xs font-medium transition-colors flex items-center gap-2 shrink-0 ${
+                activeTab === 'users'
+                  ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30 font-semibold'
+                  : 'text-slate-300 hover:bg-slate-800'
+              }`}
+            >
+              <Users className="w-4 h-4" />
+              <span>Quản Lý Nhân Viên</span>
+              {pendingUsersCount > 0 && (
+                <span className="bg-orange-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                  {pendingUsersCount}
+                </span>
+              )}
+            </button>
+          )}
+        </div>
+      </div>
+    </header>
+  );
+};

@@ -1,0 +1,624 @@
+import React, { useState } from 'react';
+import {
+  FolderTree,
+  Warehouse,
+  Truck,
+  Building,
+  Route,
+  PlusCircle,
+  MapPin,
+  ExternalLink,
+  Edit2,
+  Trash2,
+  Search,
+  X
+} from 'lucide-react';
+import {
+  CatalogSubTab,
+  WarehouseItem,
+  TransporterItem,
+  CustomerItem,
+  RouteItem
+} from '../types';
+
+interface CatalogManagerProps {
+  activeSubTab: CatalogSubTab;
+  setActiveSubTab: (tab: CatalogSubTab) => void;
+  warehouses: WarehouseItem[];
+  transporters: TransporterItem[];
+  customers: CustomerItem[];
+  routes: RouteItem[];
+  onSaveCatalogItem: (subTab: CatalogSubTab, item: any) => Promise<void>;
+  onDeleteCatalogItem: (subTab: CatalogSubTab, id: string, name: string) => void;
+}
+
+export const CatalogManager: React.FC<CatalogManagerProps> = ({
+  activeSubTab,
+  setActiveSubTab,
+  warehouses,
+  transporters,
+  customers,
+  routes,
+  onSaveCatalogItem,
+  onDeleteCatalogItem,
+}) => {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showModal, setShowModal] = useState(false);
+  const [modalMode, setModalMode] = useState<'add' | 'edit'>('add');
+  const [editItem, setEditItem] = useState<any>(null);
+
+  // Modal Form State
+  const [formData, setFormData] = useState<any>({});
+
+  const isUrl = (str?: string) => {
+    if (!str) return false;
+    const text = str.trim().toLowerCase();
+    return (
+      text.startsWith('http://') ||
+      text.startsWith('https://') ||
+      text.startsWith('www.') ||
+      text.includes('maps') ||
+      text.includes('goo.gl')
+    );
+  };
+
+  const formatUrl = (str: string) => {
+    let url = str.trim();
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      url = 'https://' + url;
+    }
+    return url;
+  };
+
+  const isGoogleMapsUrl = (str?: string) => {
+    if (!str) return false;
+    const text = str.toLowerCase();
+    return text.includes('maps') || text.includes('goo.gl');
+  };
+
+  const handleOpenAddModal = () => {
+    setModalMode('add');
+    setEditItem(null);
+    setFormData({});
+    setShowModal(true);
+  };
+
+  const handleOpenEditModal = (item: any) => {
+    setModalMode('edit');
+    setEditItem(item);
+    setFormData({ ...item });
+    setShowModal(true);
+  };
+
+  const handleFormSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await onSaveCatalogItem(activeSubTab, {
+      ...formData,
+      id: editItem ? editItem.id : undefined,
+    });
+    setShowModal(false);
+  };
+
+  // Filtered Lists
+  const q = searchQuery.toLowerCase().trim();
+
+  const filteredWarehouses = warehouses.filter(
+    w =>
+      !q ||
+      w.warehouse_name.toLowerCase().includes(q) ||
+      w.contact_person.toLowerCase().includes(q) ||
+      w.contact_phone.toLowerCase().includes(q) ||
+      w.location.toLowerCase().includes(q)
+  );
+
+  const filteredTransporters = transporters.filter(
+    t => !q || t.transporter_name.toLowerCase().includes(q) || t.tax_code.toLowerCase().includes(q)
+  );
+
+  const filteredCustomers = customers.filter(
+    c => !q || c.customer_name.toLowerCase().includes(q) || c.tax_code.toLowerCase().includes(q)
+  );
+
+  const filteredRoutes = routes.filter(r => !q || r.route_name.toLowerCase().includes(q));
+
+  const getSubTabTitle = (tab: CatalogSubTab) => {
+    switch (tab) {
+      case 'warehouse':
+        return 'Thông Tin Kho';
+      case 'transporter':
+        return 'Nhà Xe';
+      case 'customer':
+        return 'Khách Hàng';
+      case 'route':
+        return 'Tuyến Đường';
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header Banner */}
+      <div className="bg-gradient-to-r from-indigo-950 via-slate-900 to-indigo-900 text-white rounded-2xl p-5 shadow-lg flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div className="flex items-center gap-3.5">
+          <div className="w-12 h-12 bg-indigo-500/20 border border-indigo-400/30 rounded-2xl flex items-center justify-center shrink-0">
+            <FolderTree className="w-6 h-6 text-indigo-300" />
+          </div>
+          <div>
+            <h3 className="font-extrabold text-base sm:text-lg">Danh Mục Quản Lý Chuẩn</h3>
+            <p className="text-xs text-slate-300 mt-0.5">
+              Dữ liệu ở đây được dùng để tự động gợi ý và điền nhanh khi nhập chuyến xe
+            </p>
+          </div>
+        </div>
+
+        <button
+          onClick={handleOpenAddModal}
+          className="bg-indigo-500 hover:bg-indigo-600 text-white text-xs sm:text-sm font-bold px-4 py-2.5 rounded-xl shadow-lg shadow-indigo-500/30 transition flex items-center gap-2 whitespace-nowrap"
+        >
+          <PlusCircle className="w-4 h-4" />
+          <span>Thêm {getSubTabTitle(activeSubTab)} Mới</span>
+        </button>
+      </div>
+
+      {/* Subtabs Bar */}
+      <div className="bg-white p-2 rounded-2xl border border-slate-200 shadow-xs flex flex-wrap gap-2 items-center justify-between">
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => setActiveSubTab('warehouse')}
+            className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm transition flex items-center gap-2 ${
+              activeSubTab === 'warehouse'
+                ? 'bg-indigo-600 text-white font-bold shadow-md'
+                : 'bg-slate-50 text-slate-600 hover:bg-slate-100 font-semibold'
+            }`}
+          >
+            <Warehouse className="w-4 h-4" />
+            <span>Thông Tin Kho</span>
+            <span
+              className={`px-2 py-0.5 rounded-full text-[10px] ${
+                activeSubTab === 'warehouse' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
+              }`}
+            >
+              {warehouses.length}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setActiveSubTab('transporter')}
+            className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm transition flex items-center gap-2 ${
+              activeSubTab === 'transporter'
+                ? 'bg-indigo-600 text-white font-bold shadow-md'
+                : 'bg-slate-50 text-slate-600 hover:bg-slate-100 font-semibold'
+            }`}
+          >
+            <Truck className="w-4 h-4" />
+            <span>Nhà Xe</span>
+            <span
+              className={`px-2 py-0.5 rounded-full text-[10px] ${
+                activeSubTab === 'transporter' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
+              }`}
+            >
+              {transporters.length}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setActiveSubTab('customer')}
+            className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm transition flex items-center gap-2 ${
+              activeSubTab === 'customer'
+                ? 'bg-indigo-600 text-white font-bold shadow-md'
+                : 'bg-slate-50 text-slate-600 hover:bg-slate-100 font-semibold'
+            }`}
+          >
+            <Building className="w-4 h-4" />
+            <span>Khách Hàng</span>
+            <span
+              className={`px-2 py-0.5 rounded-full text-[10px] ${
+                activeSubTab === 'customer' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
+              }`}
+            >
+              {customers.length}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setActiveSubTab('route')}
+            className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm transition flex items-center gap-2 ${
+              activeSubTab === 'route'
+                ? 'bg-indigo-600 text-white font-bold shadow-md'
+                : 'bg-slate-50 text-slate-600 hover:bg-slate-100 font-semibold'
+            }`}
+          >
+            <Route className="w-4 h-4" />
+            <span>Tuyến Đường</span>
+            <span
+              className={`px-2 py-0.5 rounded-full text-[10px] ${
+                activeSubTab === 'route' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
+              }`}
+            >
+              {routes.length}
+            </span>
+          </button>
+        </div>
+
+        {/* Search */}
+        <div className="relative w-full sm:w-64">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder={`Tìm ${getSubTabTitle(activeSubTab)}...`}
+            className="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500"
+          />
+        </div>
+      </div>
+
+      {/* Catalog Table: Warehouses */}
+      {activeSubTab === 'warehouse' && (
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-100/90 border-b border-slate-200 text-slate-600 text-[11px] font-bold uppercase tracking-wider">
+                  <th className="p-3.5 w-12 text-center">STT</th>
+                  <th className="p-3.5">Tên kho/xưởng</th>
+                  <th className="p-3.5">Tên người giao/nhận hàng</th>
+                  <th className="p-3.5">Số điện thoại</th>
+                  <th className="p-3.5">Vị trí (Google Maps)</th>
+                  <th className="p-3.5 text-right w-28">Thao tác</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-xs sm:text-sm">
+                {filteredWarehouses.map((item, index) => (
+                  <tr key={item.id} className="hover:bg-slate-50 transition">
+                    <td className="p-3.5 text-center font-bold text-slate-400 text-xs">{index + 1}</td>
+                    <td className="p-3.5 text-indigo-900 font-bold">{item.warehouse_name || '—'}</td>
+                    <td className="p-3.5 font-semibold text-slate-800">{item.contact_person || '—'}</td>
+                    <td className="p-3.5 text-indigo-600 font-medium font-mono">{item.contact_phone || '—'}</td>
+                    <td className="p-3.5 text-slate-600">
+                      {isUrl(item.location) ? (
+                        <a
+                          href={formatUrl(item.location)}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1.5 text-indigo-600 hover:text-indigo-800 font-semibold underline underline-offset-2 transition"
+                        >
+                          {isGoogleMapsUrl(item.location) ? (
+                            <>
+                              <MapPin className="w-3.5 h-3.5 text-rose-500" />
+                              <span>Xem Vị Trí Maps</span>
+                            </>
+                          ) : (
+                            <>
+                              <ExternalLink className="w-3.5 h-3.5" />
+                              <span>Mở Liên Kết Web</span>
+                            </>
+                          )}
+                        </a>
+                      ) : (
+                        item.location || '—'
+                      )}
+                    </td>
+                    <td className="p-3.5 text-right space-x-1 whitespace-nowrap">
+                      <button
+                        onClick={() => handleOpenEditModal(item)}
+                        className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => onDeleteCatalogItem('warehouse', item.id, item.warehouse_name)}
+                        className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                {filteredWarehouses.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="p-8 text-center text-slate-400">
+                      Chưa có kho nào.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Catalog Table: Transporters */}
+      {activeSubTab === 'transporter' && (
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-100/90 border-b border-slate-200 text-slate-600 text-[11px] font-bold uppercase">
+                  <th className="p-3.5 w-12 text-center">STT</th>
+                  <th className="p-3.5">Tên nhà xe / ĐVVC</th>
+                  <th className="p-3.5">Mã số thuế</th>
+                  <th className="p-3.5 text-right w-28">Thao tác</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-xs sm:text-sm">
+                {filteredTransporters.map((item, index) => (
+                  <tr key={item.id} className="hover:bg-slate-50 transition">
+                    <td className="p-3.5 text-center font-bold text-slate-400 text-xs">{index + 1}</td>
+                    <td className="p-3.5 font-bold text-slate-800">{item.transporter_name || '—'}</td>
+                    <td className="p-3.5 font-mono text-indigo-600 font-semibold">{item.tax_code || '—'}</td>
+                    <td className="p-3.5 text-right space-x-1 whitespace-nowrap">
+                      <button
+                        onClick={() => handleOpenEditModal(item)}
+                        className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => onDeleteCatalogItem('transporter', item.id, item.transporter_name)}
+                        className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                {filteredTransporters.length === 0 && (
+                  <tr>
+                    <td colSpan={4} className="p-8 text-center text-slate-400">
+                      Chưa có nhà xe nào.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Catalog Table: Customers */}
+      {activeSubTab === 'customer' && (
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-100/90 border-b border-slate-200 text-slate-600 text-[11px] font-bold uppercase">
+                  <th className="p-3.5 w-12 text-center">STT</th>
+                  <th className="p-3.5">Tên khách hàng</th>
+                  <th className="p-3.5">Mã số thuế</th>
+                  <th className="p-3.5 text-right w-28">Thao tác</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-xs sm:text-sm">
+                {filteredCustomers.map((item, index) => (
+                  <tr key={item.id} className="hover:bg-slate-50 transition">
+                    <td className="p-3.5 text-center font-bold text-slate-400 text-xs">{index + 1}</td>
+                    <td className="p-3.5 font-bold text-slate-800">{item.customer_name || '—'}</td>
+                    <td className="p-3.5 font-mono text-indigo-600 font-semibold">{item.tax_code || '—'}</td>
+                    <td className="p-3.5 text-right space-x-1 whitespace-nowrap">
+                      <button
+                        onClick={() => handleOpenEditModal(item)}
+                        className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => onDeleteCatalogItem('customer', item.id, item.customer_name)}
+                        className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                {filteredCustomers.length === 0 && (
+                  <tr>
+                    <td colSpan={4} className="p-8 text-center text-slate-400">
+                      Chưa có khách hàng nào.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Catalog Table: Routes */}
+      {activeSubTab === 'route' && (
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-100/90 border-b border-slate-200 text-slate-600 text-[11px] font-bold uppercase">
+                  <th className="p-3.5 w-12 text-center">STT</th>
+                  <th className="p-3.5">Tuyến đường</th>
+                  <th className="p-3.5 text-right w-28">Thao tác</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-xs sm:text-sm">
+                {filteredRoutes.map((item, index) => (
+                  <tr key={item.id} className="hover:bg-slate-50 transition">
+                    <td className="p-3.5 text-center font-bold text-slate-400 text-xs">{index + 1}</td>
+                    <td className="p-3.5 font-bold text-slate-800">{item.route_name || '—'}</td>
+                    <td className="p-3.5 text-right space-x-1 whitespace-nowrap">
+                      <button
+                        onClick={() => handleOpenEditModal(item)}
+                        className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => onDeleteCatalogItem('route', item.id, item.route_name)}
+                        className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                {filteredRoutes.length === 0 && (
+                  <tr>
+                    <td colSpan={3} className="p-8 text-center text-slate-400">
+                      Chưa có tuyến đường nào.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Add/Edit Catalog Item */}
+      {showModal && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-200 my-8">
+            <div className="bg-slate-900 text-white px-6 py-4 flex justify-between items-center">
+              <h3 className="font-extrabold text-sm sm:text-base">
+                {modalMode === 'add' ? 'Thêm Mới' : 'Cập Nhật'} {getSubTabTitle(activeSubTab)}
+              </h3>
+              <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleFormSubmit} className="p-6 space-y-4">
+              {activeSubTab === 'warehouse' && (
+                <>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Tên kho/xưởng</label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.warehouse_name || ''}
+                      onChange={e => setFormData({ ...formData, warehouse_name: e.target.value })}
+                      placeholder="Kho ICD Đình Vũ"
+                      className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Tên người giao/nhận hàng</label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.contact_person || ''}
+                      onChange={e => setFormData({ ...formData, contact_person: e.target.value })}
+                      placeholder="Nguyễn Văn Hùng"
+                      className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Số điện thoại</label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.contact_phone || ''}
+                      onChange={e => setFormData({ ...formData, contact_phone: e.target.value })}
+                      placeholder="0901234567"
+                      className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Vị trí (Google Maps link hoặc văn bản)</label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.location || ''}
+                      onChange={e => setFormData({ ...formData, location: e.target.value })}
+                      placeholder="https://maps.app.goo.gl/..."
+                      className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                </>
+              )}
+
+              {activeSubTab === 'transporter' && (
+                <>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Tên nhà xe / ĐVVC</label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.transporter_name || ''}
+                      onChange={e => setFormData({ ...formData, transporter_name: e.target.value })}
+                      placeholder="Vận Tải Á Châu"
+                      className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Mã số thuế</label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.tax_code || ''}
+                      onChange={e => setFormData({ ...formData, tax_code: e.target.value })}
+                      placeholder="0201234567"
+                      className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                </>
+              )}
+
+              {activeSubTab === 'customer' && (
+                <>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Tên khách hàng</label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.customer_name || ''}
+                      onChange={e => setFormData({ ...formData, customer_name: e.target.value })}
+                      placeholder="Samsung Electronics"
+                      className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Mã số thuế</label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.tax_code || ''}
+                      onChange={e => setFormData({ ...formData, tax_code: e.target.value })}
+                      placeholder="0102345678"
+                      className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                </>
+              )}
+
+              {activeSubTab === 'route' && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Tuyến đường</label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.route_name || ''}
+                    onChange={e => setFormData({ ...formData, route_name: e.target.value })}
+                    placeholder="Hải Phòng - Hà Nội"
+                    className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+              )}
+
+              <div className="pt-3 border-t border-slate-100 flex justify-end gap-2 text-xs font-bold">
+                <button
+                  type="button"
+                  onClick={() => setShowModal(false)}
+                  className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-xl"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow"
+                >
+                  Lưu Dữ Liệu
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
