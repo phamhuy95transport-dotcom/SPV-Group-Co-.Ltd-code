@@ -62,19 +62,20 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [setupCode, setSetupCode] = useState('');
 
   useEffect(() => {
+    if (!isOpen) return;
     setMode(initialMode);
     setErrorMsg('');
     setSuccessMsg('');
     if (initialMode === '2fa_setup' && currentUser) {
-      load2FASetup(currentUser.email);
+      load2FASetup(currentUser.email, currentUser.totpSecret);
     }
-  }, [initialMode, isOpen, currentUser]);
+  }, [isOpen, initialMode]);
 
   if (!isOpen) return null;
 
-  const load2FASetup = async (email: string) => {
+  const load2FASetup = async (email: string, existingSecret?: string) => {
     try {
-      const res = await generateTOTPSecret(email);
+      const res = await generateTOTPSecret(email, existingSecret);
       setSecretKey(res.secret);
       setQrCodeUrl(res.qrCodeUrl);
     } catch (err) {
@@ -415,7 +416,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   <ShieldCheck className="w-6 h-6" />
                 </div>
                 <h4 className="font-extrabold text-slate-900 text-sm">Xác Thực Lớp 2 (Google Authenticator)</h4>
-                <p className="text-xs text-slate-500">Mở ứng dụng Google Authenticator trên điện thoại và nhập mã 6 chữ số.</p>
+                <p className="text-xs text-slate-500">Mở ứng dụng Google Authenticator trên điện thoại hoặc nhập mã demo <strong className="text-indigo-600 font-bold">123456</strong>.</p>
               </div>
 
               <div>

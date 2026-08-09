@@ -58,7 +58,7 @@ export const Header: React.FC<HeaderProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="font-bold text-white tracking-tight text-sm sm:text-base uppercase">
-                  SPV LOGISTICS SYSTEM
+                  CÔNG TY TNHH SPV GROUP
                 </h1>
                 <span className="bg-green-100 text-green-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-green-200 flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
@@ -66,7 +66,7 @@ export const Header: React.FC<HeaderProps> = ({
                 </span>
               </div>
               <p className="text-[11px] text-slate-400 font-medium hidden sm:block">
-                Hệ thống phân quyền 3 cấp (Admin - Staff - Customer) & Xác thực Google 2FA
+                Hệ thống quản lý vận chuyển SPV
               </p>
             </div>
           </div>

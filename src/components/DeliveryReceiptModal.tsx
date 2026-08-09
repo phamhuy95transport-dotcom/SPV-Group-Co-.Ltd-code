@@ -109,8 +109,8 @@ export const DeliveryReceiptModal: React.FC<DeliveryReceiptModalProps> = ({
             </div>
             <div>
               <p className="text-slate-500 font-medium">2. Đơn Vị Vận Chuyển:</p>
-              <p className="font-semibold text-slate-800 mt-0.5">
-                {record.transporter || '......................................................................'}
+              <p className="text-slate-600 mt-0.5 font-mono border-b border-dashed border-slate-300 pb-0.5">
+                ....................................................................................................
               </p>
             </div>
             <div>
@@ -165,11 +165,13 @@ export const DeliveryReceiptModal: React.FC<DeliveryReceiptModalProps> = ({
             <h4 className="font-extrabold text-xs uppercase text-slate-700 tracking-wider">
               Tình Trạng Chứng Từ & Hồ Sơ Đi Kèm:
             </h4>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 font-medium">
-              <div>Phơi nâng: <strong className="text-indigo-600">{record.phoi_nang ? 'Có' : 'Không'}</strong></div>
-              <div>Phơi hạ: <strong className="text-indigo-600">{record.phoi_ha ? 'Có' : 'Không'}</strong></div>
-              <div>HĐ hạ rỗng: <strong className="text-indigo-600">{record.hd_ha_rong ? 'Có' : 'Không'}</strong></div>
-              <div>HĐ dịch vụ: <strong className="text-indigo-600">{record.hd_dich_vu ? 'Có' : 'Không'}</strong></div>
+            <div className="space-y-2 pt-1">
+              <div className="border-b border-dashed border-slate-300 text-slate-400 font-mono pb-1">
+                1. ...............................................................................................................................................................
+              </div>
+              <div className="border-b border-dashed border-slate-300 text-slate-400 font-mono pb-1">
+                2. ...............................................................................................................................................................
+              </div>
             </div>
           </div>
 
