@@ -1,1 +1,63 @@
 @import "tailwindcss";
+
+@page {
+  size: A4 portrait;
+  margin: 8mm 10mm 8mm 10mm;
+}
+
+@media print {
+  /* Hide non-printable header, navigation, main background, and action bars */
+  .no-print,
+  header,
+  nav,
+  main,
+  footer {
+    display: none !important;
+  }
+
+  html, body {
+    width: 100% !important;
+    height: auto !important;
+    min-height: auto !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Printable receipt modal overlay adjustments */
+  #printable-receipt-modal {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: auto !important;
+    background: #ffffff !important;
+    backdrop-filter: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+    z-index: 99999 !important;
+  }
+
+  /* Reset inner receipt container to fill A4 page cleanly */
+  #printable-receipt-modal .print-container {
+    max-width: 100% !important;
+    width: 100% !important;
+    box-shadow: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+  }
+
+  .break-inside-avoid {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+}

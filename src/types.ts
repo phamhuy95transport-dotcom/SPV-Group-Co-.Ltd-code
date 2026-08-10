@@ -56,13 +56,17 @@ export interface WarehouseItem {
 export interface TransporterItem {
   id: string;
   transporter_name: string;
+  company_full_name?: string;
   tax_code: string;
+  address?: string;
 }
 
 export interface CustomerItem {
   id: string;
   customer_name: string;
+  company_full_name?: string;
   tax_code: string;
+  address?: string;
 }
 
 export interface RouteItem {
