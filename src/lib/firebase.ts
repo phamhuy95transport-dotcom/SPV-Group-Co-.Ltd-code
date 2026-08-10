@@ -101,13 +101,13 @@ export const DEFAULT_WAREHOUSES: WarehouseItem[] = [
 ];
 
 export const DEFAULT_TRANSPORTERS: TransporterItem[] = [
-  { id: 't_1', transporter_name: 'Vận Tải Á Châu', tax_code: '0201234567' },
-  { id: 't_2', transporter_name: 'Vận Tải Hải Phòng Speed', tax_code: '0209876543' }
+  { id: 't_1', transporter_name: 'Vận Tải Á Châu', company_full_name: 'CÔNG TY CỔ PHẦN VẬN TẢI VÀ DỊCH VỤ Á CHÂU', tax_code: '0201234567', address: 'Số 123 Đường Lê Thánh Tông, P. Máy Chai, Q. Ngô Quyền, TP. Hải Phòng' },
+  { id: 't_2', transporter_name: 'Vận Tải Hải Phòng Speed', company_full_name: 'CÔNG TY TNHH VẬN TẢI HẢI PHÒNG SPEED', tax_code: '0209876543', address: 'BH01-12A Vinhomes Imperia, P. Thượng Lý, Q. Hồng Bàng, TP. Hải Phòng' }
 ];
 
 export const DEFAULT_CUSTOMERS: CustomerItem[] = [
-  { id: 'c_1', customer_name: 'Samsung Electronics', tax_code: '0102345678' },
-  { id: 'c_2', customer_name: 'LG Display Vietnam', tax_code: '0205554433' }
+  { id: 'c_1', customer_name: 'Samsung Electronics', company_full_name: 'CÔNG TY TNHH SAMSUNG ELECTRONICS VIỆT NAM', tax_code: '0102345678', address: 'Khu công nghiệp Yên Phong, Xã Yên Trung, Huyện Yên Phong, Tỉnh Bắc Ninh' },
+  { id: 'c_2', customer_name: 'LG Display Vietnam', company_full_name: 'CÔNG TY TNHH LG DISPLAY VIỆT NAM HẢI PHÒNG', tax_code: '0205554433', address: 'Khu công nghiệp Tràng Duệ, Xã Hồng Phong, Huyện An Dương, TP. Hải Phòng' }
 ];
 
 export const DEFAULT_ROUTES: RouteItem[] = [
