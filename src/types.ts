@@ -12,6 +12,7 @@ export interface UserAccount {
   createdAt: string;
   totpSecret?: string; // Base32 secret for Google Authenticator 2FA
   totpEnabled?: boolean;
+  password?: string;
 }
 
 export interface CreatorInfo {
@@ -105,6 +106,39 @@ export const findCustomerByName = (customerName?: string, customersList: Custome
   });
 
   return found;
+};
+
+export const canDeleteUser = (operator: UserAccount | null, targetUser: UserAccount): { allowed: boolean; reason?: string } => {
+  const targetEmailClean = (targetUser.email || '').trim().toLowerCase();
+  const operatorEmailClean = (operator?.email || '').trim().toLowerCase();
+
+  // Rule 1: Master admin account admin@spv.biz.vn can NEVER be deleted
+  if (targetEmailClean === 'admin@spv.biz.vn') {
+    return {
+      allowed: false,
+      reason: 'Tài khoản quản trị tối cao admin@spv.biz.vn là tài khoản hệ thống cố định, không thể xóa!'
+    };
+  }
+
+  // Rule 2: Cannot delete currently logged in account
+  if (operator && operator.id === targetUser.id) {
+    return {
+      allowed: false,
+      reason: 'Bạn không thể xóa tài khoản đang đăng nhập của chính mình!'
+    };
+  }
+
+  // Rule 3: Only admin@spv.biz.vn can delete other admin accounts
+  if (targetUser.role === 'admin') {
+    if (!operator || operatorEmailClean !== 'admin@spv.biz.vn') {
+      return {
+        allowed: false,
+        reason: 'Chỉ tài khoản admin@spv.biz.vn mới có quyền xóa tài khoản Quản trị viên khác!'
+      };
+    }
+  }
+
+  return { allowed: true };
 };
 
 export type ActiveTab = 'entry' | 'category' | 'report' | 'users';

@@ -8,7 +8,8 @@ import {
   CustomerItem,
   RouteItem,
   ActiveTab,
-  CatalogSubTab
+  CatalogSubTab,
+  canDeleteUser
 } from './types';
 import {
   DEFAULT_USERS,
@@ -52,7 +53,7 @@ export default function App() {
 
   // Modals
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-  const [authModalMode, setAuthModalMode] = useState<'login' | 'register' | '2fa_setup'>('login');
+  const [authModalMode, setAuthModalMode] = useState<'login' | 'register' | '2fa_setup' | 'change_password' | 'forgot_password'>('login');
   const [isUserMgmtOpen, setIsUserMgmtOpen] = useState(false);
   
   const [isShipmentModalOpen, setIsShipmentModalOpen] = useState(false);
@@ -199,12 +200,21 @@ export default function App() {
   };
 
   const handleChangeUserRole = async (userId: string, newRole: UserRole) => {
+    const targetUser = users.find(u => u.id === userId);
+    if (targetUser?.email.trim().toLowerCase() === 'admin@spv.biz.vn') {
+      showToast('Không thể thay đổi vai trò của tài khoản tối cao admin@spv.biz.vn.', 'error');
+      return;
+    }
+    if (targetUser?.role === 'admin' && currentUser?.email.trim().toLowerCase() !== 'admin@spv.biz.vn') {
+      showToast('Chỉ tài khoản admin@spv.biz.vn mới có quyền thay đổi vai trò của Quản trị viên.', 'error');
+      return;
+    }
+
     setUsers(prev =>
       prev.map(u => (u.id === userId ? { ...u, role: newRole } : u))
     );
-    const updated = users.find(u => u.id === userId);
-    if (updated) {
-      const roleUpdatedUser = { ...updated, role: newRole };
+    if (targetUser) {
+      const roleUpdatedUser = { ...targetUser, role: newRole };
       await saveRecordToCloud('users', userId, roleUpdatedUser);
       if (currentUser?.id === userId) {
         setCurrentUser(roleUpdatedUser);
@@ -214,9 +224,43 @@ export default function App() {
   };
 
   const handleDeleteUser = async (userId: string) => {
+    const targetUser = users.find(u => u.id === userId);
+    if (targetUser) {
+      const check = canDeleteUser(currentUser, targetUser);
+      if (!check.allowed) {
+        showToast(check.reason || 'Bạn không có quyền xóa tài khoản này.', 'error');
+        return;
+      }
+    }
+
     setUsers(prev => prev.filter(u => u.id !== userId));
     await deleteRecordFromCloud('users', userId);
     showToast('Đã xóa tài khoản khỏi hệ thống.');
+  };
+
+  const handleUpdateUserPassword = async (userId: string, newPassword: string) => {
+    let updatedUser: UserAccount | null = null;
+    setUsers(prev =>
+      prev.map(u => {
+        if (u.id === userId) {
+          updatedUser = { ...u, password: newPassword };
+          return updatedUser;
+        }
+        return u;
+      })
+    );
+
+    if (currentUser?.id === userId) {
+      setCurrentUser(prev => (prev ? { ...prev, password: newPassword } : null));
+    }
+
+    const userToSave = updatedUser || (currentUser?.id === userId ? { ...currentUser, password: newPassword } : users.find(u => u.id === userId));
+    if (userToSave) {
+      const recordToSave = { ...userToSave, password: newPassword };
+      await saveRecordToCloud('users', userId, recordToSave);
+    }
+
+    showToast('Đã cập nhật mật khẩu tài khoản thành công!');
   };
 
   const handleUpdateUser2FA = async (userId: string, secret: string, enabled: boolean) => {
@@ -484,6 +528,10 @@ export default function App() {
           setAuthModalMode('2fa_setup');
           setIsAuthModalOpen(true);
         }}
+        onOpenChangePassword={() => {
+          setAuthModalMode('change_password');
+          setIsAuthModalOpen(true);
+        }}
         onOpenNewTripModal={handleOpenNewTripModal}
       />
 
@@ -559,7 +607,7 @@ export default function App() {
         )}
       </main>
 
-      {/* Auth Modal (Login / Register / 2FA) */}
+      {/* Auth Modal (Login / Register / 2FA / Password Management) */}
       <AuthModal
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}
@@ -569,6 +617,7 @@ export default function App() {
         onLoginSuccess={handleLoginSuccess}
         onRegisterEmployee={handleRegisterEmployee}
         onUpdateUser2FA={handleUpdateUser2FA}
+        onUpdatePassword={handleUpdateUserPassword}
       />
 
       {/* Admin User Management Modal */}
@@ -576,6 +625,7 @@ export default function App() {
         isOpen={isUserMgmtOpen}
         onClose={() => setIsUserMgmtOpen(false)}
         users={users}
+        currentUser={currentUser}
         onApproveUser={handleApproveUser}
         onRejectUser={handleRejectUser}
         onChangeUserRole={handleChangeUserRole}
