@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { X, PlusCircle, Edit2, Lock, Save, User, AlertCircle } from 'lucide-react';
-import { ShipmentRecord, WarehouseItem, TransporterItem, CustomerItem, RouteItem, UserAccount } from '../types';
+import { X, PlusCircle, Edit2, Lock, Save, User, AlertCircle, FileText, Globe, Search, Loader2, CheckCircle2 } from 'lucide-react';
+import { ShipmentRecord, WarehouseItem, TransporterItem, CustomerItem, RouteItem, UserAccount, findCustomerByName } from '../types';
 
 export const formatNumberWithDots = (val: number | string | undefined | null): string => {
   if (val === undefined || val === null || val === '') return '';
@@ -46,11 +46,34 @@ export const ShipmentModal: React.FC<ShipmentModalProps> = ({
   const [formData, setFormData] = useState<Partial<ShipmentRecord>>({});
   const [isSaving, setIsSaving] = useState(false);
   const [contErrorMsg, setContErrorMsg] = useState<string | null>(null);
+  const [isSearchingTax, setIsSearchingTax] = useState(false);
+  const [taxSearchResult, setTaxSearchResult] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
 
   useEffect(() => {
     setContErrorMsg(null);
+    setTaxSearchResult(null);
+
     if (modalMode === 'edit' && initialData) {
-      setFormData({ ...initialData });
+      const initType = initialData.return_invoice_type || 'customer';
+      const custObj = findCustomerByName(initialData.customer, customers);
+
+      let taxCode = initialData.return_invoice_tax_code || '';
+      let compName = initialData.return_invoice_company_name || '';
+      let addr = initialData.return_invoice_address || '';
+
+      if (initType === 'customer') {
+        taxCode = custObj?.tax_code || taxCode;
+        compName = custObj?.company_full_name || custObj?.customer_name || compName || initialData.customer || '';
+        addr = custObj?.address || addr;
+      }
+
+      setFormData({
+        ...initialData,
+        return_invoice_type: initType,
+        return_invoice_tax_code: taxCode,
+        return_invoice_company_name: compName,
+        return_invoice_address: addr,
+      });
     } else {
       const today = new Date().toISOString().split('T')[0];
       setFormData({
@@ -72,11 +95,97 @@ export const ShipmentModal: React.FC<ShipmentModalProps> = ({
         notes: '',
         base_price: 0,
         sale_price: 0,
+        return_invoice_type: 'customer',
+        return_invoice_tax_code: '',
+        return_invoice_company_name: '',
+        return_invoice_address: '',
       });
     }
-  }, [modalMode, initialData, isOpen]);
+  }, [modalMode, initialData, isOpen, customers]);
 
   if (!isOpen) return null;
+
+  const handleCustomerChange = (val: string) => {
+    const custObj = findCustomerByName(val, customers);
+
+    setFormData(prev => {
+      const isCustomerType = (prev.return_invoice_type || 'customer') === 'customer';
+      return {
+        ...prev,
+        customer: val,
+        return_invoice_type: prev.return_invoice_type || 'customer',
+        return_invoice_tax_code: isCustomerType ? (custObj?.tax_code || '') : prev.return_invoice_tax_code,
+        return_invoice_company_name: isCustomerType ? (custObj?.company_full_name || custObj?.customer_name || val) : prev.return_invoice_company_name,
+        return_invoice_address: isCustomerType ? (custObj?.address || '') : prev.return_invoice_address,
+      };
+    });
+  };
+
+  const handleInvoiceTypeChange = (type: 'customer' | 'other') => {
+    setFormData(prev => {
+      if (type === 'customer') {
+        const custObj = findCustomerByName(prev.customer, customers);
+        return {
+          ...prev,
+          return_invoice_type: 'customer',
+          return_invoice_tax_code: custObj?.tax_code || '',
+          return_invoice_company_name: custObj?.company_full_name || custObj?.customer_name || prev.customer || '',
+          return_invoice_address: custObj?.address || '',
+        };
+      }
+      return {
+        ...prev,
+        return_invoice_type: 'other',
+      };
+    });
+  };
+
+  const handleLookupTaxCode = async () => {
+    const code = formData.return_invoice_tax_code?.trim();
+    if (!code) {
+      setTaxSearchResult({ type: 'error', message: 'Vui lòng nhập Mã số thuế trước khi tra cứu!' });
+      return;
+    }
+    const cleanCode = code.replace(/\D/g, '');
+    setIsSearchingTax(true);
+    setTaxSearchResult({ type: 'info', message: 'Đang tra cứu dữ liệu masothue.com...' });
+
+    try {
+      const res = await fetch(`https://api.vietqr.io/v2/business/${cleanCode}`);
+      const data = await res.json();
+
+      if (data && data.code === '00' && data.data) {
+        const company = data.data;
+        const fullCompanyName = company.name || company.shortName || '';
+        const address = company.address || '';
+
+        setFormData(prev => ({
+          ...prev,
+          return_invoice_tax_code: company.taxCode || cleanCode,
+          return_invoice_company_name: fullCompanyName || prev.return_invoice_company_name,
+          return_invoice_address: address || prev.return_invoice_address,
+        }));
+
+        setTaxSearchResult({
+          type: 'success',
+          message: `Đã tự động lấy dữ liệu từ Masothue.com: ${fullCompanyName}`
+        });
+      } else {
+        setTaxSearchResult({
+          type: 'error',
+          message: 'Không tìm thấy MST này trên hệ thống. Vui lòng kiểm tra lại hoặc nhập thủ công.'
+        });
+      }
+    } catch (err) {
+      console.error('Lỗi tra cứu MST:', err);
+      setTaxSearchResult({
+        type: 'error',
+        message: 'Lỗi kết nối API tra cứu MST. Vui lòng nhập thông tin thủ công.'
+      });
+    } finally {
+      setIsSearchingTax(false);
+    }
+  };
 
   // Handle Multi-Cont Input
   const rawContText = formData.cont_number || '';
@@ -124,8 +233,24 @@ export const ShipmentModal: React.FC<ShipmentModalProps> = ({
         role: currentUser.role
       } : undefined);
 
+      const invType = formData.return_invoice_type || 'customer';
+      let invTax = formData.return_invoice_tax_code || '';
+      let invComp = formData.return_invoice_company_name || '';
+      let invAddr = formData.return_invoice_address || '';
+
+      if (invType === 'customer') {
+        const custObj = findCustomerByName(formData.customer, customers);
+        invTax = custObj?.tax_code || invTax;
+        invComp = custObj?.company_full_name || custObj?.customer_name || invComp || formData.customer || '';
+        invAddr = custObj?.address || invAddr;
+      }
+
       await onSave({
         ...formData,
+        return_invoice_type: invType,
+        return_invoice_tax_code: invTax,
+        return_invoice_company_name: invComp,
+        return_invoice_address: invAddr,
         cont_number: formData.cont_number?.trim() || '',
         cont_quantity: formData.cont_quantity !== undefined ? formData.cont_quantity : 1,
         created_by: creatorInfo
@@ -255,7 +380,7 @@ export const ShipmentModal: React.FC<ShipmentModalProps> = ({
                   required
                   placeholder="Tên khách hàng"
                   value={formData.customer || ''}
-                  onChange={e => setFormData({ ...formData, customer: e.target.value })}
+                  onChange={e => handleCustomerChange(e.target.value)}
                   className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
                 <datalist id="customer-list">
@@ -425,11 +550,161 @@ export const ShipmentModal: React.FC<ShipmentModalProps> = ({
             </div>
           </div>
 
-          {/* Section 4: Doanh thu & Giá gốc (Admin/Staff) */}
+          {/* Section 4: Thông Tin Hóa Đơn Hạ Vỏ (Xuất biên bản giao hàng) */}
+          <div className="bg-indigo-50/60 p-4 rounded-xl border border-indigo-200 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h4 className="text-xs font-extrabold uppercase tracking-wider text-indigo-950 flex items-center gap-1.5">
+                <FileText className="w-4 h-4 text-indigo-600" />
+                <span>4. Thông Tin Hóa Đơn Hạ Vỏ (Container)</span>
+              </h4>
+
+              {/* Radio choices */}
+              <div className="flex items-center gap-4 bg-white px-3 py-1.5 rounded-xl border border-indigo-200 text-xs font-bold text-slate-700">
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="return_invoice_type"
+                    value="customer"
+                    checked={(formData.return_invoice_type || 'customer') === 'customer'}
+                    onChange={() => handleInvoiceTypeChange('customer')}
+                    className="w-3.5 h-3.5 text-indigo-600 focus:ring-indigo-500"
+                  />
+                  <span>Của khách hàng</span>
+                </label>
+
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="return_invoice_type"
+                    value="other"
+                    checked={formData.return_invoice_type === 'other'}
+                    onChange={() => handleInvoiceTypeChange('other')}
+                    className="w-3.5 h-3.5 text-indigo-600 focus:ring-indigo-500"
+                  />
+                  <span>Khác</span>
+                </label>
+              </div>
+            </div>
+
+            {(formData.return_invoice_type || 'customer') === 'customer' ? (() => {
+              const custObj = findCustomerByName(formData.customer, customers);
+              const displayTax = custObj?.tax_code || formData.return_invoice_tax_code || (formData.customer ? 'Chưa cập nhật MST trong Danh Mục' : '—');
+              const displayComp = custObj?.company_full_name || custObj?.customer_name || formData.return_invoice_company_name || formData.customer || '—';
+              const displayAddress = custObj?.address || formData.return_invoice_address || (formData.customer ? 'Chưa cập nhật địa chỉ trong Danh Mục' : '—');
+
+              return (
+                <div className="bg-white p-3.5 rounded-xl border border-indigo-100 text-xs space-y-2">
+                  <p className="text-slate-600 text-[11px] font-medium flex items-center gap-1.5">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>
+                      Tự động trích xuất thông tin xuất hóa đơn hạ vỏ từ Khách hàng: <strong className="text-indigo-900">{formData.customer || 'Chưa chọn KH'}</strong>
+                    </span>
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1.5 bg-slate-50/80 p-3 rounded-lg border border-slate-100">
+                    <div>
+                      <span className="text-slate-400 font-semibold block text-[10px] uppercase">Mã số thuế:</span>
+                      <span className="font-mono font-bold text-indigo-700">
+                        {displayTax}
+                      </span>
+                    </div>
+                    <div className="sm:col-span-2">
+                      <span className="text-slate-400 font-semibold block text-[10px] uppercase">Tên công ty đầy đủ:</span>
+                      <span className="font-bold text-slate-800">
+                        {displayComp}
+                      </span>
+                    </div>
+                    <div className="sm:col-span-3">
+                      <span className="text-slate-400 font-semibold block text-[10px] uppercase">Địa chỉ công ty:</span>
+                      <span className="text-slate-700 font-medium">
+                        {displayAddress}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })() : (
+              <div className="bg-white p-3.5 rounded-xl border border-indigo-200 text-xs space-y-3">
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-bold text-slate-700">Mã số thuế HĐ hạ vỏ</label>
+                    <a
+                      href={`https://masothue.com/tra-cuu-ma-so-thue-doanh-nghiep?q=${encodeURIComponent(formData.return_invoice_tax_code || '')}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 flex items-center gap-1"
+                    >
+                      <Globe className="w-3 h-3" /> Tra cứu trên masothue.com ↗
+                    </a>
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={formData.return_invoice_tax_code || ''}
+                      onChange={e => setFormData({ ...formData, return_invoice_tax_code: e.target.value })}
+                      placeholder="VD: 0101234567"
+                      className="flex-1 px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono font-bold text-indigo-900"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleLookupTaxCode}
+                      disabled={isSearchingTax}
+                      className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 shrink-0 shadow-xs disabled:opacity-50"
+                    >
+                      {isSearchingTax ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          <span>Đang lấy...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Search className="w-3.5 h-3.5" />
+                          <span>Lấy Dữ Liệu Masothue</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  {taxSearchResult && (
+                    <div className={`mt-2 p-2 rounded-lg text-xs flex items-center gap-2 ${
+                      taxSearchResult.type === 'success' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' :
+                      taxSearchResult.type === 'error' ? 'bg-amber-50 text-amber-800 border border-amber-200' :
+                      'bg-indigo-50 text-indigo-800 border border-indigo-200'
+                    }`}>
+                      {taxSearchResult.type === 'success' && <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />}
+                      <span>{taxSearchResult.message}</span>
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Tên công ty đầy đủ HĐ hạ vỏ</label>
+                  <input
+                    type="text"
+                    value={formData.return_invoice_company_name || ''}
+                    onChange={e => setFormData({ ...formData, return_invoice_company_name: e.target.value })}
+                    placeholder="Nhập tên công ty xuất hóa đơn hạ vỏ..."
+                    className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-semibold text-slate-800"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Địa chỉ công ty HĐ hạ vỏ</label>
+                  <textarea
+                    rows={2}
+                    value={formData.return_invoice_address || ''}
+                    onChange={e => setFormData({ ...formData, return_invoice_address: e.target.value })}
+                    placeholder="Nhập địa chỉ trụ sở công ty xuất hóa đơn hạ vỏ..."
+                    className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none text-slate-700"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Section 5: Doanh thu & Giá gốc (Admin/Staff) */}
           <div className="bg-amber-50/60 p-4 rounded-xl border border-amber-200">
             <h4 className="text-xs font-extrabold uppercase tracking-wider text-amber-900 flex items-center gap-1.5 mb-3">
               <Lock className="w-3.5 h-3.5 text-amber-600" />
-              <span>4. Quản Lý Giá & Doanh Thu Nội Bộ (Cột Q - R)</span>
+              <span>5. Quản Lý Giá & Doanh Thu Nội Bộ (Cột Q - R)</span>
             </h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>

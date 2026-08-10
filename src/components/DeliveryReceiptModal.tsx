@@ -1,17 +1,19 @@
 import React from 'react';
-import { X, Printer, FileCheck2, MapPin, Globe, ExternalLink } from 'lucide-react';
-import { ShipmentRecord } from '../types';
+import { X, Printer, FileCheck2, MapPin, Globe, ExternalLink, FileText } from 'lucide-react';
+import { ShipmentRecord, CustomerItem, findCustomerByName } from '../types';
 
 interface DeliveryReceiptModalProps {
   isOpen: boolean;
   onClose: () => void;
   record: ShipmentRecord | null;
+  customers?: CustomerItem[];
 }
 
 export const DeliveryReceiptModal: React.FC<DeliveryReceiptModalProps> = ({
   isOpen,
   onClose,
   record,
+  customers = [],
 }) => {
   if (!isOpen || !record) return null;
 
@@ -25,6 +27,35 @@ export const DeliveryReceiptModal: React.FC<DeliveryReceiptModalProps> = ({
   };
 
   const formattedReceiptNo = String(record.id || '1').replace(/\D/g, '').slice(-5).padStart(5, '0') || '00001';
+
+  // Extract Return Invoice Info (Thông tin hóa đơn hạ vỏ)
+  const getReturnInvoiceInfo = () => {
+    if (record.return_invoice_type === 'other') {
+      return {
+        taxCode: record.return_invoice_tax_code || '—',
+        companyName: record.return_invoice_company_name || '—',
+        address: record.return_invoice_address || '—',
+      };
+    }
+
+    const custObj = findCustomerByName(record.customer, customers);
+
+    if (custObj) {
+      return {
+        taxCode: custObj.tax_code || record.return_invoice_tax_code || '—',
+        companyName: custObj.company_full_name || custObj.customer_name || record.return_invoice_company_name || record.customer || '—',
+        address: custObj.address || record.return_invoice_address || '—',
+      };
+    }
+
+    return {
+      taxCode: record.return_invoice_tax_code || '—',
+      companyName: record.return_invoice_company_name || record.customer || '—',
+      address: record.return_invoice_address || '—',
+    };
+  };
+
+  const invInfo = getReturnInvoiceInfo();
 
   const handlePrint = () => {
     try {
@@ -209,6 +240,28 @@ export const DeliveryReceiptModal: React.FC<DeliveryReceiptModalProps> = ({
                 </tr>
               </tbody>
             </table>
+          </div>
+
+          {/* Return Container Invoice Info (Thông tin hóa đơn hạ vỏ) */}
+          <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-xs print:bg-white print:p-2.5 space-y-1.5">
+            <div className="flex items-center gap-1.5 font-extrabold uppercase text-[11px] text-indigo-950 border-b border-slate-200 pb-1">
+              <FileText className="w-3.5 h-3.5 text-indigo-600" />
+              <span>THÔNG TIN HÓA ĐƠN HẠ VỎ (CONTAINER):</span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-0.5">
+              <div>
+                <span className="text-slate-500 font-medium block text-[11px]">Mã số thuế:</span>
+                <span className="font-mono font-bold text-slate-900">{invInfo.taxCode}</span>
+              </div>
+              <div className="sm:col-span-2">
+                <span className="text-slate-500 font-medium block text-[11px]">Tên công ty xuất hóa đơn:</span>
+                <span className="font-bold text-slate-900">{invInfo.companyName}</span>
+              </div>
+              <div className="sm:col-span-3">
+                <span className="text-slate-500 font-medium block text-[11px]">Địa chỉ công ty:</span>
+                <span className="text-slate-800">{invInfo.address}</span>
+              </div>
+            </div>
           </div>
 
           {/* Document Status */}
