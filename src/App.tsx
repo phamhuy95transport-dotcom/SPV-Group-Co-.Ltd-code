@@ -34,8 +34,8 @@ import { Toast, ToastState } from './components/Toast';
 import { Trash2 } from 'lucide-react';
 
 export default function App() {
-  // Current logged in user (Default to Admin for convenience, or can log out to test other roles)
-  const [currentUser, setCurrentUser] = useState<UserAccount | null>(DEFAULT_USERS[0]);
+  // Current logged in user (Defaults to null - logged out)
+  const [currentUser, setCurrentUser] = useState<UserAccount | null>(null);
 
   // Main Data States
   const [users, setUsers] = useState<UserAccount[]>(DEFAULT_USERS);
@@ -157,6 +157,7 @@ export default function App() {
 
   const handleLogout = () => {
     setCurrentUser(null);
+    setActiveTab('entry');
     showToast('Đã đăng xuất khỏi hệ thống.', 'info');
   };
 
@@ -245,7 +246,34 @@ export default function App() {
   };
 
   // Shipment CRUD Operations
+  const handleOpenNewTripModal = () => {
+    if (!currentUser) {
+      showToast('Vui lòng đăng nhập để nhập dữ liệu chuyến mới.', 'error');
+      setAuthModalMode('login');
+      setIsAuthModalOpen(true);
+      return;
+    }
+    if (currentUser.role === 'customer') {
+      showToast('Tài khoản Khách hàng không có quyền nhập chuyến mới.', 'error');
+      return;
+    }
+    setSelectedShipment(null);
+    setShipmentModalMode('add');
+    setIsShipmentModalOpen(true);
+  };
+
   const handleSaveShipment = async (shipmentData: Partial<ShipmentRecord>) => {
+    if (!currentUser) {
+      showToast('Vui lòng đăng nhập để thực hiện thao tác này.', 'error');
+      setAuthModalMode('login');
+      setIsAuthModalOpen(true);
+      return;
+    }
+    if (currentUser.role === 'customer') {
+      showToast('Tài khoản Khách hàng không có quyền lưu chuyến hàng.', 'error');
+      return;
+    }
+
     const recordId = shipmentData.id || 'rec_' + Date.now();
     const recordToSave: ShipmentRecord = {
       ...shipmentData,
@@ -452,11 +480,7 @@ export default function App() {
           setAuthModalMode('2fa_setup');
           setIsAuthModalOpen(true);
         }}
-        onOpenNewTripModal={() => {
-          setSelectedShipment(null);
-          setShipmentModalMode('add');
-          setIsShipmentModalOpen(true);
-        }}
+        onOpenNewTripModal={handleOpenNewTripModal}
       />
 
       {/* Main Body Content */}
@@ -485,16 +509,16 @@ export default function App() {
               setIsConfirmDeleteOpen(true);
             }}
             onToggleCheckbox={handleToggleCheckbox}
-            onOpenNewTripModal={() => {
-              setSelectedShipment(null);
-              setShipmentModalMode('add');
-              setIsShipmentModalOpen(true);
+            onOpenNewTripModal={handleOpenNewTripModal}
+            onOpenLoginModal={() => {
+              setAuthModalMode('login');
+              setIsAuthModalOpen(true);
             }}
           />
         )}
 
-        {/* Tab 2: Quản Lý Danh Mục Chuẩn (Hidden for Customer) */}
-        {activeTab === 'category' && currentUser?.role !== 'customer' && (
+        {/* Tab 2: Quản Lý Danh Mục Chuẩn (Hidden for Customer & Guest) */}
+        {activeTab === 'category' && currentUser && currentUser.role !== 'customer' && (
           <CatalogManager
             activeSubTab={activeSubTab}
             setActiveSubTab={setActiveSubTab}

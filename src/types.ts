@@ -37,7 +37,7 @@ export interface ShipmentRecord {
   phoi_nang?: boolean;    // L. Phơi nâng
   phoi_ha?: boolean;      // M. Phơi hạ
   hd_ha_rong?: boolean;   // N. Hóa đơn hạ rỗng
-  hd_dich_vu?: boolean;   // O. Hóa đơn dịch vụ
+  hd_dich_vu?: boolean;   // O. Hóa đơn cước vc
   notes?: string;         // P. Ghi chú
   base_price?: number;    // Q. Giá gốc/cont
   sale_price?: number;    // R. Giá bán/cont
