@@ -11,7 +11,10 @@ import {
   Edit2,
   Trash2,
   Search,
-  X
+  X,
+  Globe,
+  Loader2,
+  CheckCircle2
 } from 'lucide-react';
 import {
   CatalogSubTab,
@@ -49,37 +52,146 @@ export const CatalogManager: React.FC<CatalogManagerProps> = ({
 
   // Modal Form State
   const [formData, setFormData] = useState<any>({});
+  const [isSearchingTax, setIsSearchingTax] = useState(false);
+  const [taxSearchResult, setTaxSearchResult] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
 
-  const isUrl = (str?: string) => {
-    if (!str) return false;
-    const text = str.trim().toLowerCase();
-    return (
-      text.startsWith('http://') ||
-      text.startsWith('https://') ||
-      text.startsWith('www.') ||
-      text.includes('maps') ||
-      text.includes('goo.gl')
-    );
-  };
+  // Parse Google Maps & location link (Extracts DkEaL class name, URLs, and labels)
+  const parseGoogleMapsLocation = (raw?: string, fallbackWarehouseName?: string) => {
+    if (!raw) return { isLink: false, isMaps: false, url: '', displayLabel: '' };
+    const str = raw.trim();
 
-  const formatUrl = (str: string) => {
-    let url = str.trim();
-    if (!url.startsWith('http://') && !url.startsWith('https://')) {
-      url = 'https://' + url;
+    let extractedUrl = '';
+    let extractedLabel = '';
+
+    const hrefMatch = str.match(/href=["']([^"']+)["']/i);
+    if (hrefMatch) {
+      extractedUrl = hrefMatch[1];
     }
-    return url;
+
+    const tagTextMatch = str.match(/>([^<]+)</);
+    if (tagTextMatch) {
+      extractedLabel = tagTextMatch[1].trim();
+    }
+
+    let urlMatch = str.match(/(https?:\/\/[^\s"']+)/i);
+    if (!urlMatch) {
+      const matchWww = str.match(/(www\.[^\s"']+)/i);
+      if (matchWww) {
+        urlMatch = [`https://${matchWww[1]}`, `https://${matchWww[1]}`];
+      }
+    }
+
+    let finalUrl = extractedUrl || (urlMatch ? urlMatch[1] : str);
+
+    if (!finalUrl.startsWith('http://') && !finalUrl.startsWith('https://')) {
+      if (finalUrl.startsWith('www.') || finalUrl.includes('maps') || finalUrl.includes('goo.gl')) {
+        finalUrl = 'https://' + finalUrl;
+      }
+    }
+
+    const isDkEaL = str.includes('DkEaL');
+    const isLink = finalUrl.startsWith('http://') || finalUrl.startsWith('https://') || isDkEaL;
+    const isMaps = finalUrl.includes('maps') || finalUrl.includes('goo.gl') || finalUrl.includes('google.com') || isDkEaL;
+
+    // Determine place name label (tên địa danh):
+    let placeNameLabel = extractedLabel;
+
+    if (!placeNameLabel) {
+      // Check if there's custom text surrounding the URL in `str`, e.g. "Kho Đình Vũ https://..."
+      const cleanedStr = str.replace(/(https?:\/\/[^\s"']+)/gi, '').replace(/<[^>]*>/g, '').trim();
+      if (cleanedStr) {
+        placeNameLabel = cleanedStr;
+      }
+    }
+
+    if (!placeNameLabel && isMaps) {
+      // Check if URL has place path e.g. /maps/place/Kho+ICD+Dinh+Vu/
+      const placeMatch = finalUrl.match(/\/place\/([^\/@?]+)/i);
+      if (placeMatch && placeMatch[1]) {
+        try {
+          placeNameLabel = decodeURIComponent(placeMatch[1].replace(/\+/g, ' '));
+        } catch {
+          placeNameLabel = placeMatch[1].replace(/\+/g, ' ');
+        }
+      }
+    }
+
+    if (!placeNameLabel) {
+      placeNameLabel = fallbackWarehouseName || (isMaps ? 'Vị Trí Maps' : 'Liên Kết Web');
+    }
+
+    return {
+      isLink,
+      isMaps,
+      url: finalUrl,
+      displayLabel: placeNameLabel
+    };
   };
 
-  const isGoogleMapsUrl = (str?: string) => {
-    if (!str) return false;
-    const text = str.toLowerCase();
-    return text.includes('maps') || text.includes('goo.gl');
+  // Lookup company data from Masothue.com / Vietnam Tax Database
+  const handleLookupTaxCode = async (explicitCode?: string) => {
+    const codeToSearch = explicitCode || formData.tax_code || '';
+    const cleanCode = codeToSearch.replace(/\s+/g, '').replace(/[^0-9-]/g, '');
+
+    if (!cleanCode) {
+      setTaxSearchResult({ type: 'error', message: 'Vui lòng nhập Mã Số Thuế để tra cứu dữ liệu masothue.com!' });
+      return;
+    }
+
+    setIsSearchingTax(true);
+    setTaxSearchResult({ type: 'info', message: 'Đang kết nối cơ sở dữ liệu Mã Số Thuế masothue.com...' });
+
+    try {
+      const res = await fetch(`https://api.vietqr.io/v2/business/${cleanCode}`);
+      const data = await res.json();
+
+      if (data && data.code === '00' && data.data) {
+        const company = data.data;
+        const fullCompanyName = company.name || company.shortName || '';
+        const address = company.address || '';
+
+        setFormData(prev => {
+          let shortName = activeSubTab === 'transporter' ? prev.transporter_name : prev.customer_name;
+          if (!shortName) {
+            shortName = fullCompanyName.replace(/CÔNG TY (CỔ PHẦN|TNHH|TNHH MỘT THÀNH VIÊN|VẬN TẢI|TẬP ĐOÀN)\s*/gi, '').trim() || fullCompanyName;
+          }
+
+          return {
+            ...prev,
+            tax_code: company.taxCode || cleanCode,
+            company_full_name: fullCompanyName,
+            transporter_name: activeSubTab === 'transporter' ? shortName : prev.transporter_name,
+            customer_name: activeSubTab === 'customer' ? shortName : prev.customer_name,
+            address: address || prev.address
+          };
+        });
+
+        setTaxSearchResult({
+          type: 'success',
+          message: `Đã tự động lấy Tên công ty đầy đủ & Địa chỉ từ Masothue.com: ${fullCompanyName}`
+        });
+      } else {
+        setTaxSearchResult({
+          type: 'error',
+          message: 'Không tìm thấy thông tin tự động. Bấm "Tra cứu trên masothue.com" bên trên để tìm trực tiếp.'
+        });
+      }
+    } catch (err) {
+      console.warn('Masothue lookup error:', err);
+      setTaxSearchResult({
+        type: 'error',
+        message: 'Lỗi kết nối tra cứu. Bấm "Tra cứu trên masothue.com" để mở trang web chính thức.'
+      });
+    } finally {
+      setIsSearchingTax(false);
+    }
   };
 
   const handleOpenAddModal = () => {
     setModalMode('add');
     setEditItem(null);
     setFormData({});
+    setTaxSearchResult(null);
     setShowModal(true);
   };
 
@@ -87,6 +199,7 @@ export const CatalogManager: React.FC<CatalogManagerProps> = ({
     setModalMode('edit');
     setEditItem(item);
     setFormData({ ...item });
+    setTaxSearchResult(null);
     setShowModal(true);
   };
 
@@ -112,11 +225,17 @@ export const CatalogManager: React.FC<CatalogManagerProps> = ({
   );
 
   const filteredTransporters = transporters.filter(
-    t => !q || t.transporter_name.toLowerCase().includes(q) || t.tax_code.toLowerCase().includes(q)
+    t => !q ||
+      t.transporter_name.toLowerCase().includes(q) ||
+      t.tax_code.toLowerCase().includes(q) ||
+      (t.address && t.address.toLowerCase().includes(q))
   );
 
   const filteredCustomers = customers.filter(
-    c => !q || c.customer_name.toLowerCase().includes(q) || c.tax_code.toLowerCase().includes(q)
+    c => !q ||
+      c.customer_name.toLowerCase().includes(q) ||
+      c.tax_code.toLowerCase().includes(q) ||
+      (c.address && c.address.toLowerCase().includes(q))
   );
 
   const filteredRoutes = routes.filter(r => !q || r.route_name.toLowerCase().includes(q));
@@ -263,57 +382,61 @@ export const CatalogManager: React.FC<CatalogManagerProps> = ({
                   <th className="p-3.5">Tên kho/xưởng</th>
                   <th className="p-3.5">Tên người giao/nhận hàng</th>
                   <th className="p-3.5">Số điện thoại</th>
-                  <th className="p-3.5">Vị trí (Google Maps)</th>
+                  <th className="p-3.5">Vị trí (Địa danh & Google Maps)</th>
                   <th className="p-3.5 text-right w-28">Thao tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-xs sm:text-sm">
-                {filteredWarehouses.map((item, index) => (
-                  <tr key={item.id} className="hover:bg-slate-50 transition">
-                    <td className="p-3.5 text-center font-bold text-slate-400 text-xs">{index + 1}</td>
-                    <td className="p-3.5 text-indigo-900 font-bold">{item.warehouse_name || '—'}</td>
-                    <td className="p-3.5 font-semibold text-slate-800">{item.contact_person || '—'}</td>
-                    <td className="p-3.5 text-indigo-600 font-medium font-mono">{item.contact_phone || '—'}</td>
-                    <td className="p-3.5 text-slate-600">
-                      {isUrl(item.location) ? (
-                        <a
-                          href={formatUrl(item.location)}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center gap-1.5 text-indigo-600 hover:text-indigo-800 font-semibold underline underline-offset-2 transition"
+                {filteredWarehouses.map((item, index) => {
+                  const parsed = parseGoogleMapsLocation(item.location, item.warehouse_name);
+                  return (
+                    <tr key={item.id} className="hover:bg-slate-50 transition">
+                      <td className="p-3.5 text-center font-bold text-slate-400 text-xs">{index + 1}</td>
+                      <td className="p-3.5 text-indigo-900 font-bold">{item.warehouse_name || '—'}</td>
+                      <td className="p-3.5 font-semibold text-slate-800">{item.contact_person || '—'}</td>
+                      <td className="p-3.5 text-indigo-600 font-medium font-mono">{item.contact_phone || '—'}</td>
+                      <td className="p-3.5 text-slate-600">
+                        {parsed.isLink ? (
+                          <a
+                            href={parsed.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="DkEaL inline-flex items-center gap-1.5 text-indigo-600 hover:text-indigo-800 font-semibold underline underline-offset-2 transition"
+                            title={`Mở vị trí Google Maps: ${parsed.displayLabel}`}
+                          >
+                            {parsed.isMaps ? (
+                              <>
+                                <MapPin className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                                <span>{parsed.displayLabel}</span>
+                              </>
+                            ) : (
+                              <>
+                                <ExternalLink className="w-3.5 h-3.5 shrink-0" />
+                                <span>{parsed.displayLabel}</span>
+                              </>
+                            )}
+                          </a>
+                        ) : (
+                          item.location || '—'
+                        )}
+                      </td>
+                      <td className="p-3.5 text-right space-x-1 whitespace-nowrap">
+                        <button
+                          onClick={() => handleOpenEditModal(item)}
+                          className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
                         >
-                          {isGoogleMapsUrl(item.location) ? (
-                            <>
-                              <MapPin className="w-3.5 h-3.5 text-rose-500" />
-                              <span>Xem Vị Trí Maps</span>
-                            </>
-                          ) : (
-                            <>
-                              <ExternalLink className="w-3.5 h-3.5" />
-                              <span>Mở Liên Kết Web</span>
-                            </>
-                          )}
-                        </a>
-                      ) : (
-                        item.location || '—'
-                      )}
-                    </td>
-                    <td className="p-3.5 text-right space-x-1 whitespace-nowrap">
-                      <button
-                        onClick={() => handleOpenEditModal(item)}
-                        className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
-                      >
-                        <Edit2 className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => onDeleteCatalogItem('warehouse', item.id, item.warehouse_name)}
-                        className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => onDeleteCatalogItem('warehouse', item.id, item.warehouse_name)}
+                          className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
                 {filteredWarehouses.length === 0 && (
                   <tr>
                     <td colSpan={6} className="p-8 text-center text-slate-400">
@@ -336,7 +459,9 @@ export const CatalogManager: React.FC<CatalogManagerProps> = ({
                 <tr className="bg-slate-100/90 border-b border-slate-200 text-slate-600 text-[11px] font-bold uppercase">
                   <th className="p-3.5 w-12 text-center">STT</th>
                   <th className="p-3.5">Tên nhà xe / ĐVVC</th>
+                  <th className="p-3.5">Tên công ty đầy đủ (Masothue.com)</th>
                   <th className="p-3.5">Mã số thuế</th>
+                  <th className="p-3.5">Địa chỉ công ty (Masothue.com)</th>
                   <th className="p-3.5 text-right w-28">Thao tác</th>
                 </tr>
               </thead>
@@ -345,7 +470,9 @@ export const CatalogManager: React.FC<CatalogManagerProps> = ({
                   <tr key={item.id} className="hover:bg-slate-50 transition">
                     <td className="p-3.5 text-center font-bold text-slate-400 text-xs">{index + 1}</td>
                     <td className="p-3.5 font-bold text-slate-800">{item.transporter_name || '—'}</td>
+                    <td className="p-3.5 text-indigo-950 font-semibold text-xs">{item.company_full_name || '—'}</td>
                     <td className="p-3.5 font-mono text-indigo-600 font-semibold">{item.tax_code || '—'}</td>
+                    <td className="p-3.5 text-slate-600 text-xs">{item.address || '—'}</td>
                     <td className="p-3.5 text-right space-x-1 whitespace-nowrap">
                       <button
                         onClick={() => handleOpenEditModal(item)}
@@ -364,7 +491,7 @@ export const CatalogManager: React.FC<CatalogManagerProps> = ({
                 ))}
                 {filteredTransporters.length === 0 && (
                   <tr>
-                    <td colSpan={4} className="p-8 text-center text-slate-400">
+                    <td colSpan={6} className="p-8 text-center text-slate-400">
                       Chưa có nhà xe nào.
                     </td>
                   </tr>
@@ -384,7 +511,9 @@ export const CatalogManager: React.FC<CatalogManagerProps> = ({
                 <tr className="bg-slate-100/90 border-b border-slate-200 text-slate-600 text-[11px] font-bold uppercase">
                   <th className="p-3.5 w-12 text-center">STT</th>
                   <th className="p-3.5">Tên khách hàng</th>
+                  <th className="p-3.5">Tên công ty đầy đủ (Masothue.com)</th>
                   <th className="p-3.5">Mã số thuế</th>
+                  <th className="p-3.5">Địa chỉ công ty (Masothue.com)</th>
                   <th className="p-3.5 text-right w-28">Thao tác</th>
                 </tr>
               </thead>
@@ -393,7 +522,9 @@ export const CatalogManager: React.FC<CatalogManagerProps> = ({
                   <tr key={item.id} className="hover:bg-slate-50 transition">
                     <td className="p-3.5 text-center font-bold text-slate-400 text-xs">{index + 1}</td>
                     <td className="p-3.5 font-bold text-slate-800">{item.customer_name || '—'}</td>
+                    <td className="p-3.5 text-indigo-950 font-semibold text-xs">{item.company_full_name || '—'}</td>
                     <td className="p-3.5 font-mono text-indigo-600 font-semibold">{item.tax_code || '—'}</td>
+                    <td className="p-3.5 text-slate-600 text-xs">{item.address || '—'}</td>
                     <td className="p-3.5 text-right space-x-1 whitespace-nowrap">
                       <button
                         onClick={() => handleOpenEditModal(item)}
@@ -412,7 +543,7 @@ export const CatalogManager: React.FC<CatalogManagerProps> = ({
                 ))}
                 {filteredCustomers.length === 0 && (
                   <tr>
-                    <td colSpan={4} className="p-8 text-center text-slate-400">
+                    <td colSpan={6} className="p-8 text-center text-slate-400">
                       Chưa có khách hàng nào.
                     </td>
                   </tr>
@@ -519,68 +650,124 @@ export const CatalogManager: React.FC<CatalogManagerProps> = ({
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Vị trí (Google Maps link hoặc văn bản)</label>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Vị trí (Link Google Maps, DkEaL hoặc địa chỉ)</label>
                     <input
                       type="text"
                       required
                       value={formData.location || ''}
                       onChange={e => setFormData({ ...formData, location: e.target.value })}
-                      placeholder="https://maps.app.goo.gl/..."
+                      placeholder="https://maps.app.goo.gl/... hoặc dán đoạn link maps"
                       className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     />
+                    <p className="text-[11px] text-slate-400 mt-1">
+                      Tự động nhận diện link Google Maps & định dạng thẻ link class <code>DkEaL</code>.
+                    </p>
                   </div>
                 </>
               )}
 
-              {activeSubTab === 'transporter' && (
+              {(activeSubTab === 'transporter' || activeSubTab === 'customer') && (
                 <>
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Tên nhà xe / ĐVVC</label>
-                    <input
-                      type="text"
-                      required
-                      value={formData.transporter_name || ''}
-                      onChange={e => setFormData({ ...formData, transporter_name: e.target.value })}
-                      placeholder="Vận Tải Á Châu"
-                      className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    />
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-bold text-slate-700">Mã số thuế</label>
+                      <a
+                        href={`https://masothue.com/tra-cuu-ma-so-thue-doanh-nghiep?q=${encodeURIComponent(formData.tax_code || formData.transporter_name || formData.customer_name || '')}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 flex items-center gap-1"
+                        title="Tra cứu trực tiếp trên masothue.com"
+                      >
+                        <Globe className="w-3 h-3" /> Tra cứu trên masothue.com ↗
+                      </a>
+                    </div>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        required
+                        value={formData.tax_code || ''}
+                        onChange={e => setFormData({ ...formData, tax_code: e.target.value })}
+                        placeholder="VD: 0101234567"
+                        className="flex-1 px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono font-semibold"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleLookupTaxCode()}
+                        disabled={isSearchingTax}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 shrink-0 shadow-xs disabled:opacity-50"
+                        title="Lấy tên công ty & địa chỉ tự động từ masothue.com"
+                      >
+                        {isSearchingTax ? (
+                          <>
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            <span>Đang lấy...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Search className="w-3.5 h-3.5" />
+                            <span>Lấy Dữ Liệu Masothue</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                    {taxSearchResult && (
+                      <div className={`mt-2 p-2.5 rounded-xl text-xs flex items-center gap-2 ${
+                        taxSearchResult.type === 'success' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' :
+                        taxSearchResult.type === 'error' ? 'bg-amber-50 text-amber-800 border border-amber-200' :
+                        'bg-indigo-50 text-indigo-800 border border-indigo-200'
+                      }`}>
+                        {taxSearchResult.type === 'success' && <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />}
+                        <span>{taxSearchResult.message}</span>
+                      </div>
+                    )}
                   </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Mã số thuế</label>
-                    <input
-                      type="text"
-                      required
-                      value={formData.tax_code || ''}
-                      onChange={e => setFormData({ ...formData, tax_code: e.target.value })}
-                      placeholder="0201234567"
-                      className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    />
-                  </div>
-                </>
-              )}
 
-              {activeSubTab === 'customer' && (
-                <>
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Tên khách hàng</label>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      {activeSubTab === 'transporter' ? 'Tên nhà xe / ĐVVC (Tên ngắn hiển thị trên lệnh điều xe)' : 'Tên khách hàng (Tên ngắn hiển thị trên lệnh điều xe)'}
+                    </label>
                     <input
                       type="text"
                       required
-                      value={formData.customer_name || ''}
-                      onChange={e => setFormData({ ...formData, customer_name: e.target.value })}
-                      placeholder="Samsung Electronics"
-                      className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      value={activeSubTab === 'transporter' ? (formData.transporter_name || '') : (formData.customer_name || '')}
+                      onChange={e => setFormData({
+                        ...formData,
+                        [activeSubTab === 'transporter' ? 'transporter_name' : 'customer_name']: e.target.value
+                      })}
+                      placeholder={activeSubTab === 'transporter' ? 'Vận Tải Á Châu' : 'Samsung Electronics'}
+                      className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-800"
                     />
+                    <p className="text-[11px] text-slate-400 mt-1">
+                      Dùng để chọn nhanh trên giao diện lập lệnh và hiển thị gọn trên thẻ điều xe.
+                    </p>
                   </div>
+
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Mã số thuế</label>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Tên công ty đầy đủ (Lấy từ masothue.com)
+                    </label>
                     <input
                       type="text"
-                      required
-                      value={formData.tax_code || ''}
-                      onChange={e => setFormData({ ...formData, tax_code: e.target.value })}
-                      placeholder="0102345678"
-                      className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      value={formData.company_full_name || ''}
+                      onChange={e => setFormData({ ...formData, company_full_name: e.target.value })}
+                      placeholder="CÔNG TY CỔ PHẦN VẬN TẢI VÀ DỊCH VỤ Á CHÂU..."
+                      className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-semibold text-slate-800"
+                    />
+                    <p className="text-[11px] text-slate-400 mt-1">
+                      Tên pháp nhân đầy đủ theo ĐKKD. Tự động điền khi bấm "Lấy Dữ Liệu Masothue".
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Địa chỉ công ty / trụ sở ĐKKD (Lấy từ masothue.com)
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={formData.address || ''}
+                      onChange={e => setFormData({ ...formData, address: e.target.value })}
+                      placeholder="Địa chỉ công ty (Tự động cập nhật khi nhấn nút Lấy Dữ Liệu Masothue)..."
+                      className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
                     />
                   </div>
                 </>
