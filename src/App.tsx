@@ -121,7 +121,7 @@ export default function App() {
             userMap.set(emailKey, {
               ...existing,
               ...u,
-              password: u.password || existing?.password || (u.role === 'admin' ? 'admin123' : u.role === 'employee' ? 'nv123' : 'kh123')
+              password: u.password || existing?.password || (u.role === 'admin' ? 'admin123' : '')
             });
           }
         });
