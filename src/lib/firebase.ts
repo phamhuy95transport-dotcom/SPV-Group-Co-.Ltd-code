@@ -20,7 +20,7 @@ export const cloudAppId = '/dataspv';
 
 export const LOCAL_STORAGE_KEY = 'spv-logistics-v4-data';
 
-// Initial pre-configured seed users
+// Initial pre-configured seed users (Only Admin default account)
 export const DEFAULT_USERS: (UserAccount & { password?: string })[] = [
   {
     id: 'u_admin_1',
@@ -33,28 +33,6 @@ export const DEFAULT_USERS: (UserAccount & { password?: string })[] = [
     createdAt: '2026-08-01T08:00:00Z',
     totpEnabled: false,
     totpSecret: 'JBSWY3DPEHPK3PXP' // Demo TOTP secret available for optional 2FA setup
-  },
-  {
-    id: 'u_emp_1',
-    email: 'nv1@spv.biz.vn',
-    password: 'nv123',
-    name: 'Nhân Viên Nguyễn Văn A',
-    phone: '0901234567',
-    role: 'employee',
-    status: 'active',
-    createdAt: '2026-08-02T09:00:00Z',
-    totpEnabled: false
-  },
-  {
-    id: 'u_cust_1',
-    email: 'khachhang@spv.biz.vn',
-    password: 'kh123',
-    name: 'Khách Hàng Samsung Corp',
-    phone: '0988888888',
-    role: 'customer',
-    status: 'active',
-    createdAt: '2026-08-03T10:00:00Z',
-    totpEnabled: false
   }
 ];
 
@@ -108,10 +86,10 @@ export const DEFAULT_SHIPMENTS: ShipmentRecord[] = [
     base_price: 2800000,
     sale_price: 3900000,
     created_by: {
-      uid: 'u_emp_1',
-      email: 'nv1@spv.biz.vn',
-      name: 'Nhân Viên Nguyễn Văn A',
-      role: 'employee'
+      uid: 'u_admin_1',
+      email: 'admin@spv.biz.vn',
+      name: 'Quản Trị Viên High-Level',
+      role: 'admin'
     },
     createdAt: '2026-08-01T09:15:00Z'
   }
