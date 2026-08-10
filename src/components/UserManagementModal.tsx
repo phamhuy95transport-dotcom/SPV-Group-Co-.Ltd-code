@@ -10,14 +10,16 @@ import {
   Phone,
   Clock,
   Trash2,
-  ShieldAlert
+  ShieldAlert,
+  Lock
 } from 'lucide-react';
-import { UserAccount, UserRole, UserStatus } from '../types';
+import { UserAccount, UserRole, UserStatus, canDeleteUser } from '../types';
 
 interface UserManagementProps {
   isOpen: boolean;
   onClose: () => void;
   users: UserAccount[];
+  currentUser: UserAccount | null;
   onApproveUser: (userId: string) => void;
   onRejectUser: (userId: string) => void;
   onChangeUserRole: (userId: string, newRole: UserRole) => void;
@@ -28,6 +30,7 @@ export const UserManagementModal: React.FC<UserManagementProps> = ({
   isOpen,
   onClose,
   users,
+  currentUser,
   onApproveUser,
   onRejectUser,
   onChangeUserRole,
@@ -157,8 +160,9 @@ export const UserManagementModal: React.FC<UserManagementProps> = ({
                       <td className="p-3 text-center">
                         <select
                           value={user.role}
+                          disabled={user.email.toLowerCase() === 'admin@spv.biz.vn'}
                           onChange={e => onChangeUserRole(user.id, e.target.value as UserRole)}
-                          className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:outline-none"
+                          className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed"
                         >
                           <option value="admin">Quản trị viên (Admin)</option>
                           <option value="employee">Nhân viên (Employee)</option>
@@ -209,15 +213,29 @@ export const UserManagementModal: React.FC<UserManagementProps> = ({
                             </button>
                           </>
                         )}
-                        {user.status !== 'pending' && (
-                          <button
-                            onClick={() => onDeleteUser(user.id)}
-                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
-                            title="Xóa tài khoản"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        )}
+                        {user.status !== 'pending' && (() => {
+                          const delCheck = canDeleteUser(currentUser, user);
+                          if (!delCheck.allowed) {
+                            return (
+                              <button
+                                disabled
+                                className="p-1.5 text-slate-300 opacity-40 cursor-not-allowed rounded-lg inline-flex"
+                                title={delCheck.reason}
+                              >
+                                <Lock className="w-4 h-4 text-slate-400" />
+                              </button>
+                            );
+                          }
+                          return (
+                            <button
+                              onClick={() => onDeleteUser(user.id)}
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                              title="Xóa tài khoản"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          );
+                        })()}
                       </td>
                     </tr>
                   ))}

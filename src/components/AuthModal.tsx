@@ -24,7 +24,8 @@ interface AuthModalProps {
   onLoginSuccess: (user: UserAccount) => void;
   onRegisterEmployee: (user: Omit<UserAccount, 'id' | 'createdAt'> & { password?: string }) => void;
   onUpdateUser2FA: (userId: string, secret: string, enabled: boolean) => void;
-  initialMode?: 'login' | 'register' | '2fa_setup';
+  onUpdatePassword?: (userId: string, newPassword: string) => Promise<void> | void;
+  initialMode?: 'login' | 'register' | '2fa_setup' | 'change_password' | 'forgot_password';
   currentUser?: UserAccount | null;
 }
 
@@ -35,10 +36,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   onLoginSuccess,
   onRegisterEmployee,
   onUpdateUser2FA,
+  onUpdatePassword,
   initialMode = 'login',
   currentUser
 }) => {
-  const [mode, setMode] = useState<'login' | 'register' | '2fa_verify' | '2fa_setup'>(initialMode);
+  const [mode, setMode] = useState<'login' | 'register' | '2fa_verify' | '2fa_setup' | 'change_password' | 'forgot_password'>(initialMode);
   
   // Login Form State
   const [loginEmail, setLoginEmail] = useState('');
@@ -49,6 +51,19 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [regEmail, setRegEmail] = useState('');
   const [regPhone, setRegPhone] = useState('');
   const [regPassword, setRegPassword] = useState('');
+
+  // Change Password State
+  const [oldPassword, setOldPassword] = useState('');
+  const [changeNewPassword, setChangeNewPassword] = useState('');
+  const [confirmChangePassword, setConfirmChangePassword] = useState('');
+
+  // Forgot Password State
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotStep, setForgotStep] = useState<1 | 2>(1);
+  const [generatedRecoveryCode, setGeneratedRecoveryCode] = useState('');
+  const [inputRecoveryCode, setInputRecoveryCode] = useState('');
+  const [forgotNewPassword, setForgotNewPassword] = useState('');
+  const [forgotConfirmPassword, setForgotConfirmPassword] = useState('');
 
   // 2FA Verification State
   const [pendingUser, setPendingUser] = useState<UserAccount | null>(null);
@@ -66,6 +81,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     setMode(initialMode);
     setErrorMsg('');
     setSuccessMsg('');
+    setForgotStep(1);
+    setOldPassword('');
+    setChangeNewPassword('');
+    setConfirmChangePassword('');
+    setForgotEmail('');
+    setForgotNewPassword('');
+    setForgotConfirmPassword('');
+    setInputRecoveryCode('');
+
     if (initialMode === '2fa_setup' && currentUser) {
       load2FASetup(currentUser.email, currentUser.totpSecret);
     }
@@ -205,6 +229,95 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     }
   };
 
+  const handleChangePasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg('');
+    setSuccessMsg('');
+
+    if (!currentUser) {
+      setErrorMsg('Vui lòng đăng nhập trước khi đổi mật khẩu!');
+      return;
+    }
+
+    if (currentUser.password && currentUser.password !== oldPassword) {
+      setErrorMsg('Mật khẩu hiện tại không chính xác!');
+      return;
+    }
+
+    if (!changeNewPassword || changeNewPassword.length < 6) {
+      setErrorMsg('Mật khẩu mới phải có ít nhất 6 ký tự!');
+      return;
+    }
+
+    if (changeNewPassword !== confirmChangePassword) {
+      setErrorMsg('Mật khẩu mới và Nhập lại mật khẩu không trùng khớp!');
+      return;
+    }
+
+    if (onUpdatePassword) {
+      await onUpdatePassword(currentUser.id, changeNewPassword);
+    }
+
+    setSuccessMsg('Đã thay đổi mật khẩu thành công!');
+    setTimeout(() => {
+      onClose();
+    }, 1200);
+  };
+
+  const handleSendForgotCode = (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg('');
+    setSuccessMsg('');
+
+    const emailClean = forgotEmail.trim().toLowerCase();
+    const targetUser = users.find(u => u.email.trim().toLowerCase() === emailClean);
+
+    if (!targetUser) {
+      setErrorMsg('Email này chưa được đăng ký trong hệ thống!');
+      return;
+    }
+
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    setGeneratedRecoveryCode(code);
+    setForgotStep(2);
+    setSuccessMsg(`Mã phục hồi 6 chữ số [ ${code} ] đã được gửi tới email ${emailClean}. Vui lòng nhập mã để tạo mật khẩu mới.`);
+  };
+
+  const handleVerifyForgotCodeSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg('');
+    setSuccessMsg('');
+
+    if (inputRecoveryCode.trim() !== generatedRecoveryCode) {
+      setErrorMsg('Mã phục hồi 6 chữ số không chính xác!');
+      return;
+    }
+
+    if (!forgotNewPassword || forgotNewPassword.length < 6) {
+      setErrorMsg('Mật khẩu mới phải từ 6 ký tự trở lên!');
+      return;
+    }
+
+    if (forgotNewPassword !== forgotConfirmPassword) {
+      setErrorMsg('Xác nhận mật khẩu mới không trùng khớp!');
+      return;
+    }
+
+    const emailClean = forgotEmail.trim().toLowerCase();
+    const targetUser = users.find(u => u.email.trim().toLowerCase() === emailClean);
+
+    if (targetUser && onUpdatePassword) {
+      await onUpdatePassword(targetUser.id, forgotNewPassword);
+    }
+
+    setSuccessMsg('Đã đặt lại mật khẩu thành công! Bạn có thể đăng nhập bằng mật khẩu mới.');
+    setTimeout(() => {
+      setMode('login');
+      setLoginEmail(emailClean);
+      setLoginPassword('');
+    }, 2000);
+  };
+
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/70 backdrop-blur-md flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden border border-slate-200 transform transition-all my-8">
@@ -217,6 +330,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               {mode === 'register' && 'Đăng Ký Tài Khoản Nhân Viên'}
               {mode === '2fa_verify' && 'Xác Thực Google Authenticator 2FA'}
               {mode === '2fa_setup' && 'Thiết Lập 2FA Google Authenticator'}
+              {mode === 'change_password' && 'Đổi Mật Khẩu Tài Khoản'}
+              {mode === 'forgot_password' && 'Tìm Lại Mật Khẩu Qua Email'}
             </h3>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-white transition">
@@ -259,7 +374,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Mật khẩu</label>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="block text-xs font-bold text-slate-700">Mật khẩu</label>
+                  <button
+                    type="button"
+                    onClick={() => { setMode('forgot_password'); setErrorMsg(''); setSuccessMsg(''); setForgotStep(1); }}
+                    className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 hover:underline"
+                  >
+                    Quên mật khẩu?
+                  </button>
+                </div>
                 <div className="relative">
                   <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
@@ -467,6 +591,181 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   <span>Kích Hoạt Google Authenticator 2FA</span>
                 </button>
               </form>
+            </div>
+          )}
+
+          {/* MODE 5: CHANGE PASSWORD */}
+          {mode === 'change_password' && (
+            <form onSubmit={handleChangePasswordSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Mật khẩu hiện tại</label>
+                <div className="relative">
+                  <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="password"
+                    required
+                    value={oldPassword}
+                    onChange={e => setOldPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full pl-9 pr-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Mật khẩu mới (Tối thiểu 6 ký tự)</label>
+                <div className="relative">
+                  <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="password"
+                    required
+                    minLength={6}
+                    value={changeNewPassword}
+                    onChange={e => setChangeNewPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full pl-9 pr-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Xác nhận mật khẩu mới</label>
+                <div className="relative">
+                  <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="password"
+                    required
+                    minLength={6}
+                    value={confirmChangePassword}
+                    onChange={e => setConfirmChangePassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full pl-9 pr-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs sm:text-sm rounded-xl shadow-md transition flex items-center justify-center gap-2"
+              >
+                <KeyRound className="w-4 h-4" />
+                <span>Lưu Mật Khẩu Mới</span>
+              </button>
+            </form>
+          )}
+
+          {/* MODE 6: FORGOT PASSWORD */}
+          {mode === 'forgot_password' && (
+            <div>
+              {forgotStep === 1 && (
+                <form onSubmit={handleSendForgotCode} className="space-y-4">
+                  <div className="text-xs text-slate-600 bg-indigo-50/80 p-3 rounded-xl border border-indigo-100">
+                    Nhập địa chỉ email đăng ký tài khoản của bạn để nhận mã khôi phục mật khẩu.
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Email đăng ký hệ thống</label>
+                    <div className="relative">
+                      <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input
+                        type="email"
+                        required
+                        value={forgotEmail}
+                        onChange={e => setForgotEmail(e.target.value)}
+                        placeholder="Ví dụ: nhanvien@spv.biz.vn"
+                        className="w-full pl-9 pr-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs sm:text-sm rounded-xl shadow-md transition flex items-center justify-center gap-2"
+                  >
+                    <Mail className="w-4 h-4" />
+                    <span>Gửi Mã Khôi Phục</span>
+                  </button>
+
+                  <div className="text-center pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setMode('login')}
+                      className="text-xs text-slate-500 hover:text-slate-800 font-bold"
+                    >
+                      Quay lại Đăng nhập
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {forgotStep === 2 && (
+                <form onSubmit={handleVerifyForgotCodeSubmit} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1 text-center">
+                      Nhập mã khôi phục 6 chữ số:
+                    </label>
+                    <input
+                      type="text"
+                      maxLength={6}
+                      required
+                      value={inputRecoveryCode}
+                      onChange={e => setInputRecoveryCode(e.target.value.replace(/\D/g, ''))}
+                      placeholder="123456"
+                      className="w-full py-2 text-center text-2xl tracking-[0.2em] font-mono bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 font-bold"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Mật khẩu mới</label>
+                    <div className="relative">
+                      <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input
+                        type="password"
+                        required
+                        minLength={6}
+                        value={forgotNewPassword}
+                        onChange={e => setForgotNewPassword(e.target.value)}
+                        placeholder="••••••••"
+                        className="w-full pl-9 pr-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Xác nhận mật khẩu mới</label>
+                    <div className="relative">
+                      <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input
+                        type="password"
+                        required
+                        minLength={6}
+                        value={forgotConfirmPassword}
+                        onChange={e => setForgotConfirmPassword(e.target.value)}
+                        placeholder="••••••••"
+                        className="w-full pl-9 pr-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm rounded-xl shadow-md transition flex items-center justify-center gap-2"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>Đặt Lai Mật Khẩu</span>
+                  </button>
+
+                  <div className="text-center pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setForgotStep(1)}
+                      className="text-xs text-slate-500 hover:text-slate-800 font-bold"
+                    >
+                      Nhập lại Email khác
+                    </button>
+                  </div>
+                </form>
+              )}
             </div>
           )}
         </div>

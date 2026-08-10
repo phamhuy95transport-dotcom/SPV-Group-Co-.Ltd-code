@@ -26,6 +26,7 @@ interface HeaderProps {
   onOpenLoginModal: () => void;
   onLogout: () => void;
   onOpen2FASetup: () => void;
+  onOpenChangePassword?: () => void;
   onOpenNewTripModal: () => void;
 }
 
@@ -39,6 +40,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenLoginModal,
   onLogout,
   onOpen2FASetup,
+  onOpenChangePassword,
   onOpenNewTripModal,
 }) => {
   const isCustomer = currentUser?.role === 'customer';
@@ -100,6 +102,17 @@ export const Header: React.FC<HeaderProps> = ({
                     {isAdmin ? 'Administrator (Full Access)' : isEmployee ? 'Nhân viên (Staff)' : 'Khách hàng (Customer)'}
                   </p>
                 </div>
+
+                {/* Change Password Button */}
+                {onOpenChangePassword && (
+                  <button
+                    onClick={onOpenChangePassword}
+                    title="Đổi mật khẩu tài khoản"
+                    className="p-1 bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 hover:bg-indigo-500/30 rounded-md transition"
+                  >
+                    <KeyRound className="w-3.5 h-3.5" />
+                  </button>
+                )}
 
                 {/* 2FA Badge & Button */}
                 <button
