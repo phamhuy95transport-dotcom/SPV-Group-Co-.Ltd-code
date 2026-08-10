@@ -153,8 +153,8 @@ export const Header: React.FC<HeaderProps> = ({
               </button>
             )}
 
-            {/* Add Shipment Button (Disabled for Read-Only Customer) */}
-            {!isCustomer && activeTab === 'entry' && (
+            {/* Add Shipment Button (Disabled for Read-Only Customer & Guest) */}
+            {currentUser && !isCustomer && activeTab === 'entry' && (
               <button
                 onClick={onOpenNewTripModal}
                 className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-3.5 py-1.5 rounded-md text-xs shadow-sm transition flex items-center gap-1.5"
@@ -184,8 +184,8 @@ export const Header: React.FC<HeaderProps> = ({
             </span>
           </button>
 
-          {/* Tab 2: Danh Mục Chuẩn (Hidden for Customer as per Requirement 2) */}
-          {!isCustomer && (
+          {/* Tab 2: Danh Mục Chuẩn (Hidden for Customer & Guest) */}
+          {currentUser && !isCustomer && (
             <button
               onClick={() => switchTab('category')}
               className={`px-3.5 py-2 rounded-md text-xs font-medium transition-colors flex items-center gap-2 shrink-0 ${
@@ -195,11 +195,11 @@ export const Header: React.FC<HeaderProps> = ({
               }`}
             >
               <FolderTree className="w-4 h-4" />
-              <span>Kho & Vận chuyển</span>
+              <span>Danh mục</span>
             </button>
           )}
 
-          {/* Tab 3: Báo Cáo Tài Chính (Visible ONLY to Admin as per Requirements 2 & 3) */}
+          {/* Tab 3: Báo Cáo (Visible ONLY to Admin) */}
           {isAdmin && (
             <button
               onClick={() => switchTab('report')}
@@ -210,7 +210,7 @@ export const Header: React.FC<HeaderProps> = ({
               }`}
             >
               <ChartPie className="w-4 h-4" />
-              <span>Báo Cáo Tài Chính</span>
+              <span>Báo cáo</span>
               <span className="bg-amber-400/20 text-amber-300 text-[9px] font-bold px-1.5 py-0.5 rounded border border-amber-400/30 uppercase">
                 Admin
               </span>

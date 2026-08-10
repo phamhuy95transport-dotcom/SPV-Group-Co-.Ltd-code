@@ -273,33 +273,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 </div>
               </div>
 
-              {/* Demo Accounts Suggestion Box */}
-              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-[11px] space-y-1">
-                <p className="font-bold text-slate-600">Mẹo đăng nhập dùng thử nhanh:</p>
-                <div className="flex flex-wrap gap-1">
-                  <button
-                    type="button"
-                    onClick={() => { setLoginEmail('admin@spv.biz.vn'); setLoginPassword('admin123'); }}
-                    className="px-2 py-0.5 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded font-bold"
-                  >
-                    Admin (admin@spv.biz.vn)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { setLoginEmail('nv1@spv.biz.vn'); setLoginPassword('nv123'); }}
-                    className="px-2 py-0.5 bg-blue-100 hover:bg-blue-200 text-blue-900 rounded font-bold"
-                  >
-                    Nhân viên (nv1@spv.biz.vn)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { setLoginEmail('khachhang@spv.biz.vn'); setLoginPassword('kh123'); }}
-                    className="px-2 py-0.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-900 rounded font-bold"
-                  >
-                    Khách hàng (khachhang@spv.biz.vn)
-                  </button>
-                </div>
-              </div>
+
 
               <button
                 type="submit"

@@ -1,6 +1,22 @@
 import React, { useState, useEffect } from 'react';
-import { X, PlusCircle, Edit2, Lock, Save, User } from 'lucide-react';
+import { X, PlusCircle, Edit2, Lock, Save, User, AlertCircle } from 'lucide-react';
 import { ShipmentRecord, WarehouseItem, TransporterItem, CustomerItem, RouteItem, UserAccount } from '../types';
+
+export const formatNumberWithDots = (val: number | string | undefined | null): string => {
+  if (val === undefined || val === null || val === '') return '';
+  const cleanDigits = String(val).replace(/\D/g, '');
+  if (!cleanDigits) return '';
+  return cleanDigits.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+};
+
+export const parseFormattedNumber = (formattedStr: string): number => {
+  const cleanDigits = formattedStr.replace(/\D/g, '');
+  return cleanDigits ? Number(cleanDigits) : 0;
+};
+
+export const validateISO6346 = (_contStr: string): { isValid: boolean; reason?: string } => {
+  return { isValid: true };
+};
 
 interface ShipmentModalProps {
   isOpen: boolean;
@@ -29,8 +45,10 @@ export const ShipmentModal: React.FC<ShipmentModalProps> = ({
 }) => {
   const [formData, setFormData] = useState<Partial<ShipmentRecord>>({});
   const [isSaving, setIsSaving] = useState(false);
+  const [contErrorMsg, setContErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
+    setContErrorMsg(null);
     if (modalMode === 'edit' && initialData) {
       setFormData({ ...initialData });
     } else {
@@ -60,12 +78,35 @@ export const ShipmentModal: React.FC<ShipmentModalProps> = ({
 
   if (!isOpen) return null;
 
-  const onWarehouseChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const selected = e.target.value;
-    const found = warehouses.find(w => w.warehouse_name === selected);
+  // Handle Multi-Cont Input
+  const rawContText = formData.cont_number || '';
+  const parsedContList = rawContText
+    .split(/[\n,;\s]+/)
+    .map(c => c.trim())
+    .filter(Boolean);
+
+  const handleContNumberChange = (text: string) => {
+    const upper = text.toUpperCase();
+    const list = upper
+      .split(/[\n,;\s]+/)
+      .map(c => c.trim())
+      .filter(Boolean);
+
     setFormData(prev => ({
       ...prev,
-      warehouse: selected,
+      cont_number: upper,
+      cont_quantity: list.length > 0 ? list.length : (prev.cont_quantity || 1)
+    }));
+    setContErrorMsg(null);
+  };
+
+  const handleWarehouseChange = (val: string) => {
+    const found = warehouses.find(
+      w => w.warehouse_name.toLowerCase() === val.trim().toLowerCase()
+    );
+    setFormData(prev => ({
+      ...prev,
+      warehouse: val,
       contact_person: found ? found.contact_person : prev.contact_person,
       contact_phone: found ? found.contact_phone : prev.contact_phone,
     }));
@@ -73,9 +114,9 @@ export const ShipmentModal: React.FC<ShipmentModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
     setIsSaving(true);
     try {
-      // Requirement 5: Automatically set created_by info
       const creatorInfo = initialData?.created_by || (currentUser ? {
         uid: currentUser.id,
         email: currentUser.email,
@@ -85,6 +126,8 @@ export const ShipmentModal: React.FC<ShipmentModalProps> = ({
 
       await onSave({
         ...formData,
+        cont_number: formData.cont_number?.trim() || '',
+        cont_quantity: formData.cont_quantity !== undefined ? formData.cont_quantity : 1,
         created_by: creatorInfo
       });
       onClose();
@@ -133,6 +176,14 @@ export const ShipmentModal: React.FC<ShipmentModalProps> = ({
             </span>
           </div>
 
+          {/* Error message banner if any */}
+          {contErrorMsg && (
+            <div className="bg-rose-50 border border-rose-200 text-rose-700 p-3.5 rounded-xl text-xs font-semibold flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+              <span>{contErrorMsg}</span>
+            </div>
+          )}
+
           {/* Section 1: Thông tin chuyến xe */}
           <div>
             <h4 className="text-xs font-extrabold uppercase tracking-wider text-indigo-700 bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-100 inline-block mb-3">
@@ -162,11 +213,10 @@ export const ShipmentModal: React.FC<ShipmentModalProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">C. Tuyến đường <span className="text-rose-500">*</span></label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">C. Tuyến đường</label>
                 <input
                   type="text"
                   list="route-list"
-                  required
                   placeholder="Ví dụ: Hải Phòng - Hà Nội"
                   value={formData.route || ''}
                   onChange={e => setFormData({ ...formData, route: e.target.value })}
@@ -195,18 +245,6 @@ export const ShipmentModal: React.FC<ShipmentModalProps> = ({
                     <option key={t.id} value={t.transporter_name} />
                   ))}
                 </datalist>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">E. Số cont <span className="text-rose-500">*</span></label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Ví dụ: TGHU1234567"
-                  value={formData.cont_number || ''}
-                  onChange={e => setFormData({ ...formData, cont_number: e.target.value.toUpperCase() })}
-                  className="w-full px-3 py-2 text-xs sm:text-sm font-mono uppercase bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
               </div>
 
               <div>
@@ -239,15 +277,42 @@ export const ShipmentModal: React.FC<ShipmentModalProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">H. Số lượng cont <span className="text-rose-500">*</span></label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">H. Số lượng cont</label>
                 <input
                   type="number"
                   min={1}
-                  required
                   value={formData.cont_quantity || 1}
                   onChange={e => setFormData({ ...formData, cont_quantity: Number(e.target.value) })}
-                  className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-3 py-2 text-xs sm:text-sm font-bold bg-indigo-50/50 border border-indigo-200 text-indigo-900 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
+              </div>
+
+              {/* Multi-Cont Input Field */}
+              <div className="sm:col-span-2 md:col-span-3">
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  E. Số cont (Có thể nhập nhiều số cont, phân cách bằng phẩy hoặc xuống dòng)
+                </label>
+                <textarea
+                  rows={2}
+                  placeholder="Ví dụ: TGHU1234567, MSKU9876543 (nhập nhiều cont phân cách bằng phẩy hoặc xuống dòng)"
+                  value={formData.cont_number || ''}
+                  onChange={e => handleContNumberChange(e.target.value)}
+                  className="w-full px-3 py-2 text-xs sm:text-sm font-mono uppercase bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+
+                {/* Display parsed container tags */}
+                {parsedContList.length > 0 && (
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                    {parsedContList.map((code, idx) => (
+                      <span
+                        key={idx}
+                        className="px-2.5 py-1 rounded-lg text-xs font-mono font-bold bg-indigo-50 text-indigo-800 border border-indigo-200 flex items-center gap-1"
+                      >
+                        <span>{code}</span>
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -259,19 +324,22 @@ export const ShipmentModal: React.FC<ShipmentModalProps> = ({
             </h4>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">I. Chọn Kho / Xưởng (Tự điền SĐT)</label>
-                <select
+                <label className="block text-xs font-bold text-slate-700 mb-1">I. Chọn hoặc nhập Kho / Xưởng (Gợi ý SĐT)</label>
+                <input
+                  type="text"
+                  list="warehouse-list"
+                  placeholder="Nhập tên kho/xưởng hoặc chọn..."
                   value={formData.warehouse || ''}
-                  onChange={onWarehouseChange}
+                  onChange={e => handleWarehouseChange(e.target.value)}
                   className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                >
-                  <option value="">-- Chọn kho hoặc tự nhập --</option>
+                />
+                <datalist id="warehouse-list">
                   {warehouses.map(w => (
                     <option key={w.id} value={w.warehouse_name}>
-                      {w.warehouse_name} ({w.location})
+                      {w.warehouse_name} {w.location ? `(${w.location})` : ''}
                     </option>
                   ))}
-                </select>
+                </datalist>
               </div>
 
               <div>
@@ -341,7 +409,7 @@ export const ShipmentModal: React.FC<ShipmentModalProps> = ({
                   onChange={e => setFormData({ ...formData, hd_dich_vu: e.target.checked })}
                   className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500"
                 />
-                <span className="text-xs font-semibold text-slate-700">O. Hóa đơn dịch vụ</span>
+                <span className="text-xs font-semibold text-slate-700">O. Hóa đơn cước vc</span>
               </label>
             </div>
 
@@ -366,26 +434,46 @@ export const ShipmentModal: React.FC<ShipmentModalProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-bold text-slate-800 mb-1">Q. Giá gốc / cont (VNĐ)</label>
-                <input
-                  type="number"
-                  step="1000"
-                  placeholder="Chi phí đầu vào"
-                  value={formData.base_price || 0}
-                  onChange={e => setFormData({ ...formData, base_price: Number(e.target.value) })}
-                  className="w-full px-3 py-2 text-xs sm:text-sm font-bold bg-white border border-amber-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500"
-                />
+                <div>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="Chi phí đầu vào (VD: 3.500.000)"
+                    value={formData.base_price ? formatNumberWithDots(formData.base_price) : ''}
+                    onChange={e => {
+                      const num = parseFormattedNumber(e.target.value);
+                      setFormData({ ...formData, base_price: num });
+                    }}
+                    className="w-full px-3 py-2 text-xs sm:text-sm font-mono font-bold bg-white border border-amber-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 text-slate-800"
+                  />
+                  {formData.base_price ? (
+                    <span className="text-[11px] text-amber-800 font-semibold block mt-1">
+                      = {formatNumberWithDots(formData.base_price)} VNĐ
+                    </span>
+                  ) : null}
+                </div>
               </div>
 
               <div>
                 <label className="block text-xs font-bold text-slate-800 mb-1">R. Giá bán / cont (VNĐ)</label>
-                <input
-                  type="number"
-                  step="1000"
-                  placeholder="Giá thu từ khách hàng"
-                  value={formData.sale_price || 0}
-                  onChange={e => setFormData({ ...formData, sale_price: Number(e.target.value) })}
-                  className="w-full px-3 py-2 text-xs sm:text-sm font-bold text-emerald-800 bg-white border border-amber-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500"
-                />
+                <div>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="Giá thu từ khách hàng (VD: 4.500.000)"
+                    value={formData.sale_price ? formatNumberWithDots(formData.sale_price) : ''}
+                    onChange={e => {
+                      const num = parseFormattedNumber(e.target.value);
+                      setFormData({ ...formData, sale_price: num });
+                    }}
+                    className="w-full px-3 py-2 text-xs sm:text-sm font-mono font-bold text-emerald-800 bg-white border border-amber-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  />
+                  {formData.sale_price ? (
+                    <span className="text-[11px] text-emerald-800 font-semibold block mt-1">
+                      = {formatNumberWithDots(formData.sale_price)} VNĐ
+                    </span>
+                  ) : null}
+                </div>
               </div>
             </div>
           </div>

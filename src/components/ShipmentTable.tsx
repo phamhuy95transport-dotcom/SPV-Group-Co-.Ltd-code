@@ -27,6 +27,7 @@ interface ShipmentTableProps {
   onConfirmDeleteTrip: (record: ShipmentRecord) => void;
   onToggleCheckbox: (record: ShipmentRecord, field: keyof ShipmentRecord) => void;
   onOpenNewTripModal: () => void;
+  onOpenLoginModal?: () => void;
 }
 
 export const ShipmentTable: React.FC<ShipmentTableProps> = ({
@@ -38,6 +39,7 @@ export const ShipmentTable: React.FC<ShipmentTableProps> = ({
   onConfirmDeleteTrip,
   onToggleCheckbox,
   onOpenNewTripModal,
+  onOpenLoginModal,
 }) => {
   const isCustomer = currentUser?.role === 'customer';
   const isEmployee = currentUser?.role === 'employee';
@@ -196,47 +198,55 @@ export const ShipmentTable: React.FC<ShipmentTableProps> = ({
           </p>
         </div>
 
-        <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs">
+        <div className="bg-white p-4 sm:p-5 rounded-2xl border border-indigo-200 shadow-xs bg-gradient-to-br from-blue-50/50 to-indigo-50/30">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-[11px] font-bold uppercase text-slate-400 tracking-wider">Tổng Số Container</p>
-              <p className="text-xl sm:text-3xl font-extrabold text-blue-600 mt-1">
+              <p className="text-[11px] font-extrabold uppercase text-indigo-600 tracking-wider">Tổng Số Container</p>
+              <p className="text-2xl sm:text-4xl font-black text-indigo-700 mt-1">
                 {records.reduce((sum, r) => sum + (Number(r.cont_quantity) || 0), 0)}
               </p>
             </div>
-            <div className="w-11 h-11 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center shrink-0">
+            <div className="w-11 h-11 bg-indigo-600 text-white rounded-xl flex items-center justify-center shrink-0 shadow-md shadow-indigo-500/20">
               <Truck className="w-5 h-5" />
             </div>
           </div>
-          <p className="text-[11px] text-slate-500 mt-2">Sản lượng hoàn thành</p>
+          <p className="text-[11px] text-indigo-600 font-medium mt-2">Sản lượng hoàn thành hệ thống</p>
         </div>
 
         <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-[11px] font-bold uppercase text-slate-400 tracking-wider">Khách Hàng</p>
-              <p className="text-xl sm:text-3xl font-extrabold text-emerald-600 mt-1">{uniqueCustomers.length}</p>
+              <p className="text-xl sm:text-3xl font-extrabold text-emerald-600 mt-1">
+                {currentUser ? uniqueCustomers.length : '***'}
+              </p>
             </div>
             <div className="w-11 h-11 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center shrink-0">
               <Building className="w-5 h-5" />
             </div>
           </div>
-          <p className="text-[11px] text-slate-500 mt-2">Đối tác đang phục vụ</p>
+          <p className="text-[11px] text-slate-500 mt-2">
+            {currentUser ? 'Đối tác đang phục vụ' : 'Đã bảo mật danh tính'}
+          </p>
         </div>
 
-        {/* Transporter Stat Card (Hidden for Customer as per Requirement 2) */}
+        {/* Transporter Stat Card */}
         {!isCustomer ? (
           <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-[11px] font-bold uppercase text-slate-400 tracking-wider">Nhà Xe / ĐVVC</p>
-                <p className="text-xl sm:text-3xl font-extrabold text-purple-600 mt-1">{uniqueTransporters.length}</p>
+                <p className="text-xl sm:text-3xl font-extrabold text-purple-600 mt-1">
+                  {currentUser ? uniqueTransporters.length : '***'}
+                </p>
               </div>
               <div className="w-11 h-11 bg-purple-50 text-purple-600 rounded-xl flex items-center justify-center shrink-0">
                 <Truck className="w-5 h-5" />
               </div>
             </div>
-            <p className="text-[11px] text-slate-500 mt-2">Đơn vị vận tải hợp tác</p>
+            <p className="text-[11px] text-slate-500 mt-2">
+              {currentUser ? 'Đơn vị vận tải hợp tác' : 'Đã bảo mật thông tin'}
+            </p>
           </div>
         ) : (
           <div className="bg-slate-50 p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col justify-center">
@@ -249,8 +259,34 @@ export const ShipmentTable: React.FC<ShipmentTableProps> = ({
         )}
       </div>
 
-      {/* Filter Controls Bar */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
+      {/* Guest View vs Logged In View */}
+      {!currentUser ? (
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-8 sm:p-12 text-center space-y-4">
+          <div className="w-16 h-16 bg-amber-50 text-amber-600 rounded-2xl flex items-center justify-center mx-auto border border-amber-200 shadow-inner">
+            <Lock className="w-8 h-8" />
+          </div>
+          <div className="max-w-md mx-auto space-y-2">
+            <h4 className="text-base sm:text-lg font-bold text-slate-900">Chi Tiết Danh Sách Chuyến Hàng Yêu Cầu Đăng Nhập</h4>
+            <p className="text-xs sm:text-sm text-slate-500 leading-relaxed">
+              Quý khách đang truy cập ở chế độ Khách. Hệ thống chỉ công khai <strong>tổng số lượng container ({records.reduce((sum, r) => sum + (Number(r.cont_quantity) || 0), 0)} cont)</strong>. Vui lòng đăng nhập tài khoản Quản trị, Nhân viên hoặc Khách hàng để tra cứu danh sách chi tiết và các tiện ích nghiệp vụ.
+            </p>
+          </div>
+          {onOpenLoginModal && (
+            <div className="pt-3">
+              <button
+                onClick={onOpenLoginModal}
+                className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs sm:text-sm font-bold px-6 py-3 rounded-xl shadow-md hover:shadow-indigo-500/20 transition"
+              >
+                <User className="w-4 h-4" />
+                <span>Đăng Nhập Tài Khoản Của Bạn</span>
+              </button>
+            </div>
+          )}
+        </div>
+      ) : (
+        <>
+          {/* Filter Controls Bar */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
           <div className="relative lg:col-span-2">
             <input
@@ -391,7 +427,7 @@ export const ShipmentTable: React.FC<ShipmentTableProps> = ({
                 <th className="p-3.5 text-center whitespace-nowrap">L. Phơi nâng</th>
                 <th className="p-3.5 text-center whitespace-nowrap">M. Phơi hạ</th>
                 <th className="p-3.5 text-center whitespace-nowrap">N. HĐ hạ rỗng</th>
-                <th className="p-3.5 text-center whitespace-nowrap">O. HĐ dịch vụ</th>
+                <th className="p-3.5 text-center whitespace-nowrap">O. HĐ cước VC</th>
                 <th className="p-3.5 whitespace-nowrap">P. Ghi chú</th>
 
                 {/* Requirement 5: Created By / Người Nhập Liệu */}
@@ -586,6 +622,8 @@ export const ShipmentTable: React.FC<ShipmentTableProps> = ({
           </div>
         )}
       </div>
-    </div>
+    </>
+  )}
+</div>
   );
 };
