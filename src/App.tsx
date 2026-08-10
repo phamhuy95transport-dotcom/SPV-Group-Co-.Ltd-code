@@ -287,6 +287,10 @@ export default function App() {
       cont_quantity: Number(shipmentData.cont_quantity) || 1,
       base_price: Number(shipmentData.base_price) || 0,
       sale_price: Number(shipmentData.sale_price) || 0,
+      return_invoice_type: shipmentData.return_invoice_type || 'customer',
+      return_invoice_tax_code: shipmentData.return_invoice_tax_code || '',
+      return_invoice_company_name: shipmentData.return_invoice_company_name || '',
+      return_invoice_address: shipmentData.return_invoice_address || '',
       created_by: shipmentData.created_by || (currentUser ? {
         uid: currentUser.id,
         email: currentUser.email,
@@ -597,6 +601,7 @@ export default function App() {
         isOpen={isReceiptModalOpen}
         onClose={() => setIsReceiptModalOpen(false)}
         record={receiptRecord}
+        customers={customers}
       />
 
       {/* Confirm Delete Dialog Modal */}

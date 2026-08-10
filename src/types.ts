@@ -41,6 +41,10 @@ export interface ShipmentRecord {
   notes?: string;         // P. Ghi chú
   base_price?: number;    // Q. Giá gốc/cont
   sale_price?: number;    // R. Giá bán/cont
+  return_invoice_type?: 'customer' | 'other';
+  return_invoice_tax_code?: string;
+  return_invoice_company_name?: string;
+  return_invoice_address?: string;
   created_by?: CreatorInfo; // Người nhập liệu
   createdAt?: string;
 }
@@ -73,6 +77,35 @@ export interface RouteItem {
   id: string;
   route_name: string;
 }
+
+export const findCustomerByName = (customerName?: string, customersList: CustomerItem[] = []): CustomerItem | undefined => {
+  if (!customerName || !customerName.trim()) return undefined;
+  const target = customerName.trim().toLowerCase();
+
+  // 1. Exact match on customer_name
+  let found = customersList.find(c => c.customer_name.trim().toLowerCase() === target);
+  if (found) return found;
+
+  // 2. Exact match on company_full_name
+  found = customersList.find(c => c.company_full_name?.trim().toLowerCase() === target);
+  if (found) return found;
+
+  // 3. Exact match on tax_code
+  found = customersList.find(c => c.tax_code?.trim().toLowerCase() === target);
+  if (found) return found;
+
+  // 4. Partial / Includes match
+  found = customersList.find(c => {
+    const cName = c.customer_name.trim().toLowerCase();
+    const compName = c.company_full_name?.trim().toLowerCase() || '';
+    return (
+      (cName && (cName.includes(target) || target.includes(cName))) ||
+      (compName && (compName.includes(target) || target.includes(compName)))
+    );
+  });
+
+  return found;
+};
 
 export type ActiveTab = 'entry' | 'category' | 'report' | 'users';
 export type CatalogSubTab = 'warehouse' | 'transporter' | 'customer' | 'route';
