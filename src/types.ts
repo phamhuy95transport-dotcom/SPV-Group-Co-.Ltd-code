@@ -1,4 +1,4 @@
-export type UserRole = 'admin' | 'employee' | 'customer';
+export type UserRole = 'admin' | 'employee' | 'employee_logistics' | 'employee_accounting' | 'customer';
 
 export type UserStatus = 'active' | 'pending' | 'rejected';
 
@@ -79,6 +79,28 @@ export interface RouteItem {
   route_name: string;
 }
 
+export interface CustomerQuotation {
+  id: string;
+  customer_name: string;
+  unit_price: number; // Đơn giá thủ tục hải quan cont/lô
+  notes?: string;
+  updatedAt?: string;
+}
+
+export interface EmployeeAdvanceItem {
+  id: string;
+  staff_id: string;
+  staff_name: string;
+  employee_id?: string;
+  employee_name?: string;
+  description: string;   // Diễn giải
+  advance_amount: number;// Số tiền ứng
+  expense_amount: number;// Chi phí
+  approved: boolean;     // Nút Duyệt (chỉ admin thao tác)
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export const findCustomerByName = (customerName?: string, customersList: CustomerItem[] = []): CustomerItem | undefined => {
   if (!customerName || !customerName.trim()) return undefined;
   const target = customerName.trim().toLowerCase();
@@ -141,5 +163,69 @@ export const canDeleteUser = (operator: UserAccount | null, targetUser: UserAcco
   return { allowed: true };
 };
 
-export type ActiveTab = 'entry' | 'category' | 'report' | 'users';
+export type ActiveTab = 'entry' | 'general_work' | 'category' | 'finance' | 'users';
+export type WorkSubTab = 'customs';
 export type CatalogSubTab = 'warehouse' | 'transporter' | 'customer' | 'route';
+export type FinanceSubTab = 'report_shipment' | 'report_customs' | 'kpi' | 'quotation' | 'advance';
+
+export type CustomsDeclarationType = 'Xuất khẩu' | 'Nhập khẩu' | 'XKTX' | 'NKTC' | 'XNKTC';
+
+export interface KPIRateItem {
+  id: string;
+  type_name: CustomsDeclarationType;
+  reward_amount: number;
+}
+
+export interface SupportTransferInfo {
+  ratio: number; // 0, 1/3 (0.333333), 1/2 (0.5), 2/3 (0.666667), 1 (1.0)
+  ratio_label: '1' | '2/3' | '1/2' | '1/3' | '0' | string;
+  staff_id?: string;
+  staff_name?: string;
+}
+
+export interface CustomsDeclarationRecord {
+  id: string;
+  stt?: number;
+  execution_date: string;       // Ngày thực hiện (YYYY-MM-DD)
+  completed_date?: string;      // Ngày thực tế hoàn thành (YYYY-MM-DD)
+  approved_date?: string;       // Ngày thực tế duyệt (YYYY-MM-DD)
+  declaration_number: string;   // Số tờ khai
+  type: CustomsDeclarationType; // Loại (Xuất khẩu, Nhập khẩu, XKTX, NKTC, XNKTC)
+  customer: string;             // Khách hàng (Tên khách hàng từ danh mục)
+  cont_quantity?: number;       // Số lượng cont/lô (mặc định 1)
+  support_transfer: SupportTransferInfo; // Chuyển hỗ trợ: { ratio, ratio_label, staff_id, staff_name }
+  completed: boolean;           // Hoàn thành: true = "đã", false = "chưa"
+  kpi_amount: number;           // Thành tiền KPI
+  extra_bonus?: number;         // Thưởng khác
+  approved: boolean;            // Duyệt: true = "có", false = "chưa" (Chỉ Admin)
+  has_damage?: boolean;         // Phát sinh gây thiệt hại: true = "có", false = "không" (Chỉ Admin thao tác)
+  notes?: string;               // Ghi chú (Chỉ Admin thao tác nhập)
+  created_by?: CreatorInfo;     // Người nhập liệu tự động theo tài khoản
+  createdAt?: string;
+}
+
+export const formatDateVN = (dateStr?: string): string => {
+  if (!dateStr) return '';
+  const clean = dateStr.trim();
+  if (!clean) return '';
+  if (/^\d{4}-\d{2}-\d{2}/.test(clean)) {
+    const [y, m, d] = clean.split('T')[0].split('-');
+    return `${d}/${m}/${y}`;
+  }
+  return clean;
+};
+
+export const formatMonthYearVN = (dateStr?: string): string => {
+  if (!dateStr) return '';
+  const clean = dateStr.trim();
+  if (!clean) return '';
+  if (/^\d{4}-\d{2}-\d{2}/.test(clean)) {
+    const [y, m] = clean.split('T')[0].split('-');
+    return `${m}/${y}`;
+  }
+  if (/^\d{4}-\d{2}/.test(clean)) {
+    const [y, m] = clean.split('-');
+    return `${m}/${y}`;
+  }
+  return clean;
+};

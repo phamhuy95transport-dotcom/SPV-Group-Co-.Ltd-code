@@ -9,6 +9,12 @@ import {
   RouteItem,
   ActiveTab,
   CatalogSubTab,
+  WorkSubTab,
+  FinanceSubTab,
+  CustomsDeclarationRecord,
+  KPIRateItem,
+  CustomerQuotation,
+  EmployeeAdvanceItem,
   canDeleteUser
 } from './types';
 import {
@@ -18,6 +24,10 @@ import {
   DEFAULT_TRANSPORTERS,
   DEFAULT_CUSTOMERS,
   DEFAULT_ROUTES,
+  DEFAULT_KPI_RATES,
+  DEFAULT_CUSTOMS_DECLARATIONS,
+  DEFAULT_CUSTOMER_QUOTATIONS,
+  DEFAULT_EMPLOYEE_ADVANCES,
   saveRecordToCloud,
   deleteRecordFromCloud,
   subscribeToCloudCollection,
@@ -31,8 +41,13 @@ import { ShipmentModal } from './components/ShipmentModal';
 import { DeliveryReceiptModal } from './components/DeliveryReceiptModal';
 import { CatalogManager } from './components/CatalogManager';
 import { FinancialReport } from './components/FinancialReport';
+import { CustomsProcedureManager } from './components/CustomsProcedureManager';
+import { KPIManager } from './components/KPIManager';
+import { CustomsReport } from './components/CustomsReport';
+import { CustomerQuotationManager } from './components/CustomerQuotationManager';
+import { EmployeeAdvanceManager } from './components/EmployeeAdvanceManager';
 import { Toast, ToastState } from './components/Toast';
-import { Trash2 } from 'lucide-react';
+import { Trash2, Briefcase, DollarSign, FileSpreadsheet, BarChart3, Award, Tag, Wallet } from 'lucide-react';
 
 export default function App() {
   // Current logged in user (Defaults to null - logged out)
@@ -45,11 +60,19 @@ export default function App() {
   const [transporters, setTransporters] = useState<TransporterItem[]>(DEFAULT_TRANSPORTERS);
   const [customers, setCustomers] = useState<CustomerItem[]>(DEFAULT_CUSTOMERS);
   const [routes, setRoutes] = useState<RouteItem[]>(DEFAULT_ROUTES);
+  const [declarations, setDeclarations] = useState<CustomsDeclarationRecord[]>(DEFAULT_CUSTOMS_DECLARATIONS);
+  const [kpiRates, setKpiRates] = useState<KPIRateItem[]>(DEFAULT_KPI_RATES);
+  const [paidAmounts, setPaidAmounts] = useState<Record<string, number>>({});
+  const [quotations, setQuotations] = useState<CustomerQuotation[]>(DEFAULT_CUSTOMER_QUOTATIONS);
+  const [advances, setAdvances] = useState<EmployeeAdvanceItem[]>(DEFAULT_EMPLOYEE_ADVANCES);
 
   // App UI & Navigation
   const [activeTab, setActiveTab] = useState<ActiveTab>('entry');
   const [activeSubTab, setActiveSubTab] = useState<CatalogSubTab>('warehouse');
+  const [workSubTab, setWorkSubTab] = useState<WorkSubTab>('customs');
+  const [financeSubTab, setFinanceSubTab] = useState<FinanceSubTab>('report_shipment');
   const [isConnected, setIsConnected] = useState(true);
+
 
   // Modals
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
@@ -111,6 +134,34 @@ export default function App() {
       if (data && data.length > 0) setRoutes(data as RouteItem[]);
     });
 
+    const unsubDeclarations = subscribeToCloudCollection('customs', (data) => {
+      if (data && data.length > 0) setDeclarations(data as CustomsDeclarationRecord[]);
+    });
+
+    const unsubKpiRates = subscribeToCloudCollection('kpi_rates', (data) => {
+      if (data && data.length > 0) setKpiRates(data as KPIRateItem[]);
+    });
+
+    const unsubPaid = subscribeToCloudCollection('customs_paid', (data) => {
+      if (data && Array.isArray(data)) {
+        const map: Record<string, number> = {};
+        data.forEach((item: any) => {
+          if (item && item.id && typeof item.amount === 'number') {
+            map[item.id] = item.amount;
+          }
+        });
+        setPaidAmounts(map);
+      }
+    });
+
+    const unsubQuotations = subscribeToCloudCollection('quotations', (data) => {
+      if (data && data.length > 0) setQuotations(data as CustomerQuotation[]);
+    });
+
+    const unsubAdvances = subscribeToCloudCollection('advances', (data) => {
+      if (data && data.length > 0) setAdvances(data as EmployeeAdvanceItem[]);
+    });
+
     const unsubUsers = subscribeToCloudCollection('users', (data) => {
       const userMap = new Map<string, UserAccount & { password?: string }>();
       DEFAULT_USERS.forEach(u => userMap.set(u.email.toLowerCase(), { ...u }));
@@ -136,9 +187,78 @@ export default function App() {
       unsubTransporters();
       unsubCustomers();
       unsubRoutes();
+      unsubDeclarations();
+      unsubKpiRates();
+      unsubPaid();
+      unsubQuotations();
+      unsubAdvances();
       unsubUsers();
     };
   }, []);
+
+  const handleUpdatePaidAmount = async (key: string, amount: number) => {
+    setPaidAmounts(prev => ({ ...prev, [key]: amount }));
+    await saveRecordToCloud('customs_paid', key, { id: key, amount });
+  };
+
+  // Handlers for Quotations
+  const handleSaveQuotation = async (item: CustomerQuotation) => {
+    setQuotations(prev => {
+      const idx = prev.findIndex(q => q.id === item.id);
+      if (idx >= 0) {
+        const next = [...prev];
+        next[idx] = item;
+        return next;
+      }
+      return [item, ...prev];
+    });
+    await saveRecordToCloud('quotations', item.id, item);
+    showToast('Lưu báo giá khách hàng thành công!');
+  };
+
+  const handleDeleteQuotation = async (id: string) => {
+    setQuotations(prev => prev.filter(q => q.id !== id));
+    await deleteRecordFromCloud('quotations', id);
+    showToast('Xóa báo giá thành công!');
+  };
+
+  // Handlers for Employee Advances
+  const handleSaveAdvance = async (item: EmployeeAdvanceItem) => {
+    setAdvances(prev => {
+      const idx = prev.findIndex(a => a.id === item.id);
+      if (idx >= 0) {
+        const next = [...prev];
+        next[idx] = item;
+        return next;
+      }
+      return [item, ...prev];
+    });
+    await saveRecordToCloud('advances', item.id, item);
+    showToast('Lưu khoản tạm ứng nhân viên thành công!');
+  };
+
+  const handleDeleteAdvance = async (id: string) => {
+    setAdvances(prev => prev.filter(a => a.id !== id));
+    await deleteRecordFromCloud('advances', id);
+    showToast('Xóa khoản tạm ứng thành công!');
+  };
+
+  const handleToggleAdvanceApproval = async (id: string, currentApproved: boolean) => {
+    if (currentUser?.role !== 'admin') {
+      showToast('Chỉ Quản trị viên mới có quyền Duyệt khoản tạm ứng.', 'error');
+      return;
+    }
+    const newApproved = !currentApproved;
+    setAdvances(prev => prev.map(a => a.id === id ? { ...a, approved: newApproved } : a));
+    const target = advances.find(a => a.id === id);
+    if (target) {
+      const updated = { ...target, approved: newApproved };
+      await saveRecordToCloud('advances', id, updated);
+      showToast(newApproved ? 'Đã duyệt khoản tạm ứng!' : 'Đã hủy duyệt khoản tạm ứng.');
+    }
+  };
+
+  const totalPaidAmount = Object.values(paidAmounts).reduce((sum: number, val: number) => sum + (val || 0), 0);
 
   // Filter out pending users count for header badge
   const pendingUsersCount = users.filter(u => u.status === 'pending').length;
@@ -261,6 +381,102 @@ export default function App() {
     }
 
     showToast('Đã cập nhật mật khẩu tài khoản thành công!');
+  };
+
+  // Customs Declaration Handlers
+  const handleSaveDeclaration = async (record: CustomsDeclarationRecord) => {
+    setDeclarations(prev => {
+      const exists = prev.some(d => d.id === record.id);
+      if (exists) return prev.map(d => (d.id === record.id ? record : d));
+      return [record, ...prev];
+    });
+    await saveRecordToCloud('customs', record.id, record);
+    showToast('Đã lưu thông tin tờ khai hải quan!');
+  };
+
+  const handleDeleteDeclaration = async (id: string) => {
+    setDeclarations(prev => prev.filter(d => d.id !== id));
+    await deleteRecordFromCloud('customs', id);
+    showToast('Đã xóa tờ khai hải quan.');
+  };
+
+  const handleToggleDeclarationApproved = async (id: string, currentApproved: boolean) => {
+    if (currentUser?.role !== 'admin') {
+      showToast('Chỉ Quản trị viên mới có quyền Duyệt tờ khai.', 'error');
+      return;
+    }
+    let updated: CustomsDeclarationRecord | null = null;
+    const todayStr = new Date().toISOString().split('T')[0];
+    setDeclarations(prev =>
+      prev.map(d => {
+        if (d.id === id) {
+          const nextApproved = !currentApproved;
+          const nextApprovedDate = nextApproved ? (d.approved_date || d.completed_date || d.execution_date || todayStr) : undefined;
+          updated = { ...d, approved: nextApproved, approved_date: nextApprovedDate };
+          return updated;
+        }
+        return d;
+      })
+    );
+    if (updated) {
+      await saveRecordToCloud('customs', id, updated);
+      showToast((updated as CustomsDeclarationRecord).approved ? 'Đã duyệt tờ khai!' : 'Đã hủy duyệt tờ khai.');
+    }
+  };
+
+  const handleToggleDeclarationCompleted = async (id: string, currentCompleted: boolean) => {
+    let updated: CustomsDeclarationRecord | null = null;
+    setDeclarations(prev =>
+      prev.map(d => {
+        if (d.id === id) {
+          const nextCompleted = !currentCompleted;
+          const rateObj = kpiRates.find(r => r.type_name === d.type);
+          const baseReward = rateObj ? rateObj.reward_amount : (d.type === 'Xuất khẩu' || d.type === 'Nhập khẩu' ? 30000 : 25000);
+          const ratioNum = d.support_transfer?.ratio || 1;
+          const qty = (d.cont_quantity && d.cont_quantity > 0) ? d.cont_quantity : 1;
+          const newKpi = nextCompleted ? Math.round(baseReward * qty * ratioNum) : 0;
+          const todayStr = new Date().toISOString().split('T')[0];
+          const nextCompletedDate = nextCompleted ? (d.completed_date || d.execution_date || todayStr) : undefined;
+
+          updated = { ...d, completed: nextCompleted, kpi_amount: newKpi, completed_date: nextCompletedDate };
+          return updated;
+        }
+        return d;
+      })
+    );
+    if (updated) {
+      await saveRecordToCloud('customs', id, updated);
+      showToast((updated as CustomsDeclarationRecord).completed ? 'Đã hoàn thành tờ khai!' : 'Đã chuyển trạng thái chưa hoàn thành.');
+    }
+  };
+
+  const handleToggleDeclarationDamage = async (id: string, currentHasDamage: boolean) => {
+    if (currentUser?.role !== 'admin') {
+      showToast('Chỉ Quản trị viên mới có quyền chuyển trạng thái Phát sinh gây thiệt hại.', 'error');
+      return;
+    }
+    let updated: CustomsDeclarationRecord | null = null;
+    setDeclarations(prev =>
+      prev.map(d => {
+        if (d.id === id) {
+          updated = { ...d, has_damage: !currentHasDamage };
+          return updated;
+        }
+        return d;
+      })
+    );
+    if (updated) {
+      await saveRecordToCloud('customs', id, updated);
+      showToast((updated as CustomsDeclarationRecord).has_damage ? 'Đã ghi nhận: Có phát sinh gây thiệt hại!' : 'Đã chuyển trạng thái: Không phát sinh gây thiệt hại.');
+    }
+  };
+
+  const handleUpdateKPIRates = async (newRates: KPIRateItem[]) => {
+    setKpiRates(newRates);
+    for (const rate of newRates) {
+      await saveRecordToCloud('kpi_rates', rate.id, rate);
+    }
+    showToast('Đã cập nhật định mức thưởng KPI!');
   };
 
   const handleUpdateUser2FA = async (userId: string, secret: string, enabled: boolean) => {
@@ -537,7 +753,7 @@ export default function App() {
 
       {/* Main Body Content */}
       <main className="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-        {/* Tab 1: Nhập Liệu & Tra Cứu Vận Hành */}
+        {/* Tab 1: Vận Chuyển (Shipment Table) */}
         {activeTab === 'entry' && (
           <ShipmentTable
             records={records}
@@ -569,7 +785,48 @@ export default function App() {
           />
         )}
 
-        {/* Tab 2: Quản Lý Danh Mục Chuẩn (Hidden for Customer & Guest) */}
+        {/* Tab 2: Công Việc Chung */}
+        {activeTab === 'general_work' && (!currentUser || currentUser.role !== 'customer') && (
+          <div className="space-y-5">
+            {/* Sub-Navigation Bar for Công Việc Chung */}
+            <div className="bg-white p-2 rounded-xl border border-slate-200 shadow-xs flex gap-2">
+              <button
+                onClick={() => setWorkSubTab('customs')}
+                className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-2 ${
+                  workSubTab === 'customs'
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <FileSpreadsheet className="w-4 h-4" />
+                <span>Thủ tục hải quan</span>
+              </button>
+            </div>
+
+            {/* Subtab View */}
+            {workSubTab === 'customs' && (
+              <CustomsProcedureManager
+                declarations={declarations}
+                customers={customers}
+                users={users}
+                kpiRates={kpiRates}
+                currentUser={currentUser}
+                totalPaidAmount={totalPaidAmount}
+                onOpenLoginModal={() => {
+                  setAuthModalMode('login');
+                  setIsAuthModalOpen(true);
+                }}
+                onSaveDeclaration={handleSaveDeclaration}
+                onDeleteDeclaration={handleDeleteDeclaration}
+                onToggleApproval={handleToggleDeclarationApproved}
+                onToggleCompleted={handleToggleDeclarationCompleted}
+                onToggleDamage={handleToggleDeclarationDamage}
+              />
+            )}
+          </div>
+        )}
+
+        {/* Tab 3: Quản Lý Danh Mục Chuẩn (Hidden for Customer & Guest) */}
         {activeTab === 'category' && currentUser && currentUser.role !== 'customer' && (
           <CatalogManager
             activeSubTab={activeSubTab}
@@ -583,16 +840,158 @@ export default function App() {
           />
         )}
 
-        {/* Tab 3: Báo Cáo Tài Chính & Lợi Nhuận (Visible ONLY for Admin) */}
-        {activeTab === 'report' && currentUser?.role === 'admin' && (
-          <FinancialReport
-            records={records}
-            onImportExcel={handleImportExcel}
-            onShowToast={showToast}
-          />
+        {/* Tab 4: Tài Chính */}
+        {activeTab === 'finance' && currentUser && currentUser.role !== 'customer' && (
+          <div className="space-y-5">
+            {/* Sub-Navigation Bar for Tài Chính */}
+            <div className="bg-white p-2 rounded-xl border border-slate-200 shadow-xs flex flex-wrap gap-2">
+              <button
+                onClick={() => setFinanceSubTab('report_shipment')}
+                className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-2 ${
+                  financeSubTab === 'report_shipment'
+                    ? 'bg-amber-600 text-white shadow-sm'
+                    : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <BarChart3 className="w-4 h-4" />
+                <span>Báo cáo vận chuyển</span>
+                {currentUser.role === 'admin' && (
+                  <span className="bg-amber-400/30 text-amber-100 text-[9px] px-1.5 py-0.2 rounded uppercase">
+                    Admin
+                  </span>
+                )}
+              </button>
+
+              <button
+                onClick={() => setFinanceSubTab('report_customs')}
+                className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-2 ${
+                  financeSubTab === 'report_customs'
+                    ? 'bg-amber-600 text-white shadow-sm'
+                    : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <FileSpreadsheet className="w-4 h-4" />
+                <span>Báo cáo thủ tục HQ</span>
+                {currentUser?.role === 'admin' && (
+                  <span className="bg-amber-400/30 text-amber-100 text-[9px] px-1.5 py-0.2 rounded uppercase">
+                    Admin
+                  </span>
+                )}
+              </button>
+
+              <button
+                onClick={() => setFinanceSubTab('kpi')}
+                className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-2 ${
+                  financeSubTab === 'kpi'
+                    ? 'bg-amber-600 text-white shadow-sm'
+                    : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <Award className="w-4 h-4" />
+                <span>KPI</span>
+              </button>
+
+              <button
+                onClick={() => setFinanceSubTab('customer_quotation')}
+                className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-2 ${
+                  financeSubTab === 'customer_quotation'
+                    ? 'bg-amber-600 text-white shadow-sm'
+                    : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <Tag className="w-4 h-4" />
+                <span>Báo giá khách hàng</span>
+              </button>
+
+              <button
+                onClick={() => setFinanceSubTab('employee_advance')}
+                className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-2 ${
+                  financeSubTab === 'employee_advance'
+                    ? 'bg-amber-600 text-white shadow-sm'
+                    : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <Wallet className="w-4 h-4" />
+                <span>Tạm ứng nhân viên</span>
+              </button>
+            </div>
+
+            {/* Subtab Views */}
+            {financeSubTab === 'report_shipment' && (
+              currentUser?.role === 'admin' ? (
+                <FinancialReport
+                  records={records}
+                  onImportExcel={handleImportExcel}
+                  onShowToast={showToast}
+                />
+              ) : (
+                <div className="bg-white p-8 rounded-2xl border border-slate-200 text-center space-y-2">
+                  <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-full flex items-center justify-center mx-auto">
+                    <DollarSign className="w-6 h-6" />
+                  </div>
+                  <h3 className="text-sm font-bold text-slate-800">Báo Cáo Vận Chuyển Tài Chính</h3>
+                  <p className="text-xs text-slate-500 max-w-md mx-auto">
+                    Báo cáo giá vốn, giá bán và lợi nhuận vận chuyển container chi tiết chỉ hiển thị đối với tài khoản Quản trị viên (Admin).
+                  </p>
+                </div>
+              )
+            )}
+
+            {financeSubTab === 'report_customs' && (
+              currentUser?.role === 'admin' ? (
+                <CustomsReport
+                  declarations={declarations}
+                  customers={customers}
+                  users={users}
+                  currentUser={currentUser}
+                  paidAmounts={paidAmounts}
+                  onUpdatePaidAmount={handleUpdatePaidAmount}
+                />
+              ) : (
+                <div className="bg-white p-8 rounded-2xl border border-slate-200 text-center space-y-2">
+                  <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-full flex items-center justify-center mx-auto">
+                    <FileSpreadsheet className="w-6 h-6" />
+                  </div>
+                  <h3 className="text-sm font-bold text-slate-800">Báo Cáo Thủ Tục Hải Quan</h3>
+                  <p className="text-xs text-slate-500 max-w-md mx-auto">
+                    Báo cáo thưởng KPI và tổng hợp thủ tục hải quan trong mục Tài chính chỉ hiển thị đối với tài khoản Quản trị viên (Admin).
+                  </p>
+                </div>
+              )
+            )}
+
+            {financeSubTab === 'kpi' && (
+              <KPIManager
+                kpiRates={kpiRates}
+                currentUser={currentUser}
+                onUpdateKPIRates={handleUpdateKPIRates}
+              />
+            )}
+
+            {financeSubTab === 'customer_quotation' && (
+              <CustomerQuotationManager
+                quotations={quotations}
+                customers={customers}
+                currentUser={currentUser}
+                onSaveQuotation={handleSaveQuotation}
+                onDeleteQuotation={handleDeleteQuotation}
+              />
+            )}
+
+            {financeSubTab === 'employee_advance' && (
+              <EmployeeAdvanceManager
+                advances={advances}
+                users={users}
+                currentUser={currentUser}
+                onSaveAdvance={handleSaveAdvance}
+                onDeleteAdvance={handleDeleteAdvance}
+                onToggleApproval={handleToggleAdvanceApproval}
+              />
+            )}
+          </div>
         )}
 
-        {/* Tab 4: Admin User Management Panel */}
+        {/* Tab 5: Admin User Management Panel */}
         {activeTab === 'users' && currentUser?.role === 'admin' && (
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs">
             <h3 className="text-lg font-bold text-slate-900 mb-4">Quản Lý Nhân Viên & Phân Quyền</h3>
@@ -606,6 +1005,7 @@ export default function App() {
           </div>
         )}
       </main>
+
 
       {/* Auth Modal (Login / Register / 2FA / Password Management) */}
       <AuthModal
