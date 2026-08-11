@@ -918,23 +918,12 @@ export default function App() {
 
             {/* Subtab Views */}
             {financeSubTab === 'report_shipment' && (
-              currentUser?.role === 'admin' ? (
-                <FinancialReport
-                  records={records}
-                  onImportExcel={handleImportExcel}
-                  onShowToast={showToast}
-                />
-              ) : (
-                <div className="bg-white p-8 rounded-2xl border border-slate-200 text-center space-y-2">
-                  <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-full flex items-center justify-center mx-auto">
-                    <DollarSign className="w-6 h-6" />
-                  </div>
-                  <h3 className="text-sm font-bold text-slate-800">Báo Cáo Vận Chuyển Tài Chính</h3>
-                  <p className="text-xs text-slate-500 max-w-md mx-auto">
-                    Báo cáo giá vốn, giá bán và lợi nhuận vận chuyển container chi tiết chỉ hiển thị đối với tài khoản Quản trị viên (Admin).
-                  </p>
-                </div>
-              )
+              <FinancialReport
+                records={records}
+                currentUser={currentUser}
+                onImportExcel={handleImportExcel}
+                onShowToast={showToast}
+              />
             )}
 
             {financeSubTab === 'report_customs' && (

@@ -35,13 +35,16 @@ export interface ShipmentRecord {
   warehouse?: string;     // I. Kho/xưởng
   contact_person?: string;// J. Tên người giao/nhận hàng
   contact_phone?: string; // K. SĐT người nhận hàng
-  phoi_nang?: boolean;    // L. Phơi nâng
-  phoi_ha?: boolean;      // M. Phơi hạ
-  hd_ha_rong?: boolean;   // N. Hóa đơn hạ rỗng
-  hd_dich_vu?: boolean;   // O. Hóa đơn cước vc
-  notes?: string;         // P. Ghi chú
+  phoi_nang?: boolean;    // Phơi nâng
+  phoi_ha?: boolean;      // Phơi hạ
+  hd_ha_rong?: boolean;   // Hóa đơn hạ rỗng
+  hd_dich_vu?: boolean;   // Hóa đơn cước VC / HĐ đầu vào
+  hd_dau_vao?: boolean;   // HĐ đầu vào
+  hd_dau_ra?: boolean;    // HĐ đầu ra
+  notes?: string;         // Ghi chú
   base_price?: number;    // Q. Giá gốc/cont
   sale_price?: number;    // R. Giá bán/cont
+  admin_edited_price?: boolean; // Ẩn giá đối với nhân viên nếu Admin đã sửa giá
   return_invoice_type?: 'customer' | 'other';
   return_invoice_tax_code?: string;
   return_invoice_company_name?: string;
