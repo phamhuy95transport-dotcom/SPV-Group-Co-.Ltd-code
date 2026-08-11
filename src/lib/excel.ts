@@ -1,5 +1,5 @@
 import * as xlsx from 'xlsx';
-import { ShipmentRecord } from '../types';
+import { ShipmentRecord, formatDateVN, normalizeDateToISO } from '../types';
 
 // Map between Excel Column Names and ShipmentRecord keys
 export const SHIPMENT_EXCEL_COLUMNS: { label: string; key: keyof ShipmentRecord }[] = [
@@ -20,11 +20,15 @@ export const SHIPMENT_EXCEL_COLUMNS: { label: string; key: keyof ShipmentRecord 
 ];
 
 export function exportShipmentsToExcel(records: ShipmentRecord[], filename = 'danh-sach-chuyen-hang.xlsx') {
-  // Format data for export
+  // Format data for export (Dates formatted as dd/mm/yyyy)
   const data = records.map(record => {
     const row: any = {};
     SHIPMENT_EXCEL_COLUMNS.forEach(col => {
-      row[col.label] = record[col.key] || '';
+      let val = record[col.key];
+      if (col.key === 'date_announced' || col.key === 'delivery_date') {
+        val = formatDateVN(val);
+      }
+      row[col.label] = val !== undefined && val !== null ? val : '';
     });
     return row;
   });
@@ -46,7 +50,7 @@ export function parseShipmentsFromExcel(file: File): Promise<Partial<ShipmentRec
     reader.onload = (e) => {
       try {
         const data = e.target?.result;
-        const workbook = xlsx.read(data, { type: 'binary' });
+        const workbook = xlsx.read(data, { type: 'binary', cellDates: true });
         
         const firstSheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[firstSheetName];
@@ -57,11 +61,13 @@ export function parseShipmentsFromExcel(file: File): Promise<Partial<ShipmentRec
           const record: Partial<ShipmentRecord> = {};
           
           SHIPMENT_EXCEL_COLUMNS.forEach(col => {
-            if (row[col.label] !== undefined) {
+            if (row[col.label] !== undefined && row[col.label] !== null) {
               if (col.key === 'cont_quantity' || col.key === 'base_price' || col.key === 'sale_price') {
                  record[col.key] = Number(row[col.label]) || (col.key === 'cont_quantity' ? 1 : 0);
+              } else if (col.key === 'date_announced' || col.key === 'delivery_date') {
+                 record[col.key] = normalizeDateToISO(row[col.label]);
               } else {
-                 (record as any)[col.key] = String(row[col.label] || '');
+                 (record as any)[col.key] = String(row[col.label] || '').trim();
               }
             }
           });
