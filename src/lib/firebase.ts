@@ -1,6 +1,17 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getDatabase, ref, set, remove, onValue } from 'firebase/database';
-import { UserAccount, ShipmentRecord, WarehouseItem, TransporterItem, CustomerItem, RouteItem } from '../types';
+import {
+  UserAccount,
+  ShipmentRecord,
+  WarehouseItem,
+  TransporterItem,
+  CustomerItem,
+  RouteItem,
+  KPIRateItem,
+  CustomsDeclarationRecord,
+  CustomerQuotation,
+  EmployeeAdvanceItem
+} from '../types';
 
 // Firebase Web App Configuration
 const firebaseConfig = {
@@ -26,7 +37,7 @@ export const DEFAULT_USERS: (UserAccount & { password?: string })[] = [
     id: 'u_admin_1',
     email: 'admin@spv.biz.vn',
     password: 'admin123',
-    name: 'Quản Trị Viên High-Level',
+    name: "SPV's Boss",
     phone: '0922012395',
     role: 'admin',
     status: 'active',
@@ -60,7 +71,7 @@ export const DEFAULT_SHIPMENTS: ShipmentRecord[] = [
     created_by: {
       uid: 'u_admin_1',
       email: 'admin@spv.biz.vn',
-      name: 'Quản Trị Viên High-Level',
+      name: "SPV's Boss",
       role: 'admin'
     },
     createdAt: '2026-07-28T08:30:00Z'
@@ -88,7 +99,7 @@ export const DEFAULT_SHIPMENTS: ShipmentRecord[] = [
     created_by: {
       uid: 'u_admin_1',
       email: 'admin@spv.biz.vn',
-      name: 'Quản Trị Viên High-Level',
+      name: "SPV's Boss",
       role: 'admin'
     },
     createdAt: '2026-08-01T09:15:00Z'
@@ -114,6 +125,104 @@ export const DEFAULT_ROUTES: RouteItem[] = [
   { id: 'r_1', route_name: 'Hải Phòng - Hà Nội' },
   { id: 'r_2', route_name: 'Hải Phòng - Bắc Ninh' },
   { id: 'r_3', route_name: 'Hải Phòng - Thái Nguyên' }
+];
+
+export const DEFAULT_KPI_RATES: KPIRateItem[] = [
+  { id: 'kpi_1', type_name: 'Xuất khẩu', reward_amount: 30000 },
+  { id: 'kpi_2', type_name: 'Nhập khẩu', reward_amount: 30000 },
+  { id: 'kpi_3', type_name: 'XKTX', reward_amount: 25000 },
+  { id: 'kpi_4', type_name: 'NKTC', reward_amount: 25000 },
+  { id: 'kpi_5', type_name: 'XNKTC', reward_amount: 40000 }
+];
+
+export const DEFAULT_CUSTOMS_DECLARATIONS: CustomsDeclarationRecord[] = [
+  {
+    id: 'cd_1',
+    stt: 1,
+    execution_date: '2026-08-05',
+    completed_date: '2026-08-05',
+    declaration_number: '105289341020',
+    type: 'Xuất khẩu',
+    customer: 'Samsung Electronics',
+    cont_quantity: 1,
+    support_transfer: {
+      ratio: 1,
+      ratio_label: '1',
+      staff_id: 'u_admin_1',
+      staff_name: "SPV's Boss"
+    },
+    completed: true,
+    kpi_amount: 30000,
+    approved: true,
+    has_damage: false,
+    notes: 'Tờ khai xuất khẩu hoàn tất đúng hạn.',
+    created_by: {
+      uid: 'u_admin_1',
+      email: 'admin@spv.biz.vn',
+      name: "SPV's Boss",
+      role: 'admin'
+    },
+    createdAt: '2026-08-05T09:00:00Z'
+  },
+  {
+    id: 'cd_2',
+    stt: 2,
+    execution_date: '2026-08-08',
+    completed_date: '2026-08-08',
+    declaration_number: '105289341021',
+    type: 'XKTX',
+    customer: 'LG Display Vietnam',
+    cont_quantity: 1,
+    support_transfer: {
+      ratio: 0.5,
+      ratio_label: '1/2',
+      staff_id: 'u_admin_1',
+      staff_name: "SPV's Boss"
+    },
+    completed: true,
+    kpi_amount: 12500,
+    approved: false,
+    has_damage: false,
+    notes: 'Chuyển 50% KPI hỗ trợ xử lý luồng đỏ.',
+    created_by: {
+      uid: 'u_admin_1',
+      email: 'admin@spv.biz.vn',
+      name: "SPV's Boss",
+      role: 'admin'
+    },
+    createdAt: '2026-08-08T10:30:00Z'
+  }
+];
+
+export const DEFAULT_CUSTOMER_QUOTATIONS: CustomerQuotation[] = [
+  {
+    id: 'quot_1',
+    customer_name: 'Samsung Electronics',
+    unit_price: 800000,
+    notes: 'Đơn giá áp dụng cho lô container xuất/nhập khẩu chính ngạch.',
+    updatedAt: '2026-08-01T08:00:00Z'
+  },
+  {
+    id: 'quot_2',
+    customer_name: 'LG Display Vietnam',
+    unit_price: 850000,
+    notes: 'Bao gồm chi phí kiểm tra thực tế hàng hóa luồng vàng/đỏ.',
+    updatedAt: '2026-08-02T09:00:00Z'
+  }
+];
+
+export const DEFAULT_EMPLOYEE_ADVANCES: EmployeeAdvanceItem[] = [
+  {
+    id: 'adv_1',
+    staff_id: 'u_admin_1',
+    staff_name: "SPV's Boss",
+    description: 'Tạm ứng chi phí hạ vỏ container cảng Đình Vũ',
+    advance_amount: 2000000,
+    expense_amount: 1850000,
+    approved: true,
+    createdAt: '2026-08-03T10:00:00Z',
+    updatedAt: '2026-08-03T10:00:00Z'
+  }
 ];
 
 // Helper functions for Realtime DB sync
