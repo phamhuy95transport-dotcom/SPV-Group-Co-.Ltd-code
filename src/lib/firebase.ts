@@ -130,7 +130,7 @@ export const DEFAULT_ROUTES: RouteItem[] = [
 export const DEFAULT_KPI_RATES: KPIRateItem[] = [
   { id: 'kpi_1', type_name: 'Xuất khẩu', reward_amount: 30000 },
   { id: 'kpi_2', type_name: 'Nhập khẩu', reward_amount: 30000 },
-  { id: 'kpi_3', type_name: 'XKTX', reward_amount: 25000 },
+  { id: 'kpi_3', type_name: 'XKTC', reward_amount: 25000 },
   { id: 'kpi_4', type_name: 'NKTC', reward_amount: 25000 },
   { id: 'kpi_5', type_name: 'XNKTC', reward_amount: 40000 }
 ];
@@ -170,7 +170,7 @@ export const DEFAULT_CUSTOMS_DECLARATIONS: CustomsDeclarationRecord[] = [
     execution_date: '2026-08-08',
     completed_date: '2026-08-08',
     declaration_number: '105289341021',
-    type: 'XKTX',
+    type: 'XKTC',
     customer: 'LG Display Vietnam',
     cont_quantity: 1,
     support_transfer: {
