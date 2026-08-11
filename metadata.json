@@ -1,6 +1,8 @@
 {
-  "name": "Hệ thống quản lý",
+  "name": "Remix Remix Hệ Thống Quản Lý SPV",
   "description": "Hệ thống quản lý đơn vận chuyển, danh mục kho, báo cáo tài chính và phân quyền 3 cấp với Google Authenticator 2FA.",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }
