@@ -284,7 +284,15 @@ export const ShipmentModal: React.FC<ShipmentModalProps> = ({
         invAddr = custObj?.address || invAddr;
       }
 
-      await onSave({
+      let isAdminEdited = initialData?.admin_edited_price || false;
+      if (currentUser?.role === 'admin') {
+        if ((formData.base_price && formData.base_price !== initialData?.base_price) || 
+            (formData.sale_price && formData.sale_price !== initialData?.sale_price)) {
+          isAdminEdited = true;
+        }
+      }
+
+      const savePayload: Partial<ShipmentRecord> = {
         ...formData,
         return_invoice_type: invType,
         return_invoice_tax_code: invTax,
@@ -292,8 +300,16 @@ export const ShipmentModal: React.FC<ShipmentModalProps> = ({
         return_invoice_address: invAddr,
         cont_number: formData.cont_number?.trim() || '',
         cont_quantity: formData.cont_quantity !== undefined ? formData.cont_quantity : 1,
-        created_by: creatorInfo
-      });
+        created_by: creatorInfo,
+        admin_edited_price: isAdminEdited
+      };
+
+      if (currentUser?.role === 'employee' && initialData?.admin_edited_price) {
+        savePayload.base_price = initialData.base_price;
+        savePayload.sale_price = initialData.sale_price;
+      }
+
+      await onSave(savePayload);
       onClose();
     } catch (err) {
       console.error('Error saving shipment:', err);
@@ -533,9 +549,9 @@ export const ShipmentModal: React.FC<ShipmentModalProps> = ({
           {/* Section 3: Chứng từ & Phơi */}
           <div>
             <h4 className="text-xs font-extrabold uppercase tracking-wider text-indigo-700 bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-100 inline-block mb-3">
-              3. Trạng Thái Chứng Từ & Phơi (Cột L - P)
+              3. Trạng Thái Chứng Từ & Phơi
             </h4>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
               <label className="flex items-center gap-2 cursor-pointer select-none">
                 <input
                   type="checkbox"
@@ -543,7 +559,7 @@ export const ShipmentModal: React.FC<ShipmentModalProps> = ({
                   onChange={e => setFormData({ ...formData, phoi_nang: e.target.checked })}
                   className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500"
                 />
-                <span className="text-xs font-semibold text-slate-700">L. Phơi nâng</span>
+                <span className="text-xs font-semibold text-slate-700">Phơi nâng</span>
               </label>
 
               <label className="flex items-center gap-2 cursor-pointer select-none">
@@ -553,7 +569,7 @@ export const ShipmentModal: React.FC<ShipmentModalProps> = ({
                   onChange={e => setFormData({ ...formData, phoi_ha: e.target.checked })}
                   className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500"
                 />
-                <span className="text-xs font-semibold text-slate-700">M. Phơi hạ</span>
+                <span className="text-xs font-semibold text-slate-700">Phơi hạ</span>
               </label>
 
               <label className="flex items-center gap-2 cursor-pointer select-none">
@@ -563,22 +579,32 @@ export const ShipmentModal: React.FC<ShipmentModalProps> = ({
                   onChange={e => setFormData({ ...formData, hd_ha_rong: e.target.checked })}
                   className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500"
                 />
-                <span className="text-xs font-semibold text-slate-700">N. Hóa đơn hạ rỗng</span>
+                <span className="text-xs font-semibold text-slate-700">HĐ hạ rỗng</span>
               </label>
 
               <label className="flex items-center gap-2 cursor-pointer select-none">
                 <input
                   type="checkbox"
-                  checked={formData.hd_dich_vu || false}
-                  onChange={e => setFormData({ ...formData, hd_dich_vu: e.target.checked })}
+                  checked={formData.hd_dich_vu || formData.hd_dau_vao || false}
+                  onChange={e => setFormData({ ...formData, hd_dich_vu: e.target.checked, hd_dau_vao: e.target.checked })}
                   className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500"
                 />
-                <span className="text-xs font-semibold text-slate-700">O. Hóa đơn cước vc</span>
+                <span className="text-xs font-semibold text-slate-700">HĐ đầu vào</span>
+              </label>
+
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={formData.hd_dau_ra || false}
+                  onChange={e => setFormData({ ...formData, hd_dau_ra: e.target.checked })}
+                  className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500"
+                />
+                <span className="text-xs font-semibold text-slate-700">HĐ đầu ra</span>
               </label>
             </div>
 
             <div className="mt-3">
-              <label className="block text-xs font-bold text-slate-700 mb-1">P. Ghi chú chuyến hàng</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Ghi chú chuyến hàng</label>
               <textarea
                 rows={2}
                 placeholder="Ghi chú chi tiết giao nhận, lưu ý đặc biệt..."
@@ -793,55 +819,75 @@ export const ShipmentModal: React.FC<ShipmentModalProps> = ({
 
           {/* Section 5: Doanh thu & Giá gốc (Admin/Staff) */}
           <div className="bg-amber-50/60 p-4 rounded-xl border border-amber-200">
-            <h4 className="text-xs font-extrabold uppercase tracking-wider text-amber-900 flex items-center gap-1.5 mb-3">
-              <Lock className="w-3.5 h-3.5 text-amber-600" />
-              <span>5. Quản Lý Giá & Doanh Thu Nội Bộ (Cột Q - R)</span>
-            </h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-800 mb-1">Q. Giá gốc / cont (VNĐ)</label>
-                <div>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    placeholder="Chi phí đầu vào (VD: 3.500.000)"
-                    value={formData.base_price ? formatNumberWithDots(formData.base_price) : ''}
-                    onChange={e => {
-                      const num = parseFormattedNumber(e.target.value);
-                      setFormData({ ...formData, base_price: num });
-                    }}
-                    className="w-full px-3 py-2 text-xs sm:text-sm font-mono font-bold bg-white border border-amber-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 text-slate-800"
-                  />
-                  {formData.base_price ? (
-                    <span className="text-[11px] text-amber-800 font-semibold block mt-1">
-                      = {formatNumberWithDots(formData.base_price)} VNĐ
-                    </span>
-                  ) : null}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-800 mb-1">R. Giá bán / cont (VNĐ)</label>
-                <div>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    placeholder="Giá thu từ khách hàng (VD: 4.500.000)"
-                    value={formData.sale_price ? formatNumberWithDots(formData.sale_price) : ''}
-                    onChange={e => {
-                      const num = parseFormattedNumber(e.target.value);
-                      setFormData({ ...formData, sale_price: num });
-                    }}
-                    className="w-full px-3 py-2 text-xs sm:text-sm font-mono font-bold text-emerald-800 bg-white border border-amber-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500"
-                  />
-                  {formData.sale_price ? (
-                    <span className="text-[11px] text-emerald-800 font-semibold block mt-1">
-                      = {formatNumberWithDots(formData.sale_price)} VNĐ
-                    </span>
-                  ) : null}
-                </div>
-              </div>
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-xs font-extrabold uppercase tracking-wider text-amber-900 flex items-center gap-1.5">
+                <Lock className="w-3.5 h-3.5 text-amber-600" />
+                <span>5. Quản Lý Giá & Doanh Thu Nội Bộ</span>
+              </h4>
+              {formData.admin_edited_price && (
+                <span className="bg-amber-200 text-amber-900 text-[10px] font-bold px-2 py-0.5 rounded-full border border-amber-300">
+                  Quản trị viên đã chỉnh sửa (Đã ẩn với Nhân viên)
+                </span>
+              )}
             </div>
+
+            {currentUser?.role === 'employee' && formData.admin_edited_price ? (
+              <div className="p-3 bg-amber-100/80 rounded-xl border border-amber-300 text-xs text-amber-950 font-medium space-y-1">
+                <p className="font-bold flex items-center gap-1">
+                  <Lock className="w-3.5 h-3.5 text-amber-700" />
+                  <span>Dữ liệu giá đã được Quản trị viên điều chỉnh</span>
+                </p>
+                <p className="text-[11px] text-amber-800">
+                  Thông tin giá gốc và giá bán của chuyến xe này đã được Admin thiết lập chính thức và ẩn sau khi chỉnh sửa đối với tài khoản Nhân viên.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-800 mb-1">Giá gốc / cont (VNĐ)</label>
+                  <div>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      placeholder="Chi phí đầu vào (VD: 3.500.000)"
+                      value={formData.base_price ? formatNumberWithDots(formData.base_price) : ''}
+                      onChange={e => {
+                        const num = parseFormattedNumber(e.target.value);
+                        setFormData({ ...formData, base_price: num });
+                      }}
+                      className="w-full px-3 py-2 text-xs sm:text-sm font-mono font-bold bg-white border border-amber-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 text-slate-800"
+                    />
+                    {formData.base_price ? (
+                      <span className="text-[11px] text-amber-800 font-semibold block mt-1">
+                        = {formatNumberWithDots(formData.base_price)} VNĐ
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-800 mb-1">Giá bán / cont (VNĐ)</label>
+                  <div>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      placeholder="Giá thu từ khách hàng (VD: 4.500.000)"
+                      value={formData.sale_price ? formatNumberWithDots(formData.sale_price) : ''}
+                      onChange={e => {
+                        const num = parseFormattedNumber(e.target.value);
+                        setFormData({ ...formData, sale_price: num });
+                      }}
+                      className="w-full px-3 py-2 text-xs sm:text-sm font-mono font-bold text-emerald-800 bg-white border border-amber-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    />
+                    {formData.sale_price ? (
+                      <span className="text-[11px] text-emerald-800 font-semibold block mt-1">
+                        = {formatNumberWithDots(formData.sale_price)} VNĐ
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Footer Actions */}

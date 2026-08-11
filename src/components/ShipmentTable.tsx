@@ -384,7 +384,7 @@ export const ShipmentTable: React.FC<ShipmentTableProps> = ({
                   className="p-3.5 cursor-pointer hover:bg-slate-200/60 transition whitespace-nowrap"
                 >
                   <div className="flex items-center gap-1">
-                    <span>A. Ngày báo</span>
+                    <span>Ngày báo</span>
                     <ArrowUpDown className="w-3 h-3 text-slate-400" />
                   </div>
                 </th>
@@ -393,42 +393,43 @@ export const ShipmentTable: React.FC<ShipmentTableProps> = ({
                   className="p-3.5 cursor-pointer hover:bg-slate-200/60 transition whitespace-nowrap"
                 >
                   <div className="flex items-center gap-1">
-                    <span>B. Ngày giao</span>
+                    <span>Ngày giao</span>
                     <ArrowUpDown className="w-3 h-3 text-slate-400" />
                   </div>
                 </th>
-                <th className="p-3.5 whitespace-nowrap">C. Tuyến đường</th>
+                <th className="p-3.5 whitespace-nowrap">Tuyến đường</th>
 
-                {/* Requirement 2: Hide Transporter for Customer */}
-                {!isCustomer && <th className="p-3.5 whitespace-nowrap">D. Nhà xe / ĐVVC</th>}
+                {/* Hide Transporter for Customer */}
+                {!isCustomer && <th className="p-3.5 whitespace-nowrap">Nhà xe / ĐVVC</th>}
 
                 <th
                   onClick={() => handleSort('cont_number')}
                   className="p-3.5 cursor-pointer hover:bg-slate-200/60 transition whitespace-nowrap"
                 >
                   <div className="flex items-center gap-1">
-                    <span>E. Số Cont</span>
+                    <span>Số Cont</span>
                     <ArrowUpDown className="w-3 h-3 text-slate-400" />
                   </div>
                 </th>
-                <th className="p-3.5 whitespace-nowrap">F. Khách hàng</th>
-                <th className="p-3.5 whitespace-nowrap">G. Số lô</th>
-                <th className="p-3.5 text-center whitespace-nowrap">H. SL Cont</th>
+                <th className="p-3.5 whitespace-nowrap">Khách hàng</th>
+                <th className="p-3.5 whitespace-nowrap">Số lô</th>
+                <th className="p-3.5 text-center whitespace-nowrap">SL Cont</th>
 
-                {/* Requirement 2: Hide Warehouse columns for Customer */}
+                {/* Hide Warehouse columns for Customer */}
                 {!isCustomer && (
                   <>
-                    <th className="p-3.5 whitespace-nowrap">I. Kho/xưởng</th>
-                    <th className="p-3.5 whitespace-nowrap">J. Người giao/nhận</th>
-                    <th className="p-3.5 whitespace-nowrap">K. SĐT nhận hàng</th>
+                    <th className="p-3.5 whitespace-nowrap">Kho/xưởng</th>
+                    <th className="p-3.5 whitespace-nowrap">Người giao/nhận</th>
+                    <th className="p-3.5 whitespace-nowrap">SĐT nhận hàng</th>
                   </>
                 )}
 
-                <th className="p-3.5 text-center whitespace-nowrap">L. Phơi nâng</th>
-                <th className="p-3.5 text-center whitespace-nowrap">M. Phơi hạ</th>
-                <th className="p-3.5 text-center whitespace-nowrap">N. HĐ hạ rỗng</th>
-                <th className="p-3.5 text-center whitespace-nowrap">O. HĐ cước VC</th>
-                <th className="p-3.5 whitespace-nowrap">P. Ghi chú</th>
+                <th className="p-3.5 text-center whitespace-nowrap">Phơi nâng</th>
+                <th className="p-3.5 text-center whitespace-nowrap">Phơi hạ</th>
+                <th className="p-3.5 text-center whitespace-nowrap">HĐ hạ rỗng</th>
+                <th className="p-3.5 text-center whitespace-nowrap">HĐ đầu vào</th>
+                <th className="p-3.5 text-center whitespace-nowrap">HĐ đầu ra</th>
+                <th className="p-3.5 whitespace-nowrap">Ghi chú</th>
 
                 {/* Requirement 5: Created By / Người Nhập Liệu */}
                 <th className="p-3.5 whitespace-nowrap bg-indigo-50/60 text-indigo-950 font-extrabold border-l border-indigo-100">
@@ -485,7 +486,7 @@ export const ShipmentTable: React.FC<ShipmentTableProps> = ({
                     )}
 
                     {/* Checkbox status toggles */}
-                    {(['phoi_nang', 'phoi_ha', 'hd_ha_rong', 'hd_dich_vu'] as const).map(field => (
+                    {(['phoi_nang', 'phoi_ha', 'hd_ha_rong', 'hd_dich_vu', 'hd_dau_ra'] as const).map(field => (
                       <td key={field} className="p-3.5 text-center whitespace-nowrap">
                         <button
                           disabled={!canModify}

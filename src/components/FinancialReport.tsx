@@ -14,7 +14,8 @@ import {
   Building2,
   Truck,
   MapPin,
-  RefreshCw
+  RefreshCw,
+  Lock
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -27,16 +28,18 @@ import {
   CartesianGrid
 } from 'recharts';
 import * as XLSX from 'xlsx';
-import { ShipmentRecord } from '../types';
+import { ShipmentRecord, UserAccount } from '../types';
 
 interface FinancialReportProps {
   records: ShipmentRecord[];
+  currentUser?: UserAccount | null;
   onImportExcel: (importedRecords: Partial<ShipmentRecord>[]) => void;
   onShowToast: (message: string, type?: 'success' | 'error') => void;
 }
 
 export const FinancialReport: React.FC<FinancialReportProps> = ({
   records,
+  currentUser,
   onImportExcel,
   onShowToast,
 }) => {
@@ -316,10 +319,10 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({
         <div>
           <h3 className="font-extrabold text-base sm:text-lg flex items-center gap-2">
             <BarChart3 className="w-5 h-5 text-emerald-400" />
-            <span>Khu Vực Báo Cáo Tài Chính & Lợi Nhuận Nội Bộ - CÔNG TY TNHH SPV GROUP</span>
+            <span>Báo cáo vận chuyển</span>
           </h3>
           <p className="text-xs text-slate-300 mt-0.5">
-            Thống kê doanh thu, chi phí giá gốc (Cột Q), giá bán (Cột R) và phân tích so sánh đơn giá vận chuyển.
+            Thống kê doanh thu, chi phí và phân tích so sánh.
           </p>
         </div>
 
@@ -344,7 +347,7 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({
         <div className="flex items-center justify-between border-b border-slate-100 pb-2">
           <div className="flex items-center gap-2 text-slate-800 font-bold text-xs uppercase tracking-wider">
             <Filter className="w-4 h-4 text-indigo-600" />
-            <span>Bộ Lọc Báo Cáo Tài Chính</span>
+            <span>Bộ Lọc Báo Cáo Vận Chuyển</span>
           </div>
           {(selectedMonth !== 'all' || selectedCustomer !== 'all' || selectedTransporter !== 'all' || searchQuery !== '') && (
             <button
@@ -450,7 +453,7 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({
               <DollarSign className="w-5 h-5" />
             </div>
           </div>
-          <p className="text-xs text-slate-500 mt-2">Cột R (Giá bán/cont)</p>
+          <p className="text-xs text-slate-500 mt-2">Giá bán/cont</p>
         </div>
 
         <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
@@ -465,7 +468,7 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({
               <Coins className="w-5 h-5" />
             </div>
           </div>
-          <p className="text-xs text-slate-500 mt-2">Cột Q (Giá gốc/cont)</p>
+          <p className="text-xs text-slate-500 mt-2">Giá gốc/cont</p>
         </div>
 
         <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
@@ -499,6 +502,124 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({
         </div>
       </div>
 
+      {/* 1. TABLE SECTION PLACED ABOVE CHARTS (Requirement 5) */}
+      <div className="space-y-3">
+        {/* Financial Toolbar & Import Button */}
+        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row gap-3 items-center justify-between">
+          <div className="text-xs font-bold text-slate-700 flex items-center gap-2">
+            <span>Danh sách chuyến xe phù hợp ({filtered.length} chuyến)</span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <label className="bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition cursor-pointer flex items-center gap-1.5 shadow-xs">
+              <FileUp className="w-4 h-4 text-indigo-600" />
+              <span>Nhập Dữ Liệu Excel</span>
+              <input type="file" onChange={handleFileUpload} accept=".csv, .xlsx, .xls" className="hidden" />
+            </label>
+          </div>
+        </div>
+
+        {/* Full Financial Data Table with HĐ đầu vào & HĐ đầu ra columns (Requirement 7) */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-100/90 border-b border-slate-200 text-slate-600 text-[11px] font-bold uppercase tracking-wider">
+                  <th className="p-3.5 w-10 text-center">STT</th>
+                  <th className="p-3.5">Khách Hàng</th>
+                  <th className="p-3.5">Số Cont</th>
+                  <th className="p-3.5">Tuyến Đường</th>
+                  <th className="p-3.5">Đơn Vị Vận Chuyển</th>
+                  <th className="p-3.5 text-center">SL Cont</th>
+                  <th className="p-3.5 text-center">HĐ đầu vào</th>
+                  <th className="p-3.5 text-center">HĐ đầu ra</th>
+                  <th className="p-3.5 text-right bg-amber-50 text-amber-950 font-black">Giá gốc/cont</th>
+                  <th className="p-3.5 text-right bg-emerald-50 text-emerald-950 font-black">Giá bán/cont</th>
+                  <th className="p-3.5 text-right font-black">Lợi Nhuận Chuyến</th>
+                  <th className="p-3.5">Người Nhập</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-xs sm:text-sm">
+                {filtered.map((record, index) => {
+                  const qty = Number(record.cont_quantity) || 1;
+                  const base = (Number(record.base_price) || 0) * qty;
+                  const sale = (Number(record.sale_price) || 0) * qty;
+                  const itemProfit = sale - base;
+                  const isEmployeeHidden = currentUser?.role === 'employee' && record.admin_edited_price;
+
+                  const hasInputInvoice = record.hd_dich_vu || record.hd_dau_vao;
+                  const hasOutputInvoice = record.hd_dau_ra;
+
+                  return (
+                    <tr key={record.id} className="hover:bg-slate-50 transition">
+                      <td className="p-3.5 text-center font-bold text-slate-400 text-xs">{index + 1}</td>
+                      <td className="p-3.5 font-bold text-slate-900">{record.customer || '—'}</td>
+                      <td className="p-3.5 font-mono text-indigo-700 font-bold">{record.cont_number || '—'}</td>
+                      <td className="p-3.5 text-slate-700">{record.route || '—'}</td>
+                      <td className="p-3.5 text-slate-700">{record.transporter || '—'}</td>
+                      <td className="p-3.5 text-center font-bold">{record.cont_quantity || 1}</td>
+                      <td className="p-3.5 text-center">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                          hasInputInvoice ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-400'
+                        }`}>
+                          {hasInputInvoice ? 'Có' : 'Không'}
+                        </span>
+                      </td>
+                      <td className="p-3.5 text-center">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                          hasOutputInvoice ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-400'
+                        }`}>
+                          {hasOutputInvoice ? 'Có' : 'Không'}
+                        </span>
+                      </td>
+                      <td className="p-3.5 text-right font-bold text-slate-800 bg-amber-50/50">
+                        {isEmployeeHidden ? (
+                          <span className="text-amber-700 text-xs font-mono font-normal italic flex items-center justify-end gap-1">
+                            <Lock className="w-3 h-3" /> ***
+                          </span>
+                        ) : (
+                          formatCurrency(record.base_price)
+                        )}
+                      </td>
+                      <td className="p-3.5 text-right font-black text-emerald-700 bg-emerald-50/50">
+                        {isEmployeeHidden ? (
+                          <span className="text-emerald-700 text-xs font-mono font-normal italic flex items-center justify-end gap-1">
+                            <Lock className="w-3 h-3" /> ***
+                          </span>
+                        ) : (
+                          formatCurrency(record.sale_price)
+                        )}
+                      </td>
+                      <td className={`p-3.5 text-right font-black ${itemProfit >= 0 ? 'text-indigo-600' : 'text-rose-600'}`}>
+                        {isEmployeeHidden ? (
+                          <span className="text-slate-400 text-xs font-mono font-normal italic flex items-center justify-end gap-1">
+                            <Lock className="w-3 h-3" /> ***
+                          </span>
+                        ) : (
+                          formatCurrency(itemProfit)
+                        )}
+                      </td>
+                      <td className="p-3.5 text-slate-600 text-xs">
+                        {record.created_by?.name || 'Hệ thống'}
+                      </td>
+                    </tr>
+                  );
+                })}
+
+                {filtered.length === 0 && (
+                  <tr>
+                    <td colSpan={12} className="p-8 text-center text-slate-400">
+                      Không tìm thấy dữ liệu báo cáo vận chuyển phù hợp với bộ lọc.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      {/* 2. CHARTS SECTION (PLACED BELOW TABLE) */}
       {/* Main Overview Bar Chart (Customer Revenue & Base Cost) */}
       <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-4">
         <div className="flex items-center justify-between border-b pb-3">
@@ -619,82 +740,6 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({
               )}
             </div>
           </div>
-        </div>
-      </div>
-
-      {/* Financial Toolbar & Import Button */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row gap-3 items-center justify-between">
-        <div className="text-xs font-bold text-slate-700 flex items-center gap-2">
-          <span>Danh sách {filtered.length} chuyến xe phù hợp</span>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <label className="bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition cursor-pointer flex items-center gap-1.5 shadow-xs">
-            <FileUp className="w-4 h-4 text-indigo-600" />
-            <span>Nhập Dữ Liệu Excel</span>
-            <input type="file" onChange={handleFileUpload} accept=".csv, .xlsx, .xls" className="hidden" />
-          </label>
-        </div>
-      </div>
-
-      {/* Full Financial Data Table (Removed "Thành Tiền" column as requested) */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-slate-100/90 border-b border-slate-200 text-slate-600 text-[11px] font-bold uppercase tracking-wider">
-                <th className="p-3.5 w-10 text-center">STT</th>
-                <th className="p-3.5">Khách Hàng</th>
-                <th className="p-3.5">Số Cont</th>
-                <th className="p-3.5">Tuyến Đường</th>
-                <th className="p-3.5">Đơn Vị Vận Chuyển</th>
-                <th className="p-3.5 text-center">SL Cont</th>
-                <th className="p-3.5 text-right bg-amber-50 text-amber-950 font-black">Q. Giá gốc/cont</th>
-                <th className="p-3.5 text-right bg-emerald-50 text-emerald-950 font-black">R. Giá bán/cont</th>
-                <th className="p-3.5 text-right font-black">Lợi Nhuận Chuyến</th>
-                <th className="p-3.5">Người Nhập</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 text-xs sm:text-sm">
-              {filtered.map((record, index) => {
-                const qty = Number(record.cont_quantity) || 1;
-                const base = (Number(record.base_price) || 0) * qty;
-                const sale = (Number(record.sale_price) || 0) * qty;
-                const itemProfit = sale - base;
-
-                return (
-                  <tr key={record.id} className="hover:bg-slate-50 transition">
-                    <td className="p-3.5 text-center font-bold text-slate-400 text-xs">{index + 1}</td>
-                    <td className="p-3.5 font-bold text-slate-900">{record.customer || '—'}</td>
-                    <td className="p-3.5 font-mono text-indigo-700 font-bold">{record.cont_number || '—'}</td>
-                    <td className="p-3.5 text-slate-700">{record.route || '—'}</td>
-                    <td className="p-3.5 text-slate-700">{record.transporter || '—'}</td>
-                    <td className="p-3.5 text-center font-bold">{record.cont_quantity || 1}</td>
-                    <td className="p-3.5 text-right font-bold text-slate-800 bg-amber-50/50">
-                      {formatCurrency(record.base_price)}
-                    </td>
-                    <td className="p-3.5 text-right font-black text-emerald-700 bg-emerald-50/50">
-                      {formatCurrency(record.sale_price)}
-                    </td>
-                    <td className={`p-3.5 text-right font-black ${itemProfit >= 0 ? 'text-indigo-600' : 'text-rose-600'}`}>
-                      {formatCurrency(itemProfit)}
-                    </td>
-                    <td className="p-3.5 text-slate-600 text-xs">
-                      {record.created_by?.name || 'Hệ thống'}
-                    </td>
-                  </tr>
-                );
-              })}
-
-              {filtered.length === 0 && (
-                <tr>
-                  <td colSpan={10} className="p-8 text-center text-slate-400">
-                    Không tìm thấy dữ liệu báo cáo tài chính phù hợp với bộ lọc.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
         </div>
       </div>
     </div>
