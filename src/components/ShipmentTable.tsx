@@ -18,7 +18,7 @@ import {
   Download,
   Upload
 } from 'lucide-react';
-import { ShipmentRecord, UserAccount } from '../types';
+import { ShipmentRecord, UserAccount, formatDateVN } from '../types';
 import { exportShipmentsToExcel, parseShipmentsFromExcel } from '../lib/excel';
 
 interface ShipmentTableProps {
@@ -560,8 +560,8 @@ export const ShipmentTable: React.FC<ShipmentTableProps> = ({
                     <td className="p-3.5 text-center font-bold text-slate-400 text-xs">
                       {(currentPage - 1) * itemsPerPage + index + 1}
                     </td>
-                    <td className="p-3.5 font-medium whitespace-nowrap">{record.date_announced || '—'}</td>
-                    <td className="p-3.5 font-medium whitespace-nowrap">{record.delivery_date || '—'}</td>
+                    <td className="p-3.5 font-medium whitespace-nowrap">{formatDateVN(record.date_announced) || '—'}</td>
+                    <td className="p-3.5 font-medium whitespace-nowrap">{formatDateVN(record.delivery_date) || '—'}</td>
                     <td className="p-3.5 font-semibold text-slate-800 whitespace-nowrap">{record.route || '—'}</td>
 
                     {/* Requirement 2: Hide Transporter for Customer */}

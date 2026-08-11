@@ -1,6 +1,6 @@
 import React from 'react';
 import { X, Printer, FileCheck2, MapPin, Globe, ExternalLink, FileText } from 'lucide-react';
-import { ShipmentRecord, CustomerItem, findCustomerByName } from '../types';
+import { ShipmentRecord, CustomerItem, findCustomerByName, formatDateVN } from '../types';
 
 interface DeliveryReceiptModalProps {
   isOpen: boolean;
@@ -16,15 +16,6 @@ export const DeliveryReceiptModal: React.FC<DeliveryReceiptModalProps> = ({
   customers = [],
 }) => {
   if (!isOpen || !record) return null;
-
-  const formatDate = (dateStr?: string) => {
-    if (!dateStr) return '—';
-    const parts = dateStr.split('-');
-    if (parts.length === 3) {
-      return `${parts[2]}/${parts[1]}/${parts[0]}`;
-    }
-    return dateStr;
-  };
 
   const formattedReceiptNo = String(record.id || '1').replace(/\D/g, '').slice(-5).padStart(5, '0') || '00001';
 
@@ -170,7 +161,7 @@ export const DeliveryReceiptModal: React.FC<DeliveryReceiptModalProps> = ({
                 Số: {formattedReceiptNo}
               </span>
               <p className="text-[11px] text-slate-500 mt-0.5">
-                Ngày lập: {formatDate(record.delivery_date)}
+                Ngày lập: {formatDateVN(record.delivery_date)}
               </p>
             </div>
           </div>
@@ -201,11 +192,11 @@ export const DeliveryReceiptModal: React.FC<DeliveryReceiptModalProps> = ({
             </div>
             <div>
               <p className="text-slate-500 font-medium">4. Ngày Báo Xe:</p>
-              <p className="font-semibold text-slate-800 mt-0.5">{formatDate(record.date_announced)}</p>
+              <p className="font-semibold text-slate-800 mt-0.5">{formatDateVN(record.date_announced)}</p>
             </div>
             <div className="col-span-2">
               <p className="text-slate-500 font-medium">5. Ngày Giao/Trả Hàng Thực Tế:</p>
-              <p className="font-semibold text-slate-800 mt-0.5">{formatDate(record.delivery_date)}</p>
+              <p className="font-semibold text-slate-800 mt-0.5">{formatDateVN(record.delivery_date)}</p>
             </div>
           </div>
 
