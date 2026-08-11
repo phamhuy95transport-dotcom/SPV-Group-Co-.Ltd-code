@@ -28,6 +28,7 @@ interface ShipmentTableProps {
   onDuplicateRecord: (record: ShipmentRecord) => void;
   onOpenEditModal: (record: ShipmentRecord) => void;
   onConfirmDeleteTrip: (record: ShipmentRecord) => void;
+  onBatchDeleteTrips?: (selectedRecords: ShipmentRecord[]) => void;
   onToggleCheckbox: (record: ShipmentRecord, field: keyof ShipmentRecord) => void;
   onOpenNewTripModal: () => void;
   onOpenLoginModal?: () => void;
@@ -41,16 +42,14 @@ export const ShipmentTable: React.FC<ShipmentTableProps> = ({
   onDuplicateRecord,
   onOpenEditModal,
   onConfirmDeleteTrip,
+  onBatchDeleteTrips,
   onToggleCheckbox,
   onOpenNewTripModal,
   onOpenLoginModal,
   onImportShipments,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const handleExport = () => {
-    exportShipmentsToExcel(records);
-  };
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -192,6 +191,59 @@ export const ShipmentTable: React.FC<ShipmentTableProps> = ({
     return false;
   };
 
+  // Selection state & actions
+  const selectedFilteredRecords = filtered.filter(r => selectedIds.includes(r.id));
+  const isAllFilteredSelected = filtered.length > 0 && filtered.every(r => selectedIds.includes(r.id));
+  const isSomeFilteredSelected = filtered.some(r => selectedIds.includes(r.id));
+
+  const toggleSelectAllFiltered = () => {
+    if (isAllFilteredSelected) {
+      const filteredIdSet = new Set(filtered.map(r => r.id));
+      setSelectedIds(prev => prev.filter(id => !filteredIdSet.has(id)));
+    } else {
+      const filteredIds = filtered.map(r => r.id);
+      setSelectedIds(prev => Array.from(new Set([...prev, ...filteredIds])));
+    }
+  };
+
+  const toggleSelectRow = (id: string) => {
+    setSelectedIds(prev =>
+      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+    );
+  };
+
+  const handleExport = () => {
+    const recordsToExport = selectedFilteredRecords.length > 0 ? selectedFilteredRecords : filtered;
+    exportShipmentsToExcel(
+      recordsToExport,
+      selectedFilteredRecords.length > 0
+        ? `danh-sach-chuyen-hang-da-chon-${selectedFilteredRecords.length}-muc.xlsx`
+        : 'danh-sach-chuyen-hang.xlsx'
+    );
+  };
+
+  const handleBatchDelete = () => {
+    if (selectedFilteredRecords.length === 0) return;
+    const deletableRecords = selectedFilteredRecords.filter(canModifyRecord);
+    const nonDeletableCount = selectedFilteredRecords.length - deletableRecords.length;
+
+    if (deletableRecords.length === 0) {
+      alert('Bạn không có quyền xóa các chuyến hàng đã chọn.');
+      return;
+    }
+
+    if (nonDeletableCount > 0) {
+      const confirmMsg = `Trong số ${selectedFilteredRecords.length} chuyến hàng đã chọn, có ${nonDeletableCount} chuyến do người dùng khác tạo mà bạn không có quyền xóa.\n\nBạn có muốn tiếp tục xóa ${deletableRecords.length} chuyến do bạn tạo không?`;
+      if (!confirm(confirmMsg)) return;
+    }
+
+    if (onBatchDeleteTrips) {
+      onBatchDeleteTrips(deletableRecords);
+      const deletedSet = new Set(deletableRecords.map(r => r.id));
+      setSelectedIds(prev => prev.filter(id => !deletedSet.has(id)));
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Notice Banner */}
@@ -248,11 +300,13 @@ export const ShipmentTable: React.FC<ShipmentTableProps> = ({
                 </button>
                 <button
                   onClick={handleExport}
-                  className="bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs px-4 py-2.5 rounded-xl font-bold transition shadow-xs flex items-center gap-2 whitespace-nowrap border border-blue-200"
-                  title="Xuất Excel"
+                  className="bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs px-4 py-2.5 rounded-xl font-bold transition shadow-xs flex items-center gap-2 whitespace-nowrap border border-blue-200 cursor-pointer"
+                  title={selectedFilteredRecords.length > 0 ? `Xuất ${selectedFilteredRecords.length} chuyến đã chọn` : "Xuất Excel"}
                 >
                   <Download className="w-4 h-4" />
-                  <span className="hidden sm:inline">Xuất</span>
+                  <span className="hidden sm:inline">
+                    {selectedFilteredRecords.length > 0 ? `Xuất (${selectedFilteredRecords.length})` : 'Xuất'}
+                  </span>
                 </button>
               </>
             )}
@@ -481,12 +535,72 @@ export const ShipmentTable: React.FC<ShipmentTableProps> = ({
         )}
       </div>
 
+      {/* Batch Actions Toolbar */}
+      {selectedFilteredRecords.length > 0 && (
+        <div className="bg-gradient-to-r from-indigo-900 via-indigo-800 to-slate-900 text-white p-3.5 sm:p-4 rounded-2xl shadow-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border border-indigo-700/80">
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="bg-indigo-600/90 text-white px-3 py-1.5 rounded-xl text-xs sm:text-sm font-extrabold flex items-center gap-2 border border-indigo-500/50 shadow-inner">
+              <CheckCheck className="w-4 h-4 text-emerald-400" />
+              Đã chọn <strong className="text-amber-300 text-sm sm:text-base">{selectedFilteredRecords.length}</strong> / {filtered.length} chuyến
+            </span>
+            <button
+              onClick={() => setSelectedIds([])}
+              className="text-xs text-indigo-200 hover:text-white hover:underline transition font-medium cursor-pointer"
+            >
+              Bỏ chọn tất cả
+            </button>
+            {!isAllFilteredSelected && (
+              <button
+                onClick={toggleSelectAllFiltered}
+                className="text-xs text-amber-300 hover:text-amber-200 hover:underline transition font-bold cursor-pointer"
+              >
+                Chọn tất cả ({filtered.length})
+              </button>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2.5 w-full sm:w-auto justify-end">
+            <button
+              onClick={handleExport}
+              className="flex-1 sm:flex-initial bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition shadow-sm flex items-center justify-center gap-2 border border-emerald-500 cursor-pointer"
+              title="Xuất các mục đã chọn ra file Excel"
+            >
+              <Download className="w-4 h-4" />
+              <span>Kết xuất Excel ({selectedFilteredRecords.length})</span>
+            </button>
+
+            {!isCustomer && (
+              <button
+                onClick={handleBatchDelete}
+                className="flex-1 sm:flex-initial bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition shadow-sm flex items-center justify-center gap-2 border border-rose-500 cursor-pointer"
+                title="Xóa các mục đã chọn"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>Xóa đã chọn ({selectedFilteredRecords.length})</span>
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Main Table */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-100/90 border-b border-slate-200 text-slate-600 text-[11px] font-bold uppercase tracking-wider">
+                <th className="p-3.5 w-10 text-center whitespace-nowrap">
+                  <input
+                    type="checkbox"
+                    checked={isAllFilteredSelected}
+                    ref={el => {
+                      if (el) el.indeterminate = isSomeFilteredSelected && !isAllFilteredSelected;
+                    }}
+                    onChange={toggleSelectAllFiltered}
+                    className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer accent-indigo-600"
+                    title="Chọn / Bỏ chọn tất cả theo bộ lọc"
+                  />
+                </th>
                 <th className="p-3.5 w-10 text-center">STT</th>
                 <th
                   onClick={() => handleSort('date_announced')}
@@ -554,9 +668,21 @@ export const ShipmentTable: React.FC<ShipmentTableProps> = ({
             <tbody className="divide-y divide-slate-100 text-xs sm:text-sm">
               {paginatedRecords.map((record, index) => {
                 const canModify = canModifyRecord(record);
+                const isSelected = selectedIds.includes(record.id);
 
                 return (
-                  <tr key={record.id} className="hover:bg-indigo-50/30 transition">
+                  <tr
+                    key={record.id}
+                    className={`transition ${isSelected ? 'bg-indigo-50/80 border-l-4 border-l-indigo-600' : 'hover:bg-indigo-50/30'}`}
+                  >
+                    <td className="p-3.5 text-center whitespace-nowrap">
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleSelectRow(record.id)}
+                        className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer accent-indigo-600"
+                      />
+                    </td>
                     <td className="p-3.5 text-center font-bold text-slate-400 text-xs">
                       {(currentPage - 1) * itemsPerPage + index + 1}
                     </td>
@@ -695,7 +821,7 @@ export const ShipmentTable: React.FC<ShipmentTableProps> = ({
               {paginatedRecords.length === 0 && (
                 <tr>
                   <td
-                    colSpan={isCustomer ? 13 : 17}
+                    colSpan={isCustomer ? 14 : 18}
                     className="p-12 text-center text-slate-400 font-medium"
                   >
                     Không tìm thấy dữ liệu chuyến xe phù hợp.
