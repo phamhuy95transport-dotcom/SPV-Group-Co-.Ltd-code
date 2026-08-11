@@ -208,26 +208,98 @@ export interface CustomsDeclarationRecord {
   createdAt?: string;
 }
 
-export const formatDateVN = (dateStr?: string): string => {
-  if (!dateStr) return '';
-  const clean = dateStr.trim();
-  if (!clean) return '';
-  if (/^\d{4}-\d{2}-\d{2}/.test(clean)) {
-    const [y, m, d] = clean.split('T')[0].split('-');
-    return `${d}/${m}/${y}`;
+export function excelSerialToISO(serial: number): string {
+  if (typeof serial !== 'number' || isNaN(serial) || serial <= 0) return '';
+  const utcDays = serial - 25569;
+  const utcValue = utcDays * 86400 * 1000;
+  const date = new Date(utcValue);
+  if (isNaN(date.getTime())) return '';
+  const y = date.getUTCFullYear();
+  const m = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const d = String(date.getUTCDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+export const normalizeDateToISO = (dateInput: any): string => {
+  if (!dateInput && dateInput !== 0) return '';
+  if (typeof dateInput === 'number') {
+    return excelSerialToISO(dateInput);
   }
+
+  if (dateInput instanceof Date && !isNaN(dateInput.getTime())) {
+    const y = dateInput.getFullYear();
+    const m = String(dateInput.getMonth() + 1).padStart(2, '0');
+    const d = String(dateInput.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+
+  const clean = String(dateInput).trim();
+  if (!clean) return '';
+
+  // Already YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(clean)) {
+    return clean;
+  }
+
+  // YYYY-MM-DDTHH:mm:ss...
+  if (/^\d{4}-\d{2}-\d{2}T/.test(clean)) {
+    return clean.split('T')[0];
+  }
+
+  // DD/MM/YYYY or D/M/YYYY or DD-MM-YYYY or D-M-YYYY
+  if (/^\d{1,2}[\/-]\d{1,2}[\/-]\d{4}$/.test(clean)) {
+    const parts = clean.split(/[\/-]/);
+    const d = parts[0].padStart(2, '0');
+    const m = parts[1].padStart(2, '0');
+    const y = parts[2];
+    return `${y}-${m}-${d}`;
+  }
+
+  // YYYY/MM/DD
+  if (/^\d{4}\/\d{1,2}\/\d{1,2}$/.test(clean)) {
+    const parts = clean.split('/');
+    const y = parts[0];
+    const m = parts[1].padStart(2, '0');
+    const d = parts[2].padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+
+  // Try parsing numeric timestamp or date string
+  const num = Number(clean);
+  if (!isNaN(num) && num > 30000 && num < 70000) {
+    return excelSerialToISO(num);
+  }
+
   return clean;
 };
 
-export const formatMonthYearVN = (dateStr?: string): string => {
-  if (!dateStr) return '';
-  const clean = dateStr.trim();
-  if (!clean) return '';
-  if (/^\d{4}-\d{2}-\d{2}/.test(clean)) {
-    const [y, m] = clean.split('T')[0].split('-');
+export const formatDateVN = (dateInput?: any): string => {
+  if (!dateInput && dateInput !== 0) return '';
+  
+  const iso = normalizeDateToISO(dateInput);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) {
+    const [y, m, d] = iso.split('-');
+    return `${d}/${m}/${y}`;
+  }
+
+  const clean = String(dateInput).trim();
+  if (/^\d{1,2}[\/-]\d{1,2}[\/-]\d{4}$/.test(clean)) {
+    const parts = clean.split(/[\/-]/);
+    return `${parts[0].padStart(2, '0')}/${parts[1].padStart(2, '0')}/${parts[2]}`;
+  }
+
+  return clean;
+};
+
+export const formatMonthYearVN = (dateInput?: any): string => {
+  if (!dateInput && dateInput !== 0) return '';
+  const iso = normalizeDateToISO(dateInput);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) {
+    const [y, m] = iso.split('-');
     return `${m}/${y}`;
   }
-  if (/^\d{4}-\d{2}/.test(clean)) {
+  const clean = String(dateInput).trim();
+  if (/^\d{4}-\d{2}$/.test(clean)) {
     const [y, m] = clean.split('-');
     return `${m}/${y}`;
   }
