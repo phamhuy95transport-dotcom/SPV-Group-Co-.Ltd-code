@@ -15,6 +15,8 @@ export const SHIPMENT_EXCEL_COLUMNS: { label: string; key: keyof ShipmentRecord 
   { label: 'Tên người giao/nhận', key: 'contact_person' },
   { label: 'SĐT người nhận', key: 'contact_phone' },
   { label: 'Ghi chú', key: 'notes' },
+  { label: 'Giá gốc', key: 'base_price' },
+  { label: 'Giá bán', key: 'sale_price' },
 ];
 
 export function exportShipmentsToExcel(records: ShipmentRecord[], filename = 'danh-sach-chuyen-hang.xlsx') {
@@ -24,13 +26,6 @@ export function exportShipmentsToExcel(records: ShipmentRecord[], filename = 'da
     SHIPMENT_EXCEL_COLUMNS.forEach(col => {
       row[col.label] = record[col.key] || '';
     });
-    // Additional boolean toggles
-    row['Phơi nâng'] = record.phoi_nang ? 'Có' : 'Không';
-    row['Phơi hạ'] = record.phoi_ha ? 'Có' : 'Không';
-    row['HĐ hạ rỗng'] = record.hd_ha_rong ? 'Có' : 'Không';
-    row['HĐ cước VC/Đầu vào'] = record.hd_dich_vu ? 'Có' : 'Không';
-    row['HĐ đầu ra'] = record.hd_dau_ra ? 'Có' : 'Không';
-
     return row;
   });
 
@@ -63,19 +58,13 @@ export function parseShipmentsFromExcel(file: File): Promise<Partial<ShipmentRec
           
           SHIPMENT_EXCEL_COLUMNS.forEach(col => {
             if (row[col.label] !== undefined) {
-              if (col.key === 'cont_quantity') {
-                 record[col.key] = Number(row[col.label]) || 1;
+              if (col.key === 'cont_quantity' || col.key === 'base_price' || col.key === 'sale_price') {
+                 record[col.key] = Number(row[col.label]) || (col.key === 'cont_quantity' ? 1 : 0);
               } else {
                  (record as any)[col.key] = String(row[col.label] || '');
               }
             }
           });
-          
-          record.phoi_nang = row['Phơi nâng'] === 'Có';
-          record.phoi_ha = row['Phơi hạ'] === 'Có';
-          record.hd_ha_rong = row['HĐ hạ rỗng'] === 'Có';
-          record.hd_dich_vu = row['HĐ cước VC/Đầu vào'] === 'Có';
-          record.hd_dau_ra = row['HĐ đầu ra'] === 'Có';
 
           return record;
         });
