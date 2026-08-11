@@ -107,6 +107,7 @@ export default function App() {
   const [deleteTarget, setDeleteTarget] = useState<{
     type: 'shipment' | 'catalog' | 'customs' | 'advance' | 'quotation';
     id: string;
+    ids?: string[];
     subTab?: CatalogSubTab;
     name: string;
   } | null>(null);
@@ -774,9 +775,16 @@ export default function App() {
     if (!deleteTarget) return;
 
     if (deleteTarget.type === 'shipment') {
-      setRecords(prev => prev.filter(r => r.id !== deleteTarget.id));
-      await deleteRecordFromCloud('shipments', deleteTarget.id);
-      showToast('Đã xóa thành công chuyến hàng!');
+      if (deleteTarget.ids && deleteTarget.ids.length > 0) {
+        const idsToDelete = deleteTarget.ids;
+        setRecords(prev => prev.filter(r => !idsToDelete.includes(r.id)));
+        await Promise.all(idsToDelete.map(id => deleteRecordFromCloud('shipments', id)));
+        showToast(`Đã xóa thành công ${idsToDelete.length} chuyến hàng!`);
+      } else {
+        setRecords(prev => prev.filter(r => r.id !== deleteTarget.id));
+        await deleteRecordFromCloud('shipments', deleteTarget.id);
+        showToast('Đã xóa thành công chuyến hàng!');
+      }
     } else if (deleteTarget.type === 'customs') {
       setDeclarations(prev => prev.filter(d => d.id !== deleteTarget.id));
       await deleteRecordFromCloud('customs', deleteTarget.id);
@@ -875,6 +883,16 @@ export default function App() {
                 type: 'shipment',
                 id: rec.id,
                 name: `Chuyến Cont ${rec.cont_number} (KH: ${rec.customer})`
+              });
+              setIsConfirmDeleteOpen(true);
+            }}
+            onBatchDeleteTrips={selectedRecords => {
+              const ids = selectedRecords.map(r => r.id);
+              setDeleteTarget({
+                type: 'shipment',
+                id: ids[0] || '',
+                ids: ids,
+                name: `${ids.length} chuyến hàng đã chọn`
               });
               setIsConfirmDeleteOpen(true);
             }}
