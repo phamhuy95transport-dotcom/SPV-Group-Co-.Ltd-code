@@ -89,7 +89,7 @@ export default function App() {
   // Confirm Delete Dialog
   const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{
-    type: 'shipment' | 'catalog';
+    type: 'shipment' | 'catalog' | 'customs' | 'advance' | 'quotation';
     id: string;
     subTab?: CatalogSubTab;
     name: string;
@@ -216,10 +216,13 @@ export default function App() {
     showToast('Lưu báo giá khách hàng thành công!');
   };
 
-  const handleDeleteQuotation = async (id: string) => {
-    setQuotations(prev => prev.filter(q => q.id !== id));
-    await deleteRecordFromCloud('quotations', id);
-    showToast('Xóa báo giá thành công!');
+  const handleDeleteQuotation = (id: string, name: string) => {
+    setDeleteTarget({
+      type: 'quotation',
+      id,
+      name
+    });
+    setIsConfirmDeleteOpen(true);
   };
 
   // Handlers for Employee Advances
@@ -237,10 +240,13 @@ export default function App() {
     showToast('Lưu khoản tạm ứng nhân viên thành công!');
   };
 
-  const handleDeleteAdvance = async (id: string) => {
-    setAdvances(prev => prev.filter(a => a.id !== id));
-    await deleteRecordFromCloud('advances', id);
-    showToast('Xóa khoản tạm ứng thành công!');
+  const handleDeleteAdvance = (id: string, name: string) => {
+    setDeleteTarget({
+      type: 'advance',
+      id,
+      name
+    });
+    setIsConfirmDeleteOpen(true);
   };
 
   const handleToggleAdvanceApproval = async (id: string, currentApproved: boolean) => {
@@ -271,7 +277,7 @@ export default function App() {
     if (user.role === 'customer' && (activeTab === 'category' || activeTab === 'report' || activeTab === 'users')) {
       setActiveTab('entry');
     }
-    if (user.role === 'employee' && (activeTab === 'report' || activeTab === 'users')) {
+    if ((user.role === 'employee_logistics' || user.role === 'employee_accounting' || user.role === ('employee' as any)) && (activeTab === 'report' || activeTab === 'users')) {
       setActiveTab('entry');
     }
   };
@@ -343,6 +349,21 @@ export default function App() {
     }
   };
 
+  const handleChangeUserCustomerName = async (userId: string, customerName: string) => {
+    const targetUser = users.find(u => u.id === userId);
+    setUsers(prev =>
+      prev.map(u => (u.id === userId ? { ...u, customer_name: customerName } : u))
+    );
+    if (targetUser) {
+      const updatedUser = { ...targetUser, customer_name: customerName };
+      await saveRecordToCloud('users', userId, updatedUser);
+      if (currentUser?.id === userId) {
+        setCurrentUser(updatedUser);
+      }
+      showToast(`Đã gắn tài khoản với khách hàng: ${customerName || 'Chưa chọn'}`);
+    }
+  };
+
   const handleDeleteUser = async (userId: string) => {
     const targetUser = users.find(u => u.id === userId);
     if (targetUser) {
@@ -394,10 +415,13 @@ export default function App() {
     showToast('Đã lưu thông tin tờ khai hải quan!');
   };
 
-  const handleDeleteDeclaration = async (id: string) => {
-    setDeclarations(prev => prev.filter(d => d.id !== id));
-    await deleteRecordFromCloud('customs', id);
-    showToast('Đã xóa tờ khai hải quan.');
+  const handleDeleteDeclaration = (id: string, name: string) => {
+    setDeleteTarget({
+      type: 'customs',
+      id,
+      name
+    });
+    setIsConfirmDeleteOpen(true);
   };
 
   const handleToggleDeclarationApproved = async (id: string, currentApproved: boolean) => {
@@ -434,7 +458,9 @@ export default function App() {
           const baseReward = rateObj ? rateObj.reward_amount : (d.type === 'Xuất khẩu' || d.type === 'Nhập khẩu' ? 30000 : 25000);
           const ratioNum = d.support_transfer?.ratio || 1;
           const qty = (d.cont_quantity && d.cont_quantity > 0) ? d.cont_quantity : 1;
-          const newKpi = nextCompleted ? Math.round(baseReward * qty * ratioNum) : 0;
+          const roundedRatio = Math.round(ratioNum * 1000) / 1000;
+          const extraBonus = d.extra_bonus || 0;
+          const newKpi = nextCompleted ? Math.max(0, Math.round((baseReward * qty) - (baseReward * roundedRatio) + Number(extraBonus))) : 0;
           const todayStr = new Date().toISOString().split('T')[0];
           const nextCompletedDate = nextCompleted ? (d.completed_date || d.execution_date || todayStr) : undefined;
 
@@ -574,6 +600,48 @@ export default function App() {
     showToast(shipmentModalMode === 'add' ? 'Thêm mới chuyến hàng thành công!' : 'Cập nhật chuyến hàng thành công!');
   };
 
+  const handleImportShipments = async (importedRecords: Partial<ShipmentRecord>[]) => {
+    if (currentUser?.role !== 'admin') {
+      showToast('Chỉ Quản trị viên mới có quyền nhập dữ liệu từ Excel.', 'error');
+      return;
+    }
+
+    const newRecords = importedRecords.map(data => {
+      const recordId = 'rec_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+      return {
+        ...data,
+        id: recordId,
+        date_announced: data.date_announced || new Date().toISOString().split('T')[0],
+        delivery_date: data.delivery_date || new Date().toISOString().split('T')[0],
+        route: data.route || '',
+        transporter: data.transporter || '',
+        cont_number: data.cont_number || '',
+        customer: data.customer || '',
+        cont_quantity: Number(data.cont_quantity) || 1,
+        base_price: Number(data.base_price) || 0,
+        sale_price: Number(data.sale_price) || 0,
+        return_invoice_type: data.return_invoice_type || 'customer',
+        return_invoice_tax_code: data.return_invoice_tax_code || '',
+        return_invoice_company_name: data.return_invoice_company_name || '',
+        return_invoice_address: data.return_invoice_address || '',
+        created_by: {
+          uid: currentUser.id,
+          email: currentUser.email,
+          name: currentUser.name,
+          role: currentUser.role
+        },
+        createdAt: new Date().toISOString()
+      } as ShipmentRecord;
+    });
+
+    setRecords(prev => [...newRecords, ...prev]);
+    
+    // Save to Firebase concurrently
+    await Promise.all(newRecords.map(record => saveRecordToCloud('shipments', record.id, record)));
+    
+    showToast(`Đã nhập thành công ${newRecords.length} chuyến hàng từ Excel!`);
+  };
+
   const handleToggleCheckbox = async (record: ShipmentRecord, field: keyof ShipmentRecord) => {
     const updated = { ...record, [field]: !record[field] };
     setRecords(prev => prev.map(r => (r.id === record.id ? updated : r)));
@@ -687,6 +755,18 @@ export default function App() {
       setRecords(prev => prev.filter(r => r.id !== deleteTarget.id));
       await deleteRecordFromCloud('shipments', deleteTarget.id);
       showToast('Đã xóa thành công chuyến hàng!');
+    } else if (deleteTarget.type === 'customs') {
+      setDeclarations(prev => prev.filter(d => d.id !== deleteTarget.id));
+      await deleteRecordFromCloud('customs', deleteTarget.id);
+      showToast('Đã xóa tờ khai hải quan!');
+    } else if (deleteTarget.type === 'advance') {
+      setAdvances(prev => prev.filter(a => a.id !== deleteTarget.id));
+      await deleteRecordFromCloud('advances', deleteTarget.id);
+      showToast('Đã xóa khoản tạm ứng!');
+    } else if (deleteTarget.type === 'quotation') {
+      setQuotations(prev => prev.filter(q => q.id !== deleteTarget.id));
+      await deleteRecordFromCloud('quotations', deleteTarget.id);
+      showToast('Đã xóa báo giá!');
     } else if (deleteTarget.type === 'catalog' && deleteTarget.subTab) {
       const { subTab, id } = deleteTarget;
       if (subTab === 'warehouse') setWarehouses(prev => prev.filter(x => x.id !== id));
@@ -778,6 +858,7 @@ export default function App() {
             }}
             onToggleCheckbox={handleToggleCheckbox}
             onOpenNewTripModal={handleOpenNewTripModal}
+            onImportShipments={handleImportShipments}
             onOpenLoginModal={() => {
               setAuthModalMode('login');
               setIsAuthModalOpen(true);
@@ -821,6 +902,7 @@ export default function App() {
                 onToggleApproval={handleToggleDeclarationApproved}
                 onToggleCompleted={handleToggleDeclarationCompleted}
                 onToggleDamage={handleToggleDeclarationDamage}
+                onSaveCatalogItem={handleSaveCatalogItem}
               />
             )}
           </div>
@@ -1014,10 +1096,12 @@ export default function App() {
         isOpen={isUserMgmtOpen}
         onClose={() => setIsUserMgmtOpen(false)}
         users={users}
+        customers={customers}
         currentUser={currentUser}
         onApproveUser={handleApproveUser}
         onRejectUser={handleRejectUser}
         onChangeUserRole={handleChangeUserRole}
+        onChangeCustomerName={handleChangeUserCustomerName}
         onDeleteUser={handleDeleteUser}
       />
 
@@ -1033,6 +1117,7 @@ export default function App() {
         customers={customers}
         routes={routes}
         currentUser={currentUser}
+        onSaveCatalogItem={handleSaveCatalogItem}
       />
 
       {/* Delivery Receipt Printable Modal */}

@@ -1,4 +1,4 @@
-export type UserRole = 'admin' | 'employee' | 'employee_logistics' | 'employee_accounting' | 'customer';
+export type UserRole = 'admin' | 'employee_logistics' | 'employee_accounting' | 'customer';
 
 export type UserStatus = 'active' | 'pending' | 'rejected';
 
@@ -8,6 +8,7 @@ export interface UserAccount {
   name: string;
   phone?: string;
   role: UserRole;
+  customer_name?: string; // Tên khách hàng gắn liên kết cho tài khoản role 'customer'
   status: UserStatus;
   createdAt: string;
   totpSecret?: string; // Base32 secret for Google Authenticator 2FA
@@ -171,7 +172,7 @@ export type WorkSubTab = 'customs';
 export type CatalogSubTab = 'warehouse' | 'transporter' | 'customer' | 'route';
 export type FinanceSubTab = 'report_shipment' | 'report_customs' | 'kpi' | 'quotation' | 'advance';
 
-export type CustomsDeclarationType = 'Xuất khẩu' | 'Nhập khẩu' | 'XKTX' | 'NKTC' | 'XNKTC';
+export type CustomsDeclarationType = 'Xuất khẩu' | 'Nhập khẩu' | 'XKTC' | 'NKTC' | 'XNKTC';
 
 export interface KPIRateItem {
   id: string;
