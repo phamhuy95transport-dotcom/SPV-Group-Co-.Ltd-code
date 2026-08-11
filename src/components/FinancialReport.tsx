@@ -28,7 +28,7 @@ import {
   CartesianGrid
 } from 'recharts';
 import * as XLSX from 'xlsx';
-import { ShipmentRecord, UserAccount } from '../types';
+import { ShipmentRecord, UserAccount, formatDateVN, normalizeDateToISO } from '../types';
 
 interface FinancialReportProps {
   records: ShipmentRecord[];
@@ -238,8 +238,8 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({
     try {
       const exportData = filtered.map((r, idx) => ({
         'STT': idx + 1,
-        'Ngày Báo Xe': r.date_announced,
-        'Ngày Đóng/Trả Hàng': r.delivery_date,
+        'Ngày Báo Xe': formatDateVN(r.date_announced),
+        'Ngày Đóng/Trả Hàng': formatDateVN(r.delivery_date),
         'Tuyến Đường': r.route,
         'Đơn Vị Vận Chuyển': r.transporter,
         'Số Container': r.cont_number,
@@ -280,7 +280,7 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({
     reader.onload = (evt) => {
       try {
         const bstr = evt.target?.result;
-        const wb = XLSX.read(bstr, { type: 'binary' });
+        const wb = XLSX.read(bstr, { type: 'binary', cellDates: true });
         const wsName = wb.SheetNames[0];
         const ws = wb.Sheets[wsName];
         const data = XLSX.utils.sheet_to_json<any>(ws);
@@ -291,8 +291,8 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({
         }
 
         const imported: Partial<ShipmentRecord>[] = data.map(item => ({
-          date_announced: item['Ngày Báo Xe'] || item['date_announced'] || new Date().toISOString().split('T')[0],
-          delivery_date: item['Ngày Đóng/Trả Hàng'] || item['delivery_date'] || new Date().toISOString().split('T')[0],
+          date_announced: normalizeDateToISO(item['Ngày Báo Xe'] || item['date_announced']) || new Date().toISOString().split('T')[0],
+          delivery_date: normalizeDateToISO(item['Ngày Đóng/Trả Hàng'] || item['delivery_date']) || new Date().toISOString().split('T')[0],
           route: item['Tuyến Đường'] || item['route'] || '',
           transporter: item['Đơn Vị Vận Chuyển'] || item['transporter'] || '',
           cont_number: String(item['Số Container'] || item['cont_number'] || '').toUpperCase(),
