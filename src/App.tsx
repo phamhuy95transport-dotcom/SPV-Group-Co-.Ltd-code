@@ -46,8 +46,22 @@ import { KPIManager } from './components/KPIManager';
 import { CustomsReport } from './components/CustomsReport';
 import { CustomerQuotationManager } from './components/CustomerQuotationManager';
 import { EmployeeAdvanceManager } from './components/EmployeeAdvanceManager';
+import { WelcomeModal } from './components/WelcomeModal';
 import { Toast, ToastState } from './components/Toast';
 import { Trash2, Briefcase, DollarSign, FileSpreadsheet, BarChart3, Award, Tag, Wallet } from 'lucide-react';
+
+const MOTIVATIONAL_QUOTES = [
+  "Mỗi ngày là một món quà. Hãy trân trọng và tận hưởng nó.",
+  "Đừng đếm những gì bạn đã mất, hãy quý trọng những gì bạn đang có và lên kế hoạch cho những gì sẽ đạt được.",
+  "Nụ cười là chiếc chìa khóa mở cửa trái tim.",
+  "Có công mài sắt, có ngày nên kim.",
+  "Hãy làm việc bằng sự tận tâm, thành công sẽ đến với bạn.",
+  "Lao động hăng say, vận may sẽ đến.",
+  "Không có áp lực, không có kim cương.",
+  "Một nụ cười bằng mười thang thuốc bổ. Hãy làm việc thật vui vẻ nhé!",
+  "Hành trình vạn dặm bắt đầu từ một bước chân.",
+  "Người bi quan nhìn thấy khó khăn trong mỗi cơ hội. Người lạc quan nhìn thấy cơ hội trong mỗi khó khăn."
+];
 
 export default function App() {
   // Current logged in user (Defaults to null - logged out)
@@ -78,6 +92,8 @@ export default function App() {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authModalMode, setAuthModalMode] = useState<'login' | 'register' | '2fa_setup' | 'change_password' | 'forgot_password'>('login');
   const [isUserMgmtOpen, setIsUserMgmtOpen] = useState(false);
+  const [isWelcomeModalOpen, setIsWelcomeModalOpen] = useState(false);
+  const [randomQuote, setRandomQuote] = useState('');
   
   const [isShipmentModalOpen, setIsShipmentModalOpen] = useState(false);
   const [shipmentModalMode, setShipmentModalMode] = useState<'add' | 'edit'>('add');
@@ -273,6 +289,12 @@ export default function App() {
   const handleLoginSuccess = (user: UserAccount) => {
     setCurrentUser(user);
     showToast(`Đăng nhập thành công với vai trò ${user.role.toUpperCase()}!`);
+    
+    // Show Welcome Modal with a random quote
+    const quote = MOTIVATIONAL_QUOTES[Math.floor(Math.random() * MOTIVATIONAL_QUOTES.length)];
+    setRandomQuote(quote);
+    setIsWelcomeModalOpen(true);
+
     // Redirect if customer lands on forbidden tab
     if (user.role === 'customer' && (activeTab === 'category' || activeTab === 'report' || activeTab === 'users')) {
       setActiveTab('entry');
@@ -1090,6 +1112,16 @@ export default function App() {
         onUpdateUser2FA={handleUpdateUser2FA}
         onUpdatePassword={handleUpdateUserPassword}
       />
+
+      {/* Welcome Modal */}
+      {currentUser && (
+        <WelcomeModal
+          isOpen={isWelcomeModalOpen}
+          onClose={() => setIsWelcomeModalOpen(false)}
+          quote={randomQuote}
+          userName={currentUser.name}
+        />
+      )}
 
       {/* Admin User Management Modal */}
       <UserManagementModal
