@@ -141,9 +141,10 @@ export const ShipmentModal: React.FC<ShipmentModalProps> = ({
   };
 
   const handleLookupTaxCode = async () => {
-    const code = formData.return_invoice_tax_code?.trim();
+    const custObj = findCustomerByName(formData.customer, customers);
+    const code = formData.return_invoice_tax_code?.trim() || custObj?.tax_code?.trim();
     if (!code) {
-      setTaxSearchResult({ type: 'error', message: 'Vui lòng nhập Mã số thuế trước khi tra cứu!' });
+      setTaxSearchResult({ type: 'error', message: 'Vui lòng nhập hoặc chọn Mã số thuế trước khi tra cứu!' });
       return;
     }
     const cleanCode = code.replace(/\D/g, '');
@@ -151,36 +152,74 @@ export const ShipmentModal: React.FC<ShipmentModalProps> = ({
     setTaxSearchResult({ type: 'info', message: 'Đang tra cứu dữ liệu masothue.com...' });
 
     try {
-      const res = await fetch(`https://api.vietqr.io/v2/business/${cleanCode}`);
-      const data = await res.json();
+      let fullCompanyName = '';
+      let address = '';
+      let foundTaxCode = cleanCode;
 
-      if (data && data.code === '00' && data.data) {
-        const company = data.data;
-        const fullCompanyName = company.name || company.shortName || '';
-        const address = company.address || '';
+      // 1. Try VietQR Business API
+      try {
+        const res = await fetch(`https://api.vietqr.io/v2/business/${cleanCode}`);
+        const data = await res.json();
+        if (data && data.code === '00' && data.data) {
+          fullCompanyName = data.data.name || data.data.shortName || '';
+          address = data.data.address || '';
+          foundTaxCode = data.data.taxCode || cleanCode;
+        }
+      } catch (e) {
+        console.warn('Lỗi kết nối VietQR API, thử API dự phòng...', e);
+      }
 
+      // 2. Fallback to Thongtindoanhnghiep API
+      if (!fullCompanyName) {
+        try {
+          const res = await fetch(`https://api.thongtindoanhnghiep.co/api/company/${cleanCode}`);
+          const data = await res.json();
+          if (data && (data.Title || data.name)) {
+            fullCompanyName = data.Title || data.name || '';
+            address = data.Address || data.address || '';
+          }
+        } catch (e) {
+          console.warn('Lỗi kết nối Thongtindoanhnghiep API', e);
+        }
+      }
+
+      // 3. Fallback to Catalog search if online API did not return data
+      if (!fullCompanyName) {
+        const foundCust = customers.find(c => c.tax_code && c.tax_code.replace(/\D/g, '') === cleanCode);
+        const foundTrans = transporters.find(t => t.tax_code && t.tax_code.replace(/\D/g, '') === cleanCode);
+
+        if (foundCust && (foundCust.company_full_name || foundCust.address)) {
+          fullCompanyName = foundCust.company_full_name || foundCust.customer_name || '';
+          address = foundCust.address || '';
+        } else if (foundTrans && (foundTrans.company_full_name || foundTrans.address)) {
+          fullCompanyName = foundTrans.company_full_name || foundTrans.transporter_name || '';
+          address = foundTrans.address || '';
+        }
+      }
+
+      if (fullCompanyName || address) {
         setFormData(prev => ({
           ...prev,
-          return_invoice_tax_code: company.taxCode || cleanCode,
+          return_invoice_tax_code: foundTaxCode || prev.return_invoice_tax_code || code,
           return_invoice_company_name: fullCompanyName || prev.return_invoice_company_name,
           return_invoice_address: address || prev.return_invoice_address,
         }));
 
         setTaxSearchResult({
           type: 'success',
-          message: `Đã tự động lấy dữ liệu từ Masothue.com: ${fullCompanyName}`
+          message: `Đã trích xuất thành công từ Masothue: ${fullCompanyName || 'Đã cập nhật địa chỉ'}`
         });
       } else {
         setTaxSearchResult({
           type: 'error',
-          message: 'Không tìm thấy MST này trên hệ thống. Vui lòng kiểm tra lại hoặc nhập thủ công.'
+          message: 'Không tìm thấy thông tin cho Mã số thuế này trên masothue.com. Vui lòng nhập thủ công.'
         });
       }
     } catch (err) {
       console.error('Lỗi tra cứu MST:', err);
       setTaxSearchResult({
         type: 'error',
-        message: 'Lỗi kết nối API tra cứu MST. Vui lòng nhập thông tin thủ công.'
+        message: 'Lỗi tra cứu dữ liệu masothue. Vui lòng nhập thông tin thủ công.'
       });
     } finally {
       setIsSearchingTax(false);
@@ -588,37 +627,89 @@ export const ShipmentModal: React.FC<ShipmentModalProps> = ({
 
             {(formData.return_invoice_type || 'customer') === 'customer' ? (() => {
               const custObj = findCustomerByName(formData.customer, customers);
-              const displayTax = custObj?.tax_code || formData.return_invoice_tax_code || (formData.customer ? 'Chưa cập nhật MST trong Danh Mục' : '—');
-              const displayComp = custObj?.company_full_name || custObj?.customer_name || formData.return_invoice_company_name || formData.customer || '—';
-              const displayAddress = custObj?.address || formData.return_invoice_address || (formData.customer ? 'Chưa cập nhật địa chỉ trong Danh Mục' : '—');
+              const currentTaxCode = formData.return_invoice_tax_code || custObj?.tax_code || '';
 
               return (
-                <div className="bg-white p-3.5 rounded-xl border border-indigo-100 text-xs space-y-2">
+                <div className="bg-white p-3.5 rounded-xl border border-indigo-200 text-xs space-y-3">
                   <p className="text-slate-600 text-[11px] font-medium flex items-center gap-1.5">
                     <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                     <span>
-                      Tự động trích xuất thông tin xuất hóa đơn hạ vỏ từ Khách hàng: <strong className="text-indigo-900">{formData.customer || 'Chưa chọn KH'}</strong>
+                      Trích xuất thông tin xuất hóa đơn hạ vỏ từ Khách hàng: <strong className="text-indigo-900">{formData.customer || 'Chưa chọn KH'}</strong>
                     </span>
                   </p>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1.5 bg-slate-50/80 p-3 rounded-lg border border-slate-100">
-                    <div>
-                      <span className="text-slate-400 font-semibold block text-[10px] uppercase">Mã số thuế:</span>
-                      <span className="font-mono font-bold text-indigo-700">
-                        {displayTax}
-                      </span>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-bold text-slate-700">Mã số thuế HĐ hạ vỏ</label>
+                      <a
+                        href={`https://masothue.com/tra-cuu-ma-so-thue-doanh-nghiep?q=${encodeURIComponent(currentTaxCode)}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 flex items-center gap-1"
+                      >
+                        <Globe className="w-3 h-3" /> Tra cứu trên masothue.com ↗
+                      </a>
                     </div>
-                    <div className="sm:col-span-2">
-                      <span className="text-slate-400 font-semibold block text-[10px] uppercase">Tên công ty đầy đủ:</span>
-                      <span className="font-bold text-slate-800">
-                        {displayComp}
-                      </span>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={formData.return_invoice_tax_code || custObj?.tax_code || ''}
+                        onChange={e => setFormData({ ...formData, return_invoice_tax_code: e.target.value })}
+                        placeholder="VD: 0101234567"
+                        className="flex-1 px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono font-bold text-indigo-900"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleLookupTaxCode}
+                        disabled={isSearchingTax}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 shrink-0 shadow-xs disabled:opacity-50"
+                        title="Bấm để tự động tra cứu lấy Tên công ty đầy đủ & Địa chỉ từ masothue.com"
+                      >
+                        {isSearchingTax ? (
+                          <>
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            <span>Đang lấy...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Search className="w-3.5 h-3.5" />
+                            <span>Lấy Dữ Liệu Masothue</span>
+                          </>
+                        )}
+                      </button>
                     </div>
-                    <div className="sm:col-span-3">
-                      <span className="text-slate-400 font-semibold block text-[10px] uppercase">Địa chỉ công ty:</span>
-                      <span className="text-slate-700 font-medium">
-                        {displayAddress}
-                      </span>
-                    </div>
+                    {taxSearchResult && (
+                      <div className={`mt-2 p-2 rounded-lg text-xs flex items-center gap-2 ${
+                        taxSearchResult.type === 'success' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' :
+                        taxSearchResult.type === 'error' ? 'bg-amber-50 text-amber-800 border border-amber-200' :
+                        'bg-indigo-50 text-indigo-800 border border-indigo-200'
+                      }`}>
+                        {taxSearchResult.type === 'success' && <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />}
+                        <span>{taxSearchResult.message}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Tên công ty đầy đủ HĐ hạ vỏ</label>
+                    <input
+                      type="text"
+                      value={formData.return_invoice_company_name || custObj?.company_full_name || custObj?.customer_name || ''}
+                      onChange={e => setFormData({ ...formData, return_invoice_company_name: e.target.value })}
+                      placeholder="Tên công ty đầy đủ HĐ hạ vỏ..."
+                      className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-semibold text-slate-800"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Địa chỉ công ty HĐ hạ vỏ</label>
+                    <textarea
+                      rows={2}
+                      value={formData.return_invoice_address || custObj?.address || ''}
+                      onChange={e => setFormData({ ...formData, return_invoice_address: e.target.value })}
+                      placeholder="Địa chỉ trụ sở công ty HĐ hạ vỏ..."
+                      className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none text-slate-700"
+                    />
                   </div>
                 </div>
               );

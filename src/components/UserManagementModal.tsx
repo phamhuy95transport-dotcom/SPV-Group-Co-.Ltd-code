@@ -165,7 +165,9 @@ export const UserManagementModal: React.FC<UserManagementProps> = ({
                           className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed"
                         >
                           <option value="admin">Quản trị viên (Admin)</option>
-                          <option value="employee">Nhân viên (Employee)</option>
+                          <option value="employee_logistics">NV Logistics</option>
+                          <option value="employee_accounting">NV Kế toán</option>
+                          <option value="employee">Nhân viên chung (Employee)</option>
                           <option value="customer">Khách hàng (Customer)</option>
                         </select>
                       </td>

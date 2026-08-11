@@ -459,9 +459,7 @@ export const CatalogManager: React.FC<CatalogManagerProps> = ({
                 <tr className="bg-slate-100/90 border-b border-slate-200 text-slate-600 text-[11px] font-bold uppercase">
                   <th className="p-3.5 w-12 text-center">STT</th>
                   <th className="p-3.5">Tên nhà xe / ĐVVC</th>
-                  <th className="p-3.5">Tên công ty đầy đủ (Masothue.com)</th>
                   <th className="p-3.5">Mã số thuế</th>
-                  <th className="p-3.5">Địa chỉ công ty (Masothue.com)</th>
                   <th className="p-3.5 text-right w-28">Thao tác</th>
                 </tr>
               </thead>
@@ -470,9 +468,7 @@ export const CatalogManager: React.FC<CatalogManagerProps> = ({
                   <tr key={item.id} className="hover:bg-slate-50 transition">
                     <td className="p-3.5 text-center font-bold text-slate-400 text-xs">{index + 1}</td>
                     <td className="p-3.5 font-bold text-slate-800">{item.transporter_name || '—'}</td>
-                    <td className="p-3.5 text-indigo-950 font-semibold text-xs">{item.company_full_name || '—'}</td>
                     <td className="p-3.5 font-mono text-indigo-600 font-semibold">{item.tax_code || '—'}</td>
-                    <td className="p-3.5 text-slate-600 text-xs">{item.address || '—'}</td>
                     <td className="p-3.5 text-right space-x-1 whitespace-nowrap">
                       <button
                         onClick={() => handleOpenEditModal(item)}
@@ -491,7 +487,7 @@ export const CatalogManager: React.FC<CatalogManagerProps> = ({
                 ))}
                 {filteredTransporters.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="p-8 text-center text-slate-400">
+                    <td colSpan={4} className="p-8 text-center text-slate-400">
                       Chưa có nhà xe nào.
                     </td>
                   </tr>
@@ -511,9 +507,7 @@ export const CatalogManager: React.FC<CatalogManagerProps> = ({
                 <tr className="bg-slate-100/90 border-b border-slate-200 text-slate-600 text-[11px] font-bold uppercase">
                   <th className="p-3.5 w-12 text-center">STT</th>
                   <th className="p-3.5">Tên khách hàng</th>
-                  <th className="p-3.5">Tên công ty đầy đủ (Masothue.com)</th>
                   <th className="p-3.5">Mã số thuế</th>
-                  <th className="p-3.5">Địa chỉ công ty (Masothue.com)</th>
                   <th className="p-3.5 text-right w-28">Thao tác</th>
                 </tr>
               </thead>
@@ -522,9 +516,7 @@ export const CatalogManager: React.FC<CatalogManagerProps> = ({
                   <tr key={item.id} className="hover:bg-slate-50 transition">
                     <td className="p-3.5 text-center font-bold text-slate-400 text-xs">{index + 1}</td>
                     <td className="p-3.5 font-bold text-slate-800">{item.customer_name || '—'}</td>
-                    <td className="p-3.5 text-indigo-950 font-semibold text-xs">{item.company_full_name || '—'}</td>
                     <td className="p-3.5 font-mono text-indigo-600 font-semibold">{item.tax_code || '—'}</td>
-                    <td className="p-3.5 text-slate-600 text-xs">{item.address || '—'}</td>
                     <td className="p-3.5 text-right space-x-1 whitespace-nowrap">
                       <button
                         onClick={() => handleOpenEditModal(item)}
@@ -543,7 +535,7 @@ export const CatalogManager: React.FC<CatalogManagerProps> = ({
                 ))}
                 {filteredCustomers.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="p-8 text-center text-slate-400">
+                    <td colSpan={4} className="p-8 text-center text-slate-400">
                       Chưa có khách hàng nào.
                     </td>
                   </tr>
@@ -669,62 +661,8 @@ export const CatalogManager: React.FC<CatalogManagerProps> = ({
               {(activeSubTab === 'transporter' || activeSubTab === 'customer') && (
                 <>
                   <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="block text-xs font-bold text-slate-700">Mã số thuế</label>
-                      <a
-                        href={`https://masothue.com/tra-cuu-ma-so-thue-doanh-nghiep?q=${encodeURIComponent(formData.tax_code || formData.transporter_name || formData.customer_name || '')}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 flex items-center gap-1"
-                        title="Tra cứu trực tiếp trên masothue.com"
-                      >
-                        <Globe className="w-3 h-3" /> Tra cứu trên masothue.com ↗
-                      </a>
-                    </div>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        required
-                        value={formData.tax_code || ''}
-                        onChange={e => setFormData({ ...formData, tax_code: e.target.value })}
-                        placeholder="VD: 0101234567"
-                        className="flex-1 px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono font-semibold"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => handleLookupTaxCode()}
-                        disabled={isSearchingTax}
-                        className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 shrink-0 shadow-xs disabled:opacity-50"
-                        title="Lấy tên công ty & địa chỉ tự động từ masothue.com"
-                      >
-                        {isSearchingTax ? (
-                          <>
-                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            <span>Đang lấy...</span>
-                          </>
-                        ) : (
-                          <>
-                            <Search className="w-3.5 h-3.5" />
-                            <span>Lấy Dữ Liệu Masothue</span>
-                          </>
-                        )}
-                      </button>
-                    </div>
-                    {taxSearchResult && (
-                      <div className={`mt-2 p-2.5 rounded-xl text-xs flex items-center gap-2 ${
-                        taxSearchResult.type === 'success' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' :
-                        taxSearchResult.type === 'error' ? 'bg-amber-50 text-amber-800 border border-amber-200' :
-                        'bg-indigo-50 text-indigo-800 border border-indigo-200'
-                      }`}>
-                        {taxSearchResult.type === 'success' && <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />}
-                        <span>{taxSearchResult.message}</span>
-                      </div>
-                    )}
-                  </div>
-
-                  <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1">
-                      {activeSubTab === 'transporter' ? 'Tên nhà xe / ĐVVC (Tên ngắn hiển thị trên lệnh điều xe)' : 'Tên khách hàng (Tên ngắn hiển thị trên lệnh điều xe)'}
+                      {activeSubTab === 'transporter' ? 'Tên nhà xe / ĐVVC' : 'Tên khách hàng'}
                     </label>
                     <input
                       type="text"
@@ -737,37 +675,16 @@ export const CatalogManager: React.FC<CatalogManagerProps> = ({
                       placeholder={activeSubTab === 'transporter' ? 'Vận Tải Á Châu' : 'Samsung Electronics'}
                       className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-800"
                     />
-                    <p className="text-[11px] text-slate-400 mt-1">
-                      Dùng để chọn nhanh trên giao diện lập lệnh và hiển thị gọn trên thẻ điều xe.
-                    </p>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
-                      Tên công ty đầy đủ (Lấy từ masothue.com)
-                    </label>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Mã số thuế</label>
                     <input
                       type="text"
-                      value={formData.company_full_name || ''}
-                      onChange={e => setFormData({ ...formData, company_full_name: e.target.value })}
-                      placeholder="CÔNG TY CỔ PHẦN VẬN TẢI VÀ DỊCH VỤ Á CHÂU..."
-                      className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-semibold text-slate-800"
-                    />
-                    <p className="text-[11px] text-slate-400 mt-1">
-                      Tên pháp nhân đầy đủ theo ĐKKD. Tự động điền khi bấm "Lấy Dữ Liệu Masothue".
-                    </p>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
-                      Địa chỉ công ty / trụ sở ĐKKD (Lấy từ masothue.com)
-                    </label>
-                    <textarea
-                      rows={2}
-                      value={formData.address || ''}
-                      onChange={e => setFormData({ ...formData, address: e.target.value })}
-                      placeholder="Địa chỉ công ty (Tự động cập nhật khi nhấn nút Lấy Dữ Liệu Masothue)..."
-                      className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+                      value={formData.tax_code || ''}
+                      onChange={e => setFormData({ ...formData, tax_code: e.target.value })}
+                      placeholder="VD: 0101234567"
+                      className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono font-semibold"
                     />
                   </div>
                 </>

@@ -6,7 +6,8 @@ import {
   ListCheck,
   FolderTree,
   ChartPie,
-  ShieldAlert,
+  Briefcase,
+  DollarSign,
   Users,
   LogOut,
   LogIn,
@@ -68,7 +69,7 @@ export const Header: React.FC<HeaderProps> = ({
                 </span>
               </div>
               <p className="text-[11px] text-slate-400 font-medium hidden sm:block">
-                Hệ thống quản lý vận chuyển SPV
+                Hệ thống quản lý
               </p>
             </div>
           </div>
@@ -181,7 +182,22 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Navigation Tabs */}
         <div className="flex space-x-1 pt-1 pb-1 overflow-x-auto no-scrollbar">
-          {/* Tab 1: Nhập liệu & Tra cứu (Visible to All Roles) */}
+          {/* Tab 1: Công việc chung (Visible to Guests & Staff/Admin, hidden for Customer) */}
+          {(!currentUser || !isCustomer) && (
+            <button
+              onClick={() => switchTab('general_work')}
+              className={`px-3.5 py-2 rounded-md text-xs font-medium transition-colors flex items-center gap-2 shrink-0 ${
+                activeTab === 'general_work'
+                  ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30 font-semibold'
+                  : 'text-slate-300 hover:bg-slate-800'
+              }`}
+            >
+              <Briefcase className="w-4 h-4 text-indigo-400" />
+              <span>Công việc chung</span>
+            </button>
+          )}
+
+          {/* Tab 2: Vận chuyển (Visible to All Roles) */}
           <button
             onClick={() => switchTab('entry')}
             className={`px-3.5 py-2 rounded-md text-xs font-medium transition-colors flex items-center gap-2 shrink-0 ${
@@ -191,13 +207,13 @@ export const Header: React.FC<HeaderProps> = ({
             }`}
           >
             <ListCheck className="w-4 h-4" />
-            <span>Nhập liệu & Tra cứu</span>
+            <span>Vận chuyển</span>
             <span className="bg-slate-800 text-slate-300 text-[10px] font-bold px-2 py-0.5 rounded-full border border-slate-700">
               {totalRecordsCount}
             </span>
           </button>
 
-          {/* Tab 2: Danh Mục Chuẩn (Hidden for Customer & Guest) */}
+          {/* Tab 3: Danh mục (Hidden for Customer & Guest) */}
           {currentUser && !isCustomer && (
             <button
               onClick={() => switchTab('category')}
@@ -207,30 +223,27 @@ export const Header: React.FC<HeaderProps> = ({
                   : 'text-slate-300 hover:bg-slate-800'
               }`}
             >
-              <FolderTree className="w-4 h-4" />
+              <FolderTree className="w-4 h-4 text-emerald-400" />
               <span>Danh mục</span>
             </button>
           )}
 
-          {/* Tab 3: Báo Cáo (Visible ONLY to Admin) */}
-          {isAdmin && (
+          {/* Tab 4: Tài chính (Hidden for Customer & Guest) */}
+          {currentUser && !isCustomer && (
             <button
-              onClick={() => switchTab('report')}
+              onClick={() => switchTab('finance')}
               className={`px-3.5 py-2 rounded-md text-xs font-medium transition-colors flex items-center gap-2 shrink-0 ${
-                activeTab === 'report'
+                activeTab === 'finance'
                   ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30 font-semibold'
                   : 'text-slate-300 hover:bg-slate-800'
               }`}
             >
-              <ChartPie className="w-4 h-4" />
-              <span>Báo cáo</span>
-              <span className="bg-amber-400/20 text-amber-300 text-[9px] font-bold px-1.5 py-0.5 rounded border border-amber-400/30 uppercase">
-                Admin
-              </span>
+              <DollarSign className="w-4 h-4 text-amber-400" />
+              <span>Tài chính</span>
             </button>
           )}
 
-          {/* Tab 4: Quản lý người dùng (Admin Only) */}
+          {/* Tab 5: Quản lý người dùng (Admin Only) */}
           {isAdmin && (
             <button
               onClick={() => switchTab('users')}
@@ -250,6 +263,7 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
           )}
         </div>
+
       </div>
     </header>
   );
