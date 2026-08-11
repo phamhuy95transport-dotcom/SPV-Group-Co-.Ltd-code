@@ -26,7 +26,8 @@ import {
   UserAccount,
   KPIRateItem,
   CustomsDeclarationType,
-  formatDateVN
+  formatDateVN,
+  CatalogSubTab
 } from '../types';
 
 interface CustomsProcedureManagerProps {
@@ -38,16 +39,17 @@ interface CustomsProcedureManagerProps {
   totalPaidAmount?: number;
   onOpenLoginModal?: () => void;
   onSaveDeclaration: (record: CustomsDeclarationRecord) => void;
-  onDeleteDeclaration: (id: string) => void;
+  onDeleteDeclaration: (id: string, name: string) => void;
   onToggleApproval: (id: string, currentApprovedStatus: boolean) => void;
   onToggleCompleted: (id: string, currentCompletedStatus: boolean) => void;
   onToggleDamage?: (id: string, currentHasDamageStatus: boolean) => void;
+  onSaveCatalogItem?: (subTab: CatalogSubTab, itemData: any) => Promise<void>;
 }
 
 const DECLARATION_TYPES: CustomsDeclarationType[] = [
   'Xuất khẩu',
   'Nhập khẩu',
-  'XKTX',
+  'XKTC',
   'NKTC',
   'XNKTC'
 ];
@@ -72,7 +74,8 @@ export const CustomsProcedureManager: React.FC<CustomsProcedureManagerProps> = (
   onDeleteDeclaration,
   onToggleApproval,
   onToggleCompleted,
-  onToggleDamage
+  onToggleDamage,
+  onSaveCatalogItem
 }) => {
   const isAdmin = currentUser?.role === 'admin';
 
@@ -139,7 +142,7 @@ export const CustomsProcedureManager: React.FC<CustomsProcedureManagerProps> = (
     notes: ''
   });
 
-  // Calculate KPI Amount helper (Requirement 3: KPI = công thức cũ + số tiền thưởng khác)
+  // Calculate KPI Amount helper (Requirement 4: (Định mức * số lượng) - (Định mức * tỷ lệ [làm tròn 3 chữ số]) + thưởng khác nếu hoàn thành, chưa hoàn thành = 0)
   const calculateKpiAmount = (
     type: CustomsDeclarationType,
     ratioLabel: string,
@@ -153,7 +156,13 @@ export const CustomsProcedureManager: React.FC<CustomsProcedureManagerProps> = (
     const ratioObj = RATIO_OPTIONS.find(r => r.text === ratioLabel);
     const numericRatio = ratioObj ? ratioObj.value : 1;
     const qty = contQuantity > 0 ? contQuantity : 1;
-    return Math.round(baseReward * qty * numericRatio) + (Number(extraBonus) || 0);
+
+    // Formula: (Định mức * số lượng) - (Định mức * tỷ lệ [làm tròn 3 chữ số]) + thưởng khác
+    const roundedRatio = Math.round(numericRatio * 1000) / 1000;
+    const fullAmount = baseReward * qty;
+    const supportDeduction = baseReward * roundedRatio;
+    const total = fullAmount - supportDeduction + (Number(extraBonus) || 0);
+    return Math.max(0, Math.round(total));
   };
 
   const handleOpenAddModal = () => {
@@ -268,8 +277,16 @@ export const CustomsProcedureManager: React.FC<CustomsProcedureManagerProps> = (
     setIsModalOpen(false);
   };
 
-  // Filter declarations based on User Role (Requirement 4: Employee only sees their own data)
+  // Filter declarations based on User Role (Requirement 9: Customer only sees their customer data)
   const userDeclarations = useMemo(() => {
+    if (currentUser?.role === 'customer') {
+      if (currentUser.customer_name) {
+        return declarations.filter(item => item.customer === currentUser.customer_name);
+      } else if (currentUser.name) {
+        const custName = currentUser.name.toLowerCase();
+        return declarations.filter(item => (item.customer || '').toLowerCase().includes(custName));
+      }
+    }
     if (!isAdmin && currentUser) {
       return declarations.filter(item => {
         const isCreator = item.created_by?.uid === currentUser.id || item.created_by?.email === currentUser.email;
@@ -961,11 +978,7 @@ export const CustomsProcedureManager: React.FC<CustomsProcedureManagerProps> = (
                                 <Edit2 className="w-4 h-4" />
                               </button>
                               <button
-                                onClick={() => {
-                                  if (confirm(`Bạn có chắc chắn muốn xóa số tờ khai ${item.declaration_number}?`)) {
-                                    onDeleteDeclaration(item.id);
-                                  }
-                                }}
+                                onClick={() => onDeleteDeclaration(item.id, `Tờ khai ${item.declaration_number}`)}
                                 className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
                                 title="Xóa tờ khai"
                               >
@@ -1076,18 +1089,32 @@ export const CustomsProcedureManager: React.FC<CustomsProcedureManagerProps> = (
                   <label className="block text-xs font-bold text-slate-700 mb-1">
                     Khách hàng *
                   </label>
-                  <select
+                  <input
+                    type="text"
+                    list="customs-customer-list"
+                    required
                     value={formData.customer}
                     onChange={e => setFormData({ ...formData, customer: e.target.value })}
-                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium"
-                  >
-                    <option value="">-- Chọn Khách Hàng --</option>
+                    placeholder="Nhập tên khách hàng (gợi ý từ Danh mục)..."
+                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium text-slate-800"
+                  />
+                  <datalist id="customs-customer-list">
                     {customers.map(c => (
-                      <option key={c.id} value={c.customer_name}>
-                        {c.customer_name}
-                      </option>
+                      <option key={c.id} value={c.customer_name} />
                     ))}
-                  </select>
+                  </datalist>
+                  {formData.customer?.trim() && !customers.some(c => c.customer_name.toLowerCase() === formData.customer.trim().toLowerCase()) && onSaveCatalogItem && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        await onSaveCatalogItem('customer', { customer_name: formData.customer.trim(), tax_code: '' });
+                      }}
+                      className="mt-1 text-[11px] font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-lg transition"
+                    >
+                      <Plus className="w-3 h-3 text-indigo-600 shrink-0" />
+                      <span>Thêm "{formData.customer}" vào Danh mục Khách hàng</span>
+                    </button>
+                  )}
                 </div>
 
                 {/* Số lượng cont/lô */}

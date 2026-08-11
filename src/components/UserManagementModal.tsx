@@ -13,16 +13,18 @@ import {
   ShieldAlert,
   Lock
 } from 'lucide-react';
-import { UserAccount, UserRole, UserStatus, canDeleteUser } from '../types';
+import { UserAccount, UserRole, UserStatus, CustomerItem, canDeleteUser } from '../types';
 
 interface UserManagementProps {
   isOpen: boolean;
   onClose: () => void;
   users: UserAccount[];
+  customers?: CustomerItem[];
   currentUser: UserAccount | null;
   onApproveUser: (userId: string) => void;
   onRejectUser: (userId: string) => void;
   onChangeUserRole: (userId: string, newRole: UserRole) => void;
+  onChangeCustomerName?: (userId: string, customerName: string) => void;
   onDeleteUser: (userId: string) => void;
 }
 
@@ -30,10 +32,12 @@ export const UserManagementModal: React.FC<UserManagementProps> = ({
   isOpen,
   onClose,
   users,
+  customers = [],
   currentUser,
   onApproveUser,
   onRejectUser,
   onChangeUserRole,
+  onChangeCustomerName,
   onDeleteUser
 }) => {
   const [filterTab, setFilterTab] = useState<'pending' | 'all' | 'employee' | 'customer'>('pending');
@@ -59,8 +63,8 @@ export const UserManagementModal: React.FC<UserManagementProps> = ({
               <UserCheck className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-extrabold text-base">Quản Lý & Duyệt Tài Khoản Nhân Viên</h3>
-              <p className="text-xs text-slate-400">Duyệt yêu cầu đăng ký tài khoản nhân viên & Phân quyền hệ thống</p>
+              <h3 className="font-extrabold text-base">Quản Lý Tài Khoản Nhân Viên</h3>
+              <p className="text-xs text-slate-400">Duyệt tài khoản nhân viên & Phân quyền hệ thống</p>
             </div>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-white transition text-sm font-bold bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-700">
@@ -167,9 +171,24 @@ export const UserManagementModal: React.FC<UserManagementProps> = ({
                           <option value="admin">Quản trị viên (Admin)</option>
                           <option value="employee_logistics">NV Logistics</option>
                           <option value="employee_accounting">NV Kế toán</option>
-                          <option value="employee">Nhân viên chung (Employee)</option>
                           <option value="customer">Khách hàng (Customer)</option>
                         </select>
+                        {user.role === 'customer' && (
+                          <div className="mt-1.5">
+                            <select
+                              value={user.customer_name || ''}
+                              onChange={e => onChangeCustomerName?.(user.id, e.target.value)}
+                              className="w-full px-2 py-1 bg-emerald-50 border border-emerald-300 rounded-lg text-[11px] font-bold text-emerald-900 focus:outline-none"
+                            >
+                              <option value="">-- Gắn Tên Khách Hàng --</option>
+                              {customers.map(c => (
+                                <option key={c.id} value={c.customer_name}>
+                                  {c.customer_name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
                       </td>
                       <td className="p-3 text-center">
                         {user.status === 'pending' ? (

@@ -45,7 +45,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenNewTripModal,
 }) => {
   const isCustomer = currentUser?.role === 'customer';
-  const isEmployee = currentUser?.role === 'employee';
+  const isEmployee = currentUser?.role === 'employee_logistics' || currentUser?.role === 'employee_accounting' || currentUser?.role === ('employee' as any);
   const isAdmin = currentUser?.role === 'admin';
 
   return (
@@ -100,7 +100,13 @@ export const Header: React.FC<HeaderProps> = ({
                         isAdmin ? 'bg-orange-400' : isEmployee ? 'bg-blue-400' : 'bg-emerald-400'
                       }`}
                     ></span>
-                    {isAdmin ? 'Administrator (Full Access)' : isEmployee ? 'Nhân viên (Staff)' : 'Khách hàng (Customer)'}
+                    {isAdmin
+                      ? 'Administrator (Full Access)'
+                      : currentUser?.role === 'employee_accounting'
+                      ? 'NV Kế toán'
+                      : currentUser?.role === 'employee_logistics' || currentUser?.role === ('employee' as any)
+                      ? 'NV Logistics'
+                      : 'Khách hàng (Customer)'}
                   </p>
                 </div>
 
@@ -167,16 +173,6 @@ export const Header: React.FC<HeaderProps> = ({
               </button>
             )}
 
-            {/* Add Shipment Button (Disabled for Read-Only Customer & Guest) */}
-            {currentUser && !isCustomer && activeTab === 'entry' && (
-              <button
-                onClick={onOpenNewTripModal}
-                className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-3.5 py-1.5 rounded-md text-xs shadow-sm transition flex items-center gap-1.5"
-              >
-                <PlusCircle className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Thêm Chuyến Mới</span>
-              </button>
-            )}
           </div>
         </div>
 

@@ -17,7 +17,7 @@ interface CustomerQuotationManagerProps {
   customers: CustomerItem[];
   currentUser: UserAccount | null;
   onSaveQuotation: (quotation: CustomerQuotation) => void;
-  onDeleteQuotation: (id: string) => void;
+  onDeleteQuotation: (id: string, name: string) => void;
 }
 
 export const CustomerQuotationManager: React.FC<CustomerQuotationManagerProps> = ({
@@ -38,10 +38,19 @@ export const CustomerQuotationManager: React.FC<CustomerQuotationManagerProps> =
     notes: ''
   });
 
-  const filteredQuotations = quotations.filter(q =>
-    (q.customer_name || '').toLowerCase().includes(searchTerm.toLowerCase().trim()) ||
-    (q.notes || '').toLowerCase().includes(searchTerm.toLowerCase().trim())
-  );
+  const filteredQuotations = quotations.filter(q => {
+    if (currentUser?.role === 'customer') {
+      if (currentUser.customer_name) {
+        if (q.customer_name !== currentUser.customer_name) return false;
+      } else if (currentUser.name) {
+        if (!q.customer_name || !q.customer_name.toLowerCase().includes(currentUser.name.toLowerCase())) return false;
+      }
+    }
+    return (
+      (q.customer_name || '').toLowerCase().includes(searchTerm.toLowerCase().trim()) ||
+      (q.notes || '').toLowerCase().includes(searchTerm.toLowerCase().trim())
+    );
+  });
 
   const handleOpenAddModal = () => {
     setEditingId(null);
@@ -166,11 +175,7 @@ export const CustomerQuotationManager: React.FC<CustomerQuotationManagerProps> =
                         <Edit2 className="w-4 h-4" />
                       </button>
                       <button
-                        onClick={() => {
-                          if (confirm(`Bạn có chắc chắn muốn xóa báo giá của khách hàng "${item.customer_name}"?`)) {
-                            onDeleteQuotation(item.id);
-                          }
-                        }}
+                        onClick={() => onDeleteQuotation(item.id, `Báo giá của ${item.customer_name}`)}
                         className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
                         title="Xóa báo giá"
                       >

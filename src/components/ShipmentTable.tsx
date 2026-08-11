@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   Search,
   CheckCircle,
@@ -14,9 +14,12 @@ import {
   Boxes,
   Truck,
   Building,
-  CheckCheck
+  CheckCheck,
+  Download,
+  Upload
 } from 'lucide-react';
 import { ShipmentRecord, UserAccount } from '../types';
+import { exportShipmentsToExcel, parseShipmentsFromExcel } from '../lib/excel';
 
 interface ShipmentTableProps {
   records: ShipmentRecord[];
@@ -28,6 +31,7 @@ interface ShipmentTableProps {
   onToggleCheckbox: (record: ShipmentRecord, field: keyof ShipmentRecord) => void;
   onOpenNewTripModal: () => void;
   onOpenLoginModal?: () => void;
+  onImportShipments?: (records: Partial<ShipmentRecord>[]) => void;
 }
 
 export const ShipmentTable: React.FC<ShipmentTableProps> = ({
@@ -40,9 +44,33 @@ export const ShipmentTable: React.FC<ShipmentTableProps> = ({
   onToggleCheckbox,
   onOpenNewTripModal,
   onOpenLoginModal,
+  onImportShipments,
 }) => {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleExport = () => {
+    exportShipmentsToExcel(records);
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const parsedRecords = await parseShipmentsFromExcel(file);
+      if (onImportShipments) {
+        onImportShipments(parsedRecords);
+      }
+    } catch (err) {
+      console.error('Failed to parse excel:', err);
+      alert('Đã xảy ra lỗi khi đọc file Excel. Vui lòng kiểm tra lại định dạng.');
+    }
+    // reset input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
   const isCustomer = currentUser?.role === 'customer';
-  const isEmployee = currentUser?.role === 'employee';
+  const isEmployee = currentUser?.role === 'employee_logistics' || currentUser?.role === 'employee_accounting' || currentUser?.role === ('employee' as any);
   const isAdmin = currentUser?.role === 'admin';
 
   // Filters State
@@ -51,6 +79,8 @@ export const ShipmentTable: React.FC<ShipmentTableProps> = ({
   const [filterTransporter, setFilterTransporter] = useState('');
   const [filterDateFrom, setFilterDateFrom] = useState('');
   const [filterDateTo, setFilterDateTo] = useState('');
+  const [filterHdDauVao, setFilterHdDauVao] = useState<'all' | 'yes' | 'no'>('all');
+  const [filterHdDauRa, setFilterHdDauRa] = useState<'all' | 'yes' | 'no'>('all');
   const [sortColumn, setSortColumn] = useState<keyof ShipmentRecord>('date_announced');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [currentPage, setCurrentPage] = useState(1);
@@ -62,6 +92,16 @@ export const ShipmentTable: React.FC<ShipmentTableProps> = ({
 
   // Filter Logic
   let filtered = [...records];
+
+  // Customer Account Isolation: Customer role can ONLY see shipments with their assigned customer name
+  if (isCustomer && currentUser) {
+    if (currentUser.customer_name) {
+      filtered = filtered.filter(r => r.customer === currentUser.customer_name);
+    } else if (currentUser.name) {
+      const custName = currentUser.name.toLowerCase();
+      filtered = filtered.filter(r => (r.customer || '').toLowerCase().includes(custName));
+    }
+  }
 
   if (searchQuery.trim()) {
     const q = searchQuery.toLowerCase();
@@ -88,6 +128,20 @@ export const ShipmentTable: React.FC<ShipmentTableProps> = ({
 
   if (filterDateTo) {
     filtered = filtered.filter(r => (r.date_announced || r.delivery_date) <= filterDateTo);
+  }
+
+  if (filterHdDauVao !== 'all') {
+    filtered = filtered.filter(r => {
+      const hasInput = Boolean(r.hd_dich_vu || r.hd_dau_vao);
+      return filterHdDauVao === 'yes' ? hasInput : !hasInput;
+    });
+  }
+
+  if (filterHdDauRa !== 'all') {
+    filtered = filtered.filter(r => {
+      const hasOutput = Boolean(r.hd_dau_ra);
+      return filterHdDauRa === 'yes' ? hasOutput : !hasOutput;
+    });
   }
 
   // Sorting
@@ -121,6 +175,8 @@ export const ShipmentTable: React.FC<ShipmentTableProps> = ({
     setFilterTransporter('');
     setFilterDateFrom('');
     setFilterDateTo('');
+    setFilterHdDauVao('all');
+    setFilterHdDauRa('all');
   };
 
   // Helper to check if current user can edit/delete this specific record
@@ -146,7 +202,7 @@ export const ShipmentTable: React.FC<ShipmentTableProps> = ({
           </div>
           <div>
             <h3 className="font-bold text-slate-900 text-xs sm:text-sm flex items-center gap-2">
-              Chế độ Vận hành & Tra cứu Chuyến Xe
+              Thông tin vận chuyển
               {isCustomer ? (
                 <span className="bg-amber-100 text-amber-800 text-[10px] font-extrabold px-2 py-0.5 rounded-md flex items-center gap-1 border border-amber-300">
                   <Lock className="w-3 h-3 text-amber-600" /> Tài khoản Khách hàng (Chỉ xem)
@@ -172,12 +228,41 @@ export const ShipmentTable: React.FC<ShipmentTableProps> = ({
         </div>
 
         {!isCustomer && (
-          <button
-            onClick={onOpenNewTripModal}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs px-4 py-2.5 rounded-xl font-bold transition shadow-xs flex items-center gap-2 whitespace-nowrap"
-          >
-            + Nhập Chuyến Mới
-          </button>
+          <div className="flex items-center gap-2">
+            {isAdmin && (
+              <>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileChange}
+                  accept=".xlsx,.xls"
+                  className="hidden"
+                />
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs px-4 py-2.5 rounded-xl font-bold transition shadow-xs flex items-center gap-2 whitespace-nowrap border border-emerald-200"
+                  title="Nhập Excel"
+                >
+                  <Upload className="w-4 h-4" />
+                  <span className="hidden sm:inline">Nhập</span>
+                </button>
+                <button
+                  onClick={handleExport}
+                  className="bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs px-4 py-2.5 rounded-xl font-bold transition shadow-xs flex items-center gap-2 whitespace-nowrap border border-blue-200"
+                  title="Xuất Excel"
+                >
+                  <Download className="w-4 h-4" />
+                  <span className="hidden sm:inline">Xuất</span>
+                </button>
+              </>
+            )}
+            <button
+              onClick={onOpenNewTripModal}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs px-4 py-2.5 rounded-xl font-bold transition shadow-xs flex items-center gap-2 whitespace-nowrap"
+            >
+              + <span className="hidden sm:inline">Nhập Chuyến Mới</span>
+            </button>
+          </div>
         )}
       </div>
 
@@ -355,9 +440,33 @@ export const ShipmentTable: React.FC<ShipmentTableProps> = ({
               </select>
             </div>
           )}
+
+          <div>
+            <select
+              value={filterHdDauVao}
+              onChange={e => setFilterHdDauVao(e.target.value as any)}
+              className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500 font-medium text-slate-700"
+            >
+              <option value="all">Tất cả HĐ Đầu Vào</option>
+              <option value="yes">Có HĐ Đầu Vào</option>
+              <option value="no">Chưa có HĐ Đầu Vào</option>
+            </select>
+          </div>
+
+          <div>
+            <select
+              value={filterHdDauRa}
+              onChange={e => setFilterHdDauRa(e.target.value as any)}
+              className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500 font-medium text-slate-700"
+            >
+              <option value="all">Tất cả HĐ Đầu Ra</option>
+              <option value="yes">Có HĐ Đầu Ra</option>
+              <option value="no">Chưa có HĐ Đầu Ra</option>
+            </select>
+          </div>
         </div>
 
-        {(searchQuery || filterCustomer || filterTransporter || filterDateFrom || filterDateTo) && (
+        {(searchQuery || filterCustomer || filterTransporter || filterDateFrom || filterDateTo || filterHdDauVao !== 'all' || filterHdDauRa !== 'all') && (
           <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-xs">
             <span className="text-slate-500 font-medium">
               Đang lọc (Tìm thấy <strong className="text-indigo-600">{filtered.length}</strong> chuyến)

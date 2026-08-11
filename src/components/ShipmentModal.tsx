@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, PlusCircle, Edit2, Lock, Save, User, AlertCircle, FileText, Globe, Search, Loader2, CheckCircle2 } from 'lucide-react';
-import { ShipmentRecord, WarehouseItem, TransporterItem, CustomerItem, RouteItem, UserAccount, findCustomerByName } from '../types';
+import { ShipmentRecord, WarehouseItem, TransporterItem, CustomerItem, RouteItem, UserAccount, findCustomerByName, CatalogSubTab } from '../types';
 
 export const formatNumberWithDots = (val: number | string | undefined | null): string => {
   if (val === undefined || val === null || val === '') return '';
@@ -29,6 +29,7 @@ interface ShipmentModalProps {
   customers: CustomerItem[];
   routes: RouteItem[];
   currentUser: UserAccount | null;
+  onSaveCatalogItem?: (subTab: CatalogSubTab, itemData: any) => Promise<void>;
 }
 
 export const ShipmentModal: React.FC<ShipmentModalProps> = ({
@@ -42,6 +43,7 @@ export const ShipmentModal: React.FC<ShipmentModalProps> = ({
   customers,
   routes,
   currentUser,
+  onSaveCatalogItem,
 }) => {
   const [formData, setFormData] = useState<Partial<ShipmentRecord>>({});
   const [isSaving, setIsSaving] = useState(false);
@@ -407,6 +409,18 @@ export const ShipmentModal: React.FC<ShipmentModalProps> = ({
                     <option key={r.id} value={r.route_name} />
                   ))}
                 </datalist>
+                {formData.route?.trim() && !routes.some(r => r.route_name.toLowerCase() === formData.route!.trim().toLowerCase()) && onSaveCatalogItem && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await onSaveCatalogItem('route', { route_name: formData.route!.trim() });
+                    }}
+                    className="mt-1 text-[11px] font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-lg transition"
+                  >
+                    <PlusCircle className="w-3 h-3 text-indigo-600 shrink-0" />
+                    <span>Thêm tuyến "{formData.route}" vào Danh mục</span>
+                  </button>
+                )}
               </div>
 
               <div>
@@ -425,6 +439,18 @@ export const ShipmentModal: React.FC<ShipmentModalProps> = ({
                     <option key={t.id} value={t.transporter_name} />
                   ))}
                 </datalist>
+                {formData.transporter?.trim() && !transporters.some(t => t.transporter_name.toLowerCase() === formData.transporter!.trim().toLowerCase()) && onSaveCatalogItem && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await onSaveCatalogItem('transporter', { transporter_name: formData.transporter!.trim(), tax_code: '' });
+                    }}
+                    className="mt-1 text-[11px] font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-lg transition"
+                  >
+                    <PlusCircle className="w-3 h-3 text-indigo-600 shrink-0" />
+                    <span>Thêm nhà xe "{formData.transporter}" vào Danh mục</span>
+                  </button>
+                )}
               </div>
 
               <div>
@@ -443,6 +469,18 @@ export const ShipmentModal: React.FC<ShipmentModalProps> = ({
                     <option key={c.id} value={c.customer_name} />
                   ))}
                 </datalist>
+                {formData.customer?.trim() && !customers.some(c => c.customer_name.toLowerCase() === formData.customer!.trim().toLowerCase()) && onSaveCatalogItem && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await onSaveCatalogItem('customer', { customer_name: formData.customer!.trim(), tax_code: '' });
+                    }}
+                    className="mt-1 text-[11px] font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-lg transition"
+                  >
+                    <PlusCircle className="w-3 h-3 text-indigo-600 shrink-0" />
+                    <span>Thêm khách hàng "{formData.customer}" vào Danh mục</span>
+                  </button>
+                )}
               </div>
 
               <div>
@@ -520,6 +558,23 @@ export const ShipmentModal: React.FC<ShipmentModalProps> = ({
                     </option>
                   ))}
                 </datalist>
+                {formData.warehouse?.trim() && !warehouses.some(w => w.warehouse_name.toLowerCase() === formData.warehouse!.trim().toLowerCase()) && onSaveCatalogItem && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await onSaveCatalogItem('warehouse', {
+                        warehouse_name: formData.warehouse!.trim(),
+                        contact_person: formData.contact_person || '',
+                        contact_phone: formData.contact_phone || '',
+                        location: ''
+                      });
+                    }}
+                    className="mt-1 text-[11px] font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-lg transition"
+                  >
+                    <PlusCircle className="w-3 h-3 text-indigo-600 shrink-0" />
+                    <span>Thêm kho "{formData.warehouse}" vào Danh mục</span>
+                  </button>
+                )}
               </div>
 
               <div>

@@ -21,7 +21,7 @@ interface EmployeeAdvanceManagerProps {
   users: UserAccount[];
   currentUser: UserAccount | null;
   onSaveAdvance: (item: EmployeeAdvanceItem) => void;
-  onDeleteAdvance: (id: string) => void;
+  onDeleteAdvance: (id: string, name: string) => void;
   onToggleApproval: (id: string, currentApproved: boolean) => void;
 }
 
@@ -183,7 +183,7 @@ export const EmployeeAdvanceManager: React.FC<EmployeeAdvanceManagerProps> = ({
             <option value="all">-- Tất cả Nhân viên ({users.length}) --</option>
             {users.map(u => (
               <option key={u.id} value={u.id}>
-                {u.name} ({u.role === 'admin' ? 'Admin' : u.role === 'employee_accounting' ? 'Kế toán' : 'Logistics'})
+                {u.name} ({u.role === 'admin' ? 'Admin' : u.role === 'customer' ? 'Khách hàng' : u.role === 'employee_accounting' ? 'NV Kế toán' : 'NV Logistics'})
               </option>
             ))}
           </select>
@@ -304,11 +304,7 @@ export const EmployeeAdvanceManager: React.FC<EmployeeAdvanceManagerProps> = ({
                               <Edit2 className="w-4 h-4" />
                             </button>
                             <button
-                              onClick={() => {
-                                if (confirm(`Bạn có chắc chắn muốn xóa khoản tạm ứng "${item.description}" của nhân viên ${item.staff_name}?`)) {
-                                  onDeleteAdvance(item.id);
-                                }
-                              }}
+                              onClick={() => onDeleteAdvance(item.id, `Tạm ứng: ${item.description} (${item.staff_name})`)}
                               className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
                               title="Xóa tạm ứng"
                             >
@@ -350,7 +346,7 @@ export const EmployeeAdvanceManager: React.FC<EmployeeAdvanceManagerProps> = ({
                 >
                   {users.map(u => (
                     <option key={u.id} value={u.id}>
-                      {u.name} ({u.role === 'admin' ? 'Admin' : u.role === 'employee_accounting' ? 'Kế toán' : 'Logistics'})
+                      {u.name} ({u.role === 'admin' ? 'Admin' : u.role === 'customer' ? 'Khách hàng' : u.role === 'employee_accounting' ? 'NV Kế toán' : 'NV Logistics'})
                     </option>
                   ))}
                 </select>

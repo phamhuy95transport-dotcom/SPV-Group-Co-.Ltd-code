@@ -224,7 +224,7 @@ export const KPIManager: React.FC<KPIManagerProps> = ({
                       <td className="p-3.5 text-slate-600 font-medium">
                         {item.type_name === 'Xuất khẩu' && 'Áp dụng cho tờ khai hàng hóa xuất khẩu thông thường.'}
                         {item.type_name === 'Nhập khẩu' && 'Áp dụng cho tờ khai hàng hóa nhập khẩu thông thường.'}
-                        {item.type_name === 'XKTX' && 'Áp dụng cho tờ khai xuất khẩu tại chỗ.'}
+                        {item.type_name === 'XKTC' && 'Áp dụng cho tờ khai xuất khẩu tại chỗ.'}
                         {item.type_name === 'NKTC' && 'Áp dụng cho tờ khai nhập khẩu tại chỗ.'}
                         {item.type_name === 'XNKTC' && 'Áp dụng cho tờ khai xuất nhập khẩu tại chỗ / loại hình khác.'}
                       </td>

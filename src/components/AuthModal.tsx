@@ -192,7 +192,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       name: regName.trim(),
       email: regEmail.trim().toLowerCase(),
       phone: regPhone.trim(),
-      role: 'employee',
+      role: 'employee_logistics',
       status: 'pending',
       totpEnabled: false,
       password: regPassword

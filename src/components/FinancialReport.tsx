@@ -102,6 +102,15 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({
   // Filtered records based on all active criteria
   const filtered = useMemo(() => {
     return records.filter(r => {
+      // Customer Account Data Isolation
+      if (currentUser?.role === 'customer') {
+        if (currentUser.customer_name) {
+          if (r.customer !== currentUser.customer_name) return false;
+        } else if (currentUser.name) {
+          if (!r.customer || !r.customer.toLowerCase().includes(currentUser.name.toLowerCase())) return false;
+        }
+      }
+
       const matchSearch = !searchQuery.trim() ||
         Object.values(r).some(val =>
           String(val || '').toLowerCase().includes(searchQuery.toLowerCase())
@@ -117,7 +126,7 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({
 
       return matchSearch && matchMonth && matchCustomer && matchTransporter;
     });
-  }, [records, searchQuery, selectedMonth, selectedCustomer, selectedTransporter]);
+  }, [records, searchQuery, selectedMonth, selectedCustomer, selectedTransporter, currentUser]);
 
   // Financial Summary Stats
   const totalBasePrice = filtered.reduce(

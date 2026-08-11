@@ -46,8 +46,16 @@ export const CustomsReport: React.FC<CustomsReportProps> = ({
 
   const isAdmin = currentUser?.role === 'admin';
 
-  // Base user declarations (Employee only sees their own data)
+  // Base user declarations (Customer sees their customer data, Employee sees their own)
   const userDeclarations = useMemo(() => {
+    if (currentUser?.role === 'customer') {
+      if (currentUser.customer_name) {
+        return declarations.filter(item => item.customer === currentUser.customer_name);
+      } else if (currentUser.name) {
+        const custName = currentUser.name.toLowerCase();
+        return declarations.filter(item => (item.customer || '').toLowerCase().includes(custName));
+      }
+    }
     if (!isAdmin && currentUser) {
       return declarations.filter(item => {
         const isCreator = item.created_by?.uid === currentUser.id || item.created_by?.email === currentUser.email;
@@ -159,7 +167,7 @@ export const CustomsReport: React.FC<CustomsReportProps> = ({
 
   // Group by Declaration Type
   const typeBreakdown = useMemo(() => {
-    const types = ['Xuất khẩu', 'Nhập khẩu', 'XKTX', 'NKTC', 'XNKTC'];
+    const types = ['Xuất khẩu', 'Nhập khẩu', 'XKTC', 'NKTC', 'XNKTC'];
     return types.map(t => {
       const list = filteredDeclarations.filter(d => d.type === t);
       const completed = list.filter(d => d.completed).length;
