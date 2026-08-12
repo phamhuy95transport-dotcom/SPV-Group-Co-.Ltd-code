@@ -14,7 +14,7 @@ import {
   Lock,
   Settings2
 } from 'lucide-react';
-import { UserAccount, UserRole, UserStatus, CustomerItem, canDeleteUser, UserPermissions } from '../types';
+import { UserAccount, UserRole, UserStatus, CustomerItem, canDeleteUser, UserPermissions, getDefaultPermissions } from '../types';
 
 interface UserManagementProps {
   isOpen: boolean;
@@ -57,14 +57,9 @@ export const UserManagementModal: React.FC<UserManagementProps> = ({
     return true; // all
   });
 
-  const togglePermission = (userId: string, currentPerms: UserPermissions | undefined, module: keyof UserPermissions, action: 'view' | 'edit') => {
+  const togglePermission = (userId: string, currentPerms: UserPermissions | undefined, userRole: UserRole, module: keyof UserPermissions, action: 'view' | 'edit') => {
     if (!onChangeUserPermissions) return;
-    const defaultPerms: UserPermissions = {
-      shipments: { view: false, edit: false },
-      customs: { view: false, edit: false },
-      finance: { view: false, edit: false },
-      catalog: { view: false, edit: false },
-    };
+    const defaultPerms = getDefaultPermissions(userRole);
     const newPerms = { ...(currentPerms || defaultPerms) };
     newPerms[module] = { ...newPerms[module], [action]: !newPerms[module][action] };
     
@@ -229,29 +224,30 @@ export const UserManagementModal: React.FC<UserManagementProps> = ({
                             </select>
                           </div>
                         )}
-                        {user.role === 'manager' && (
+                        {user.role !== 'admin' && (
                           <div className="mt-2 text-left space-y-1 border-t border-slate-200 pt-2">
                             <div className="text-[10px] font-bold text-slate-500 mb-1 flex items-center gap-1">
-                              <Settings2 className="w-3 h-3" /> Phân quyền
+                              <Settings2 className="w-3 h-3" /> Phân quyền chi tiết
                             </div>
                             {[
+                              { key: 'dashboard', label: 'Tổng quan (Dashboard)' },
                               { key: 'shipments', label: 'Quản lý vận chuyển' },
                               { key: 'customs', label: 'Thủ tục hải quan' },
                               { key: 'finance', label: 'Tài chính & Báo cáo' },
                               { key: 'catalog', label: 'Danh mục chuẩn' }
                             ].map((mod) => {
                               const moduleKey = mod.key as keyof UserPermissions;
-                              const perms = user.permissions?.[moduleKey] || { view: false, edit: false };
+                              const perms = user.permissions?.[moduleKey] || getDefaultPermissions(user.role)[moduleKey];
                               return (
                                 <div key={mod.key} className="flex items-center justify-between bg-slate-50 px-2 py-1 rounded border border-slate-100">
                                   <span className="text-[10px] font-semibold text-slate-700">{mod.label}</span>
                                   <div className="flex items-center gap-2">
                                     <label className="flex items-center gap-0.5 text-[9px] cursor-pointer">
-                                      <input type="checkbox" checked={perms.view} onChange={() => togglePermission(user.id, user.permissions, moduleKey, 'view')} className="w-2.5 h-2.5" />
+                                      <input type="checkbox" checked={perms.view} onChange={() => togglePermission(user.id, user.permissions, user.role, moduleKey, 'view')} className="w-2.5 h-2.5" />
                                       Xem
                                     </label>
                                     <label className="flex items-center gap-0.5 text-[9px] cursor-pointer text-amber-700">
-                                      <input type="checkbox" checked={perms.edit} onChange={() => togglePermission(user.id, user.permissions, moduleKey, 'edit')} className="w-2.5 h-2.5 accent-amber-600" />
+                                      <input type="checkbox" checked={perms.edit} onChange={() => togglePermission(user.id, user.permissions, user.role, moduleKey, 'edit')} className="w-2.5 h-2.5 accent-amber-600" />
                                       Sửa
                                     </label>
                                   </div>

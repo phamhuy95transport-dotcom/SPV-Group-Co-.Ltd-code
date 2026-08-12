@@ -15,7 +15,7 @@ import {
   ShieldCheck,
   UserCheck
 } from 'lucide-react';
-import { ActiveTab, UserAccount } from '../types';
+import { ActiveTab, UserAccount, hasPermission } from '../types';
 
 interface HeaderProps {
   currentUser: UserAccount | null;
@@ -178,8 +178,8 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Navigation Tabs */}
         <div className="flex space-x-1 pt-1 pb-1 overflow-x-auto no-scrollbar">
-          {/* Tab 1: Công việc chung (Visible to Guests & Staff/Admin, hidden for Customer) */}
-          {(!currentUser || !isCustomer) && (
+          {/* Tab 1: Công việc chung */}
+          {(!currentUser || hasPermission(currentUser, 'customs', 'view')) && (
             <button
               onClick={() => switchTab('general_work')}
               className={`px-3.5 py-2 rounded-md text-xs font-medium transition-colors flex items-center gap-2 shrink-0 ${
@@ -193,24 +193,26 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
           )}
 
-          {/* Tab 2: Vận chuyển (Visible to All Roles) */}
-          <button
-            onClick={() => switchTab('entry')}
-            className={`px-3.5 py-2 rounded-md text-xs font-medium transition-colors flex items-center gap-2 shrink-0 ${
-              activeTab === 'entry'
-                ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30 font-semibold'
-                : 'text-slate-300 hover:bg-slate-800'
-            }`}
-          >
-            <ListCheck className="w-4 h-4" />
-            <span>Vận chuyển</span>
-            <span className="bg-slate-800 text-slate-300 text-[10px] font-bold px-2 py-0.5 rounded-full border border-slate-700">
-              {totalRecordsCount}
-            </span>
-          </button>
+          {/* Tab 2: Vận chuyển (Visible to All Roles or based on permissions) */}
+          {(!currentUser || hasPermission(currentUser, 'shipments', 'view')) && (
+            <button
+              onClick={() => switchTab('entry')}
+              className={`px-3.5 py-2 rounded-md text-xs font-medium transition-colors flex items-center gap-2 shrink-0 ${
+                activeTab === 'entry'
+                  ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30 font-semibold'
+                  : 'text-slate-300 hover:bg-slate-800'
+              }`}
+            >
+              <ListCheck className="w-4 h-4" />
+              <span>Vận chuyển</span>
+              <span className="bg-slate-800 text-slate-300 text-[10px] font-bold px-2 py-0.5 rounded-full border border-slate-700">
+                {totalRecordsCount}
+              </span>
+            </button>
+          )}
 
-          {/* Tab 3: Danh mục (Hidden for Customer & Guest) */}
-          {currentUser && !isCustomer && (
+          {/* Tab 3: Danh mục */}
+          {currentUser && hasPermission(currentUser, 'catalog', 'view') && (
             <button
               onClick={() => switchTab('category')}
               className={`px-3.5 py-2 rounded-md text-xs font-medium transition-colors flex items-center gap-2 shrink-0 ${
@@ -224,8 +226,8 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
           )}
 
-          {/* Tab 4: Tài chính (Hidden for Customer & Guest) */}
-          {currentUser && !isCustomer && (
+          {/* Tab 4: Tài chính */}
+          {currentUser && hasPermission(currentUser, 'finance', 'view') && (
             <button
               onClick={() => switchTab('finance')}
               className={`px-3.5 py-2 rounded-md text-xs font-medium transition-colors flex items-center gap-2 shrink-0 ${
