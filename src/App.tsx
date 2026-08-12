@@ -222,8 +222,8 @@ export default function App() {
 
   // Handlers for Quotations
   const handleSaveQuotation = async (item: CustomerQuotation) => {
-    if (!hasPermission(currentUser, 'finance', 'edit')) {
-      showToast('Bạn chưa được cấp quyền chỉnh sửa Tài chính.', 'error');
+    if (!hasPermission(currentUser, 'finance_quotations', 'edit')) {
+      showToast('Bạn chưa được cấp quyền chỉnh sửa Báo giá.', 'error');
       return;
     }
     setQuotations(prev => {
@@ -240,8 +240,8 @@ export default function App() {
   };
 
   const handleDeleteQuotation = (id: string, name: string) => {
-    if (!hasPermission(currentUser, 'finance', 'edit')) {
-      showToast('Bạn chưa được cấp quyền chỉnh sửa Tài chính.', 'error');
+    if (!hasPermission(currentUser, 'finance_quotations', 'edit')) {
+      showToast('Bạn chưa được cấp quyền chỉnh sửa Báo giá.', 'error');
       return;
     }
     setDeleteTarget({
@@ -254,8 +254,8 @@ export default function App() {
 
   // Handlers for Employee Advances
   const handleSaveAdvance = async (item: EmployeeAdvanceItem) => {
-    if (!hasPermission(currentUser, 'finance', 'edit')) {
-      showToast('Bạn chưa được cấp quyền chỉnh sửa Tài chính.', 'error');
+    if (!hasPermission(currentUser, 'finance_advances', 'edit')) {
+      showToast('Bạn chưa được cấp quyền chỉnh sửa Tạm ứng.', 'error');
       return;
     }
     setAdvances(prev => {
@@ -272,8 +272,8 @@ export default function App() {
   };
 
   const handleDeleteAdvance = (id: string, name: string) => {
-    if (!hasPermission(currentUser, 'finance', 'edit')) {
-      showToast('Bạn chưa được cấp quyền chỉnh sửa Tài chính.', 'error');
+    if (!hasPermission(currentUser, 'finance_advances', 'edit')) {
+      showToast('Bạn chưa được cấp quyền chỉnh sửa Tạm ứng.', 'error');
       return;
     }
     setDeleteTarget({
@@ -566,6 +566,10 @@ export default function App() {
   };
 
   const handleUpdateKPIRates = async (newRates: KPIRateItem[]) => {
+    if (!hasPermission(currentUser, 'finance_kpi', 'edit')) {
+      showToast('Bạn chưa được cấp quyền chỉnh sửa KPI.', 'error');
+      return;
+    }
     setKpiRates(newRates);
     for (const rate of newRates) {
       await saveRecordToCloud('kpi_rates', rate.id, rate);
@@ -1048,75 +1052,85 @@ export default function App() {
           <div className="space-y-5">
             {/* Sub-Navigation Bar for Tài Chính */}
             <div className="bg-white p-2 rounded-xl border border-slate-200 shadow-xs flex flex-wrap gap-2">
-              <button
-                onClick={() => setFinanceSubTab('report_shipment')}
-                className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-2 ${
-                  financeSubTab === 'report_shipment'
-                    ? 'bg-amber-600 text-white shadow-sm'
-                    : 'text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                <BarChart3 className="w-4 h-4" />
-                <span>Báo cáo vận chuyển</span>
-                {currentUser.role === 'admin' && (
-                  <span className="bg-amber-400/30 text-amber-100 text-[9px] px-1.5 py-0.2 rounded uppercase">
-                    Admin
-                  </span>
-                )}
-              </button>
+              {hasPermission(currentUser, 'finance_report', 'view') && (
+                <button
+                  onClick={() => setFinanceSubTab('report_shipment')}
+                  className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-2 ${
+                    financeSubTab === 'report_shipment'
+                      ? 'bg-amber-600 text-white shadow-sm'
+                      : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  <BarChart3 className="w-4 h-4" />
+                  <span>Báo cáo vận chuyển</span>
+                  {currentUser.role === 'admin' && (
+                    <span className="bg-amber-400/30 text-amber-100 text-[9px] px-1.5 py-0.2 rounded uppercase">
+                      Admin
+                    </span>
+                  )}
+                </button>
+              )}
 
-              <button
-                onClick={() => setFinanceSubTab('report_customs')}
-                className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-2 ${
-                  financeSubTab === 'report_customs'
-                    ? 'bg-amber-600 text-white shadow-sm'
-                    : 'text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                <FileSpreadsheet className="w-4 h-4" />
-                <span>Báo cáo thủ tục HQ</span>
-                {currentUser?.role === 'admin' && (
-                  <span className="bg-amber-400/30 text-amber-100 text-[9px] px-1.5 py-0.2 rounded uppercase">
-                    Admin
-                  </span>
-                )}
-              </button>
+              {hasPermission(currentUser, 'finance_report', 'view') && (
+                <button
+                  onClick={() => setFinanceSubTab('report_customs')}
+                  className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-2 ${
+                    financeSubTab === 'report_customs'
+                      ? 'bg-amber-600 text-white shadow-sm'
+                      : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  <FileSpreadsheet className="w-4 h-4" />
+                  <span>Báo cáo thủ tục HQ</span>
+                  {currentUser?.role === 'admin' && (
+                    <span className="bg-amber-400/30 text-amber-100 text-[9px] px-1.5 py-0.2 rounded uppercase">
+                      Admin
+                    </span>
+                  )}
+                </button>
+              )}
 
-              <button
-                onClick={() => setFinanceSubTab('kpi')}
-                className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-2 ${
-                  financeSubTab === 'kpi'
-                    ? 'bg-amber-600 text-white shadow-sm'
-                    : 'text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                <Award className="w-4 h-4" />
-                <span>KPI</span>
-              </button>
+              {hasPermission(currentUser, 'finance_kpi', 'view') && (
+                <button
+                  onClick={() => setFinanceSubTab('kpi')}
+                  className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-2 ${
+                    financeSubTab === 'kpi'
+                      ? 'bg-amber-600 text-white shadow-sm'
+                      : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  <Award className="w-4 h-4" />
+                  <span>KPI</span>
+                </button>
+              )}
 
-              <button
-                onClick={() => setFinanceSubTab('customer_quotation')}
-                className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-2 ${
-                  financeSubTab === 'customer_quotation'
-                    ? 'bg-amber-600 text-white shadow-sm'
-                    : 'text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                <Tag className="w-4 h-4" />
-                <span>Báo giá khách hàng</span>
-              </button>
+              {hasPermission(currentUser, 'finance_quotations', 'view') && (
+                <button
+                  onClick={() => setFinanceSubTab('customer_quotation')}
+                  className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-2 ${
+                    financeSubTab === 'customer_quotation'
+                      ? 'bg-amber-600 text-white shadow-sm'
+                      : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  <Tag className="w-4 h-4" />
+                  <span>Báo giá khách hàng</span>
+                </button>
+              )}
 
-              <button
-                onClick={() => setFinanceSubTab('employee_advance')}
-                className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-2 ${
-                  financeSubTab === 'employee_advance'
-                    ? 'bg-amber-600 text-white shadow-sm'
-                    : 'text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                <Wallet className="w-4 h-4" />
-                <span>Tạm ứng nhân viên</span>
-              </button>
+              {hasPermission(currentUser, 'finance_advances', 'view') && (
+                <button
+                  onClick={() => setFinanceSubTab('employee_advance')}
+                  className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-2 ${
+                    financeSubTab === 'employee_advance'
+                      ? 'bg-amber-600 text-white shadow-sm'
+                      : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  <Wallet className="w-4 h-4" />
+                  <span>Tạm ứng nhân viên</span>
+                </button>
+              )}
             </div>
 
             {/* Subtab Views */}
@@ -1130,26 +1144,14 @@ export default function App() {
             )}
 
             {financeSubTab === 'report_customs' && (
-              currentUser?.role === 'admin' ? (
-                <CustomsReport
-                  declarations={declarations}
-                  customers={customers}
-                  users={users}
-                  currentUser={currentUser}
-                  paidAmounts={paidAmounts}
-                  onUpdatePaidAmount={handleUpdatePaidAmount}
-                />
-              ) : (
-                <div className="bg-white p-8 rounded-2xl border border-slate-200 text-center space-y-2">
-                  <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-full flex items-center justify-center mx-auto">
-                    <FileSpreadsheet className="w-6 h-6" />
-                  </div>
-                  <h3 className="text-sm font-bold text-slate-800">Báo Cáo Thủ Tục Hải Quan</h3>
-                  <p className="text-xs text-slate-500 max-w-md mx-auto">
-                    Báo cáo thưởng KPI và tổng hợp thủ tục hải quan trong mục Tài chính chỉ hiển thị đối với tài khoản Quản trị viên (Admin).
-                  </p>
-                </div>
-              )
+              <CustomsReport
+                declarations={declarations}
+                customers={customers}
+                users={users}
+                currentUser={currentUser}
+                paidAmounts={paidAmounts}
+                onUpdatePaidAmount={handleUpdatePaidAmount}
+              />
             )}
 
             {financeSubTab === 'kpi' && (
