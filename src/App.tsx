@@ -15,7 +15,9 @@ import {
   KPIRateItem,
   CustomerQuotation,
   EmployeeAdvanceItem,
-  canDeleteUser
+  canDeleteUser,
+  hasPermission,
+  UserPermissions
 } from './types';
 import {
   DEFAULT_USERS,
@@ -220,7 +222,7 @@ export default function App() {
 
   // Handlers for Quotations
   const handleSaveQuotation = async (item: CustomerQuotation) => {
-    if (currentUser?.role === 'manager' && !currentUser.permissions?.finance.edit) {
+    if (!hasPermission(currentUser, 'finance', 'edit')) {
       showToast('Bạn chưa được cấp quyền chỉnh sửa Tài chính.', 'error');
       return;
     }
@@ -238,7 +240,7 @@ export default function App() {
   };
 
   const handleDeleteQuotation = (id: string, name: string) => {
-    if (currentUser?.role === 'manager' && !currentUser.permissions?.finance.edit) {
+    if (!hasPermission(currentUser, 'finance', 'edit')) {
       showToast('Bạn chưa được cấp quyền chỉnh sửa Tài chính.', 'error');
       return;
     }
@@ -252,7 +254,7 @@ export default function App() {
 
   // Handlers for Employee Advances
   const handleSaveAdvance = async (item: EmployeeAdvanceItem) => {
-    if (currentUser?.role === 'manager' && !currentUser.permissions?.finance.edit) {
+    if (!hasPermission(currentUser, 'finance', 'edit')) {
       showToast('Bạn chưa được cấp quyền chỉnh sửa Tài chính.', 'error');
       return;
     }
@@ -270,7 +272,7 @@ export default function App() {
   };
 
   const handleDeleteAdvance = (id: string, name: string) => {
-    if (currentUser?.role === 'manager' && !currentUser.permissions?.finance.edit) {
+    if (!hasPermission(currentUser, 'finance', 'edit')) {
       showToast('Bạn chưa được cấp quyền chỉnh sửa Tài chính.', 'error');
       return;
     }
@@ -460,12 +462,8 @@ export default function App() {
 
   // Customs Declaration Handlers
   const handleSaveDeclaration = async (record: CustomsDeclarationRecord) => {
-    if (currentUser?.role === 'customer') {
-      showToast('Tài khoản Khách hàng không có quyền thao tác trên tờ khai hải quan.', 'error');
-      return;
-    }
-    if (currentUser?.role === 'manager' && !currentUser.permissions?.customs.edit) {
-      showToast('Tài khoản Quản lý của bạn chưa được cấp quyền chỉnh sửa thủ tục hải quan.', 'error');
+    if (!hasPermission(currentUser, 'customs', 'edit')) {
+      showToast('Tài khoản của bạn chưa được cấp quyền chỉnh sửa thủ tục hải quan.', 'error');
       return;
     }
     setDeclarations(prev => {
@@ -478,6 +476,10 @@ export default function App() {
   };
 
   const handleDeleteDeclaration = (id: string, name: string) => {
+    if (!hasPermission(currentUser, 'customs', 'edit')) {
+      showToast('Tài khoản của bạn chưa được cấp quyền chỉnh sửa thủ tục hải quan.', 'error');
+      return;
+    }
     setDeleteTarget({
       type: 'customs',
       id,
@@ -511,12 +513,8 @@ export default function App() {
   };
 
   const handleToggleDeclarationCompleted = async (id: string, currentCompleted: boolean) => {
-    if (currentUser?.role === 'customer') {
-      showToast('Tài khoản Khách hàng không có quyền thao tác trên tờ khai hải quan.', 'error');
-      return;
-    }
-    if (currentUser?.role === 'manager' && !currentUser.permissions?.customs.edit) {
-      showToast('Tài khoản Quản lý của bạn chưa được cấp quyền chỉnh sửa thủ tục hải quan.', 'error');
+    if (!hasPermission(currentUser, 'customs', 'edit')) {
+      showToast('Tài khoản của bạn chưa được cấp quyền chỉnh sửa thủ tục hải quan.', 'error');
       return;
     }
     let updated: CustomsDeclarationRecord | null = null;
@@ -609,8 +607,8 @@ export default function App() {
       setIsAuthModalOpen(true);
       return;
     }
-    if (currentUser.role === 'customer') {
-      showToast('Tài khoản Khách hàng không có quyền nhập chuyến mới.', 'error');
+    if (!hasPermission(currentUser, 'shipments', 'edit')) {
+      showToast('Tài khoản của bạn không có quyền nhập chuyến mới.', 'error');
       return;
     }
     setSelectedShipment(null);
@@ -625,12 +623,8 @@ export default function App() {
       setIsAuthModalOpen(true);
       return;
     }
-    if (currentUser.role === 'customer') {
-      showToast('Tài khoản Khách hàng không có quyền lưu chuyến hàng.', 'error');
-      return;
-    }
-    if (currentUser.role === 'manager' && !currentUser.permissions?.shipments.edit) {
-      showToast('Tài khoản Quản lý của bạn chưa được cấp quyền thêm/sửa chuyến hàng.', 'error');
+    if (!hasPermission(currentUser, 'shipments', 'edit')) {
+      showToast('Tài khoản của bạn chưa được cấp quyền thêm/sửa chuyến hàng.', 'error');
       return;
     }
 
@@ -675,7 +669,7 @@ export default function App() {
   };
 
   const handleImportShipments = async (importedRecords: Partial<ShipmentRecord>[]) => {
-    if (currentUser?.role !== 'admin' && !(currentUser?.role === 'manager' && currentUser.permissions?.shipments.edit)) {
+    if (!hasPermission(currentUser, 'shipments', 'edit')) {
       showToast('Bạn không có quyền nhập dữ liệu từ Excel.', 'error');
       return;
     }
@@ -717,12 +711,8 @@ export default function App() {
   };
 
   const handleToggleCheckbox = async (record: ShipmentRecord, field: keyof ShipmentRecord) => {
-    if (currentUser?.role === 'customer') {
-      showToast('Tài khoản Khách hàng không có quyền chỉnh sửa chuyến hàng.', 'error');
-      return;
-    }
-    if (currentUser?.role === 'manager' && !currentUser.permissions?.shipments.edit) {
-      showToast('Tài khoản Quản lý của bạn chưa được cấp quyền chỉnh sửa chuyến hàng.', 'error');
+    if (!hasPermission(currentUser, 'shipments', 'edit')) {
+      showToast('Tài khoản của bạn chưa được cấp quyền chỉnh sửa chuyến hàng.', 'error');
       return;
     }
     const updated = { ...record, [field]: !record[field] };
@@ -732,12 +722,8 @@ export default function App() {
   };
 
   const handleDuplicateRecord = (record: ShipmentRecord) => {
-    if (currentUser?.role === 'customer') {
-      showToast('Tài khoản Khách hàng không có quyền thêm chuyến hàng.', 'error');
-      return;
-    }
-    if (currentUser?.role === 'manager' && !currentUser.permissions?.shipments.edit) {
-      showToast('Tài khoản Quản lý của bạn chưa được cấp quyền thêm/sửa chuyến hàng.', 'error');
+    if (!hasPermission(currentUser, 'shipments', 'edit')) {
+      showToast('Tài khoản của bạn chưa được cấp quyền thêm/sửa chuyến hàng.', 'error');
       return;
     }
     const cloned: ShipmentRecord = {
@@ -753,8 +739,8 @@ export default function App() {
 
   // Catalog CRUD Operations
   const handleSaveCatalogItem = async (subTab: CatalogSubTab, itemData: any) => {
-    if (currentUser?.role === 'manager' && !currentUser.permissions?.catalog.edit) {
-      showToast('Tài khoản Quản lý của bạn chưa được cấp quyền chỉnh sửa danh mục.', 'error');
+    if (!hasPermission(currentUser, 'catalog', 'edit')) {
+      showToast('Tài khoản của bạn chưa được cấp quyền chỉnh sửa danh mục.', 'error');
       return;
     }
     const id = itemData.id || subTab[0] + '_' + Date.now();
@@ -794,8 +780,8 @@ export default function App() {
   };
 
   const handleDeleteCatalogItem = (subTab: CatalogSubTab, id: string, name: string) => {
-    if (currentUser?.role === 'manager' && !currentUser.permissions?.catalog.edit) {
-      showToast('Tài khoản Quản lý của bạn chưa được cấp quyền chỉnh sửa danh mục.', 'error');
+    if (!hasPermission(currentUser, 'catalog', 'edit')) {
+      showToast('Tài khoản của bạn chưa được cấp quyền chỉnh sửa danh mục.', 'error');
       return;
     }
     setDeleteTarget({
@@ -907,33 +893,25 @@ export default function App() {
             showToast('Chỉ Quản trị viên mới được quản lý tài khoản.', 'error');
             return;
           }
-          if (tab === 'category' && currentUser?.role === 'customer') {
-            showToast('Danh mục chuẩn bị ẩn đối với tài khoản Khách hàng.', 'error');
+          if (tab === 'category' && !hasPermission(currentUser, 'catalog', 'view')) {
+            showToast('Tài khoản của bạn không có quyền xem Danh mục.', 'error');
             return;
           }
-          if (currentUser?.role === 'manager') {
-            const perms = currentUser.permissions || {
-              shipments: { view: false, edit: false },
-              customs: { view: false, edit: false },
-              finance: { view: false, edit: false },
-              catalog: { view: false, edit: false },
-            };
-            if (tab === 'general_work' && !perms.customs.view) {
-              showToast('Tài khoản của bạn không có quyền xem Thủ tục hải quan.', 'error');
-              return;
-            }
-            if (tab === 'entry' && !perms.shipments.view) {
-              showToast('Tài khoản của bạn không có quyền xem Vận chuyển.', 'error');
-              return;
-            }
-            if (tab === 'category' && !perms.catalog.view) {
-              showToast('Tài khoản của bạn không có quyền xem Danh mục.', 'error');
-              return;
-            }
-            if (tab === 'finance' && !perms.finance.view) {
-              showToast('Tài khoản của bạn không có quyền xem Tài chính.', 'error');
-              return;
-            }
+          if (tab === 'general_work' && !hasPermission(currentUser, 'customs', 'view')) {
+            showToast('Tài khoản của bạn không có quyền xem Thủ tục hải quan.', 'error');
+            return;
+          }
+          if (tab === 'entry' && !hasPermission(currentUser, 'shipments', 'view')) {
+            showToast('Tài khoản của bạn không có quyền xem Vận chuyển.', 'error');
+            return;
+          }
+          if (tab === 'finance' && !hasPermission(currentUser, 'finance', 'view')) {
+            showToast('Tài khoản của bạn không có quyền xem Tài chính.', 'error');
+            return;
+          }
+          if (tab === 'dashboard' && !hasPermission(currentUser, 'dashboard', 'view')) {
+            showToast('Tài khoản của bạn không có quyền xem Tổng quan.', 'error');
+            return;
           }
           setActiveTab(tab);
         }}
@@ -974,6 +952,10 @@ export default function App() {
               setIsShipmentModalOpen(true);
             }}
             onConfirmDeleteTrip={rec => {
+              if (!hasPermission(currentUser, 'shipments', 'edit')) {
+                showToast('Bạn chưa được cấp quyền chỉnh sửa chuyến hàng.', 'error');
+                return;
+              }
               setDeleteTarget({
                 type: 'shipment',
                 id: rec.id,
@@ -982,6 +964,10 @@ export default function App() {
               setIsConfirmDeleteOpen(true);
             }}
             onBatchDeleteTrips={selectedRecords => {
+              if (!hasPermission(currentUser, 'shipments', 'edit')) {
+                showToast('Bạn chưa được cấp quyền chỉnh sửa chuyến hàng.', 'error');
+                return;
+              }
               const ids = selectedRecords.map(r => r.id);
               setDeleteTarget({
                 type: 'shipment',

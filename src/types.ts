@@ -3,11 +3,75 @@ export type UserRole = 'admin' | 'manager' | 'employee_logistics' | 'employee_ac
 export type UserStatus = 'active' | 'pending' | 'rejected';
 
 export interface UserPermissions {
+  dashboard: { view: boolean, edit: boolean };
   shipments: { view: boolean, edit: boolean };
   customs: { view: boolean, edit: boolean };
   finance: { view: boolean, edit: boolean };
   catalog: { view: boolean, edit: boolean };
 }
+
+export const getDefaultPermissions = (role: UserRole): UserPermissions => {
+  switch (role) {
+    case 'admin':
+      return {
+        dashboard: { view: true, edit: true },
+        shipments: { view: true, edit: true },
+        customs: { view: true, edit: true },
+        finance: { view: true, edit: true },
+        catalog: { view: true, edit: true },
+      };
+    case 'manager':
+      return {
+        dashboard: { view: true, edit: true },
+        shipments: { view: true, edit: true },
+        customs: { view: true, edit: true },
+        finance: { view: true, edit: true },
+        catalog: { view: true, edit: true },
+      };
+    case 'employee_logistics':
+      return {
+        dashboard: { view: true, edit: false },
+        shipments: { view: true, edit: true },
+        customs: { view: true, edit: true },
+        finance: { view: false, edit: false },
+        catalog: { view: true, edit: false },
+      };
+    case 'employee_accounting':
+      return {
+        dashboard: { view: true, edit: false },
+        shipments: { view: true, edit: false },
+        customs: { view: true, edit: false },
+        finance: { view: true, edit: true },
+        catalog: { view: true, edit: false },
+      };
+    case 'customer':
+      return {
+        dashboard: { view: true, edit: false },
+        shipments: { view: true, edit: false },
+        customs: { view: true, edit: false },
+        finance: { view: true, edit: false },
+        catalog: { view: false, edit: false },
+      };
+    default:
+      return {
+        dashboard: { view: false, edit: false },
+        shipments: { view: false, edit: false },
+        customs: { view: false, edit: false },
+        finance: { view: false, edit: false },
+        catalog: { view: false, edit: false },
+      };
+  }
+};
+
+export const hasPermission = (user: any, module: keyof UserPermissions, action: 'view' | 'edit'): boolean => {
+  if (!user) return false;
+  if (user.role === 'admin') return true;
+  const perms = user.permissions || getDefaultPermissions(user.role);
+  if (perms && perms[module]) {
+    return perms[module][action];
+  }
+  return false;
+};
 
 export interface UserAccount {
   id: string;
