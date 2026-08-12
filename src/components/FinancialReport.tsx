@@ -43,6 +43,8 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({
   onImportExcel,
   onShowToast,
 }) => {
+  const isAdminOrManager = currentUser?.role === 'admin' || currentUser?.role === 'manager';
+  
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedMonth, setSelectedMonth] = useState('all');
   const [selectedCustomer, setSelectedCustomer] = useState('all');
@@ -449,7 +451,8 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({
       </div>
 
       {/* Financial Stat Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {isAdminOrManager && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
           <div className="flex items-center justify-between">
             <div>
@@ -510,6 +513,7 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({
           <p className="text-xs text-slate-500 mt-2">Sản lượng theo lọc</p>
         </div>
       </div>
+      )}
 
       {/* 1. TABLE SECTION PLACED ABOVE CHARTS (Requirement 5) */}
       <div className="space-y-3">
@@ -629,8 +633,10 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({
       </div>
 
       {/* 2. CHARTS SECTION (PLACED BELOW TABLE) */}
-      {/* Main Overview Bar Chart (Customer Revenue & Base Cost) */}
-      <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-4">
+      {isAdminOrManager && (
+        <>
+          {/* Main Overview Bar Chart (Customer Revenue & Base Cost) */}
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-4">
         <div className="flex items-center justify-between border-b pb-3">
           <h4 className="font-extrabold text-sm text-slate-800 flex items-center gap-2">
             <BarChart3 className="w-4 h-4 text-indigo-600" />
@@ -751,6 +757,8 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({
           </div>
         </div>
       </div>
+        </>
+      )}
     </div>
   );
 };

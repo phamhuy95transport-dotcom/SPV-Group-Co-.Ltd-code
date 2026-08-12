@@ -38,6 +38,8 @@ export const CustomsReport: React.FC<CustomsReportProps> = ({
   paidAmounts = {},
   onUpdatePaidAmount
 }) => {
+  const isAdminOrManager = currentUser?.role === 'admin' || currentUser?.role === 'manager';
+
   // Filters
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
@@ -139,8 +141,12 @@ export const CustomsReport: React.FC<CustomsReportProps> = ({
       }
     });
 
-    return Array.from(map.values()).sort((a, b) => b.month_year.localeCompare(a.month_year));
-  }, [filteredDeclarations]);
+    const result = Array.from(map.values()).sort((a, b) => b.month_year.localeCompare(a.month_year));
+    if (!isAdminOrManager) {
+      return result.filter(r => r.staff_id === currentUser?.id);
+    }
+    return result;
+  }, [filteredDeclarations, isAdminOrManager, currentUser?.id]);
 
   // Group by Customer
   const customerBreakdown = useMemo(() => {
@@ -276,6 +282,7 @@ export const CustomsReport: React.FC<CustomsReportProps> = ({
       </div>
 
       {/* Metrics Grid */}
+      {isAdminOrManager && (
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
         <div className="bg-white p-4 rounded-xl border border-indigo-100 shadow-sm">
           <span className="text-[11px] font-semibold text-slate-400 uppercase">Tổng Tờ Khai</span>
@@ -310,6 +317,7 @@ export const CustomsReport: React.FC<CustomsReportProps> = ({
           </div>
         </div>
       </div>
+      )}
 
       {/* Section 1: Thống kê theo Nhân viên (Requirement 3) */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
@@ -385,6 +393,7 @@ export const CustomsReport: React.FC<CustomsReportProps> = ({
       </div>
 
       {/* Grid Section 2 & 3: Thống kê theo Khách hàng & Loại Tờ Khai */}
+      {isAdminOrManager && (
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* Section 2: Theo Khách Hàng */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
@@ -452,6 +461,7 @@ export const CustomsReport: React.FC<CustomsReportProps> = ({
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 };
