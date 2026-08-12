@@ -234,11 +234,11 @@ export const CustomsProcedureManager: React.FC<CustomsProcedureManagerProps> = (
 
     const isApprovedState = isAdmin ? formData.approved : (editingId ? declarations.find(d => d.id === editingId)?.approved || false : false);
 
-    const recordToSave: CustomsDeclarationRecord = {
+    const recordToSave: any = {
       id: editingId || `cd_${Date.now()}`,
       execution_date: formData.execution_date,
-      completed_date: formData.completed ? (formData.completed_date || formData.execution_date) : undefined,
-      approved_date: isApprovedState ? (formData.approved_date || formData.completed_date || formData.execution_date) : undefined,
+      completed_date: formData.completed ? (formData.completed_date || formData.execution_date) : null,
+      approved_date: isApprovedState ? (formData.approved_date || formData.completed_date || formData.execution_date) : null,
       declaration_number: formData.declaration_number.trim(),
       type: formData.type,
       customer: formData.customer,
@@ -273,7 +273,10 @@ export const CustomsProcedureManager: React.FC<CustomsProcedureManagerProps> = (
         : new Date().toISOString()
     };
 
-    onSaveDeclaration(recordToSave);
+    // Remove null values so we don't accidentally send nulls if not needed, but Firebase allows nulls. Actually, let's just make a shallow copy omitting undefined fields.
+    const cleanRecord = Object.fromEntries(Object.entries(recordToSave).filter(([_, v]) => v !== undefined));
+
+    onSaveDeclaration(cleanRecord as CustomsDeclarationRecord);
     setIsModalOpen(false);
   };
 
