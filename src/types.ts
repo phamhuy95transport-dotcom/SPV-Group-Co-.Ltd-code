@@ -1,6 +1,13 @@
-export type UserRole = 'admin' | 'employee_logistics' | 'employee_accounting' | 'customer';
+export type UserRole = 'admin' | 'manager' | 'employee_logistics' | 'employee_accounting' | 'customer';
 
 export type UserStatus = 'active' | 'pending' | 'rejected';
+
+export interface UserPermissions {
+  shipments: { view: boolean, edit: boolean };
+  customs: { view: boolean, edit: boolean };
+  finance: { view: boolean, edit: boolean };
+  catalog: { view: boolean, edit: boolean };
+}
 
 export interface UserAccount {
   id: string;
@@ -14,6 +21,7 @@ export interface UserAccount {
   totpSecret?: string; // Base32 secret for Google Authenticator 2FA
   totpEnabled?: boolean;
   password?: string;
+  permissions?: UserPermissions; // Phân quyền tùy chỉnh cho Quản lý (manager)
 }
 
 export interface CreatorInfo {
