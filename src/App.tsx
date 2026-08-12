@@ -96,6 +96,8 @@ export default function App() {
   const [isUserMgmtOpen, setIsUserMgmtOpen] = useState(false);
   const [isWelcomeModalOpen, setIsWelcomeModalOpen] = useState(false);
   const [randomQuote, setRandomQuote] = useState('');
+  const [isEditProfileModalOpen, setIsEditProfileModalOpen] = useState(false);
+  const [editProfileNameInput, setEditProfileNameInput] = useState('');
   
   const [isShipmentModalOpen, setIsShipmentModalOpen] = useState(false);
   const [shipmentModalMode, setShipmentModalMode] = useState<'add' | 'edit'>('add');
@@ -418,6 +420,58 @@ export default function App() {
       }
       showToast(`Đã cập nhật phân quyền quản lý cho tài khoản.`);
     }
+  };
+
+  const handleChangeUserName = async (userId: string, newName: string) => {
+    const trimmedName = newName.trim();
+    if (!trimmedName) {
+      showToast('Họ và tên đăng ký không được để trống.', 'error');
+      return;
+    }
+    let updatedUser: UserAccount | null = null;
+    setUsers(prev =>
+      prev.map(u => {
+        if (u.id === userId) {
+          updatedUser = { ...u, name: trimmedName };
+          return updatedUser;
+        }
+        return u;
+      })
+    );
+
+    if (currentUser?.id === userId) {
+      setCurrentUser(prev => (prev ? { ...prev, name: trimmedName } : null));
+    }
+
+    const userToSave = updatedUser || (currentUser?.id === userId ? { ...currentUser, name: trimmedName } : users.find(u => u.id === userId));
+    if (userToSave) {
+      await saveRecordToCloud('users', userId, userToSave);
+    }
+
+    showToast(`Đã cập nhật họ tên đăng ký thành: ${trimmedName}`);
+  };
+
+  const handleResetUserPassword = async (userId: string) => {
+    if (currentUser?.role !== 'admin') {
+      showToast('Chỉ Quản trị viên mới có quyền reset mật khẩu.', 'error');
+      return;
+    }
+    const targetUser = users.find(u => u.id === userId);
+    if (!targetUser) return;
+
+    const DEFAULT_RESET_PASSWORD = '27072026';
+    const updatedUser: UserAccount = { ...targetUser, password: DEFAULT_RESET_PASSWORD };
+
+    setUsers(prev =>
+      prev.map(u => (u.id === userId ? updatedUser : u))
+    );
+
+    if (currentUser?.id === userId) {
+      setCurrentUser(prev => (prev ? { ...prev, password: DEFAULT_RESET_PASSWORD } : null));
+    }
+
+    await saveRecordToCloud('users', userId, updatedUser);
+    showToast(`Đã reset mật khẩu của ${targetUser.name} về mặc định: ${DEFAULT_RESET_PASSWORD}`);
   };
 
   const handleDeleteUser = async (userId: string) => {
@@ -935,6 +989,12 @@ export default function App() {
           setAuthModalMode('change_password');
           setIsAuthModalOpen(true);
         }}
+        onOpenEditProfile={() => {
+          if (currentUser) {
+            setEditProfileNameInput(currentUser.name || '');
+            setIsEditProfileModalOpen(true);
+          }
+        }}
         onOpenNewTripModal={handleOpenNewTripModal}
       />
 
@@ -1236,8 +1296,65 @@ export default function App() {
         onChangeUserRole={handleChangeUserRole}
         onChangeCustomerName={handleChangeUserCustomerName}
         onChangeUserPermissions={handleChangeUserPermissions}
+        onChangeUserName={handleChangeUserName}
+        onResetUserPassword={handleResetUserPassword}
         onDeleteUser={handleDeleteUser}
       />
+
+      {/* Edit Self Profile Name Modal */}
+      {isEditProfileModalOpen && currentUser && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 space-y-4 border border-slate-200">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <h4 className="font-extrabold text-slate-900 text-base">Đổi Họ và Tên Đăng Ký</h4>
+              <button
+                onClick={() => setIsEditProfileModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 font-bold text-sm"
+              >
+                ✕
+              </button>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Họ và Tên mới
+              </label>
+              <input
+                type="text"
+                value={editProfileNameInput}
+                onChange={e => setEditProfileNameInput(e.target.value)}
+                placeholder="Nhập họ và tên đầy đủ..."
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm font-bold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                autoFocus
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && editProfileNameInput.trim()) {
+                    handleChangeUserName(currentUser.id, editProfileNameInput.trim());
+                    setIsEditProfileModalOpen(false);
+                  }
+                }}
+              />
+            </div>
+            <div className="flex gap-2.5 pt-2">
+              <button
+                onClick={() => setIsEditProfileModalOpen(false)}
+                className="w-1/2 py-2 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition"
+              >
+                Hủy
+              </button>
+              <button
+                onClick={() => {
+                  if (currentUser && editProfileNameInput.trim()) {
+                    handleChangeUserName(currentUser.id, editProfileNameInput.trim());
+                    setIsEditProfileModalOpen(false);
+                  }
+                }}
+                className="w-1/2 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-md transition"
+              >
+                Lưu Thay Đổi
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Shipment Add/Edit Modal */}
       <ShipmentModal
