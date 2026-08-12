@@ -276,7 +276,7 @@ export const CustomsProcedureManager: React.FC<CustomsProcedureManagerProps> = (
     // Remove null values so we don't accidentally send nulls if not needed, but Firebase allows nulls. Actually, let's just make a shallow copy omitting undefined fields.
     const cleanRecord = Object.fromEntries(Object.entries(recordToSave).filter(([_, v]) => v !== undefined));
 
-    onSaveDeclaration(cleanRecord as CustomsDeclarationRecord);
+    onSaveDeclaration(cleanRecord as unknown as CustomsDeclarationRecord);
     setIsModalOpen(false);
   };
 

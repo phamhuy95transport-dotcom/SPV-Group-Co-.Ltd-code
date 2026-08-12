@@ -13,7 +13,8 @@ import {
   LogIn,
   KeyRound,
   ShieldCheck,
-  UserCheck
+  UserCheck,
+  Pencil
 } from 'lucide-react';
 import { ActiveTab, UserAccount, hasPermission } from '../types';
 
@@ -28,6 +29,7 @@ interface HeaderProps {
   onLogout: () => void;
   onOpen2FASetup: () => void;
   onOpenChangePassword?: () => void;
+  onOpenEditProfile?: () => void;
   onOpenNewTripModal: () => void;
 }
 
@@ -42,6 +44,7 @@ export const Header: React.FC<HeaderProps> = ({
   onLogout,
   onOpen2FASetup,
   onOpenChangePassword,
+  onOpenEditProfile,
   onOpenNewTripModal,
 }) => {
   const isCustomer = currentUser?.role === 'customer';
@@ -91,9 +94,20 @@ export const Header: React.FC<HeaderProps> = ({
                   {currentUser.name ? currentUser.name.charAt(0).toUpperCase() : 'U'}
                 </div>
                 <div className="hidden md:block">
-                  <p className="font-semibold text-white leading-tight truncate max-w-[140px] text-xs">
-                    {currentUser.name}
-                  </p>
+                  <div className="flex items-center gap-1">
+                    <p className="font-semibold text-white leading-tight truncate max-w-[140px] text-xs">
+                      {currentUser.name}
+                    </p>
+                    {onOpenEditProfile && (
+                      <button
+                        onClick={onOpenEditProfile}
+                        title="Đổi họ tên đăng ký của bạn"
+                        className="p-0.5 text-slate-400 hover:text-indigo-300 transition rounded"
+                      >
+                        <Pencil className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
                   <p className="text-[10px] text-slate-400 font-medium capitalize flex items-center gap-1">
                     <span
                       className={`inline-block w-1.5 h-1.5 rounded-full ${
