@@ -7,26 +7,31 @@ export interface UserPermissions {
   shipments: { view: boolean, edit: boolean };
   customs: { view: boolean, edit: boolean };
   finance: { view: boolean, edit: boolean };
+  finance_report: { view: boolean, edit: boolean };
+  finance_kpi: { view: boolean, edit: boolean };
+  finance_advances: { view: boolean, edit: boolean };
+  finance_quotations: { view: boolean, edit: boolean };
+  finance_debt: { view: boolean, edit: boolean };
   catalog: { view: boolean, edit: boolean };
+  utilities: { view: boolean, edit: boolean };
 }
 
 export const getDefaultPermissions = (role: UserRole): UserPermissions => {
   switch (role) {
     case 'admin':
-      return {
-        dashboard: { view: true, edit: true },
-        shipments: { view: true, edit: true },
-        customs: { view: true, edit: true },
-        finance: { view: true, edit: true },
-        catalog: { view: true, edit: true },
-      };
     case 'manager':
       return {
         dashboard: { view: true, edit: true },
         shipments: { view: true, edit: true },
         customs: { view: true, edit: true },
         finance: { view: true, edit: true },
+        finance_report: { view: true, edit: true },
+        finance_kpi: { view: true, edit: true },
+        finance_advances: { view: true, edit: true },
+        finance_quotations: { view: true, edit: true },
+        finance_debt: { view: true, edit: true },
         catalog: { view: true, edit: true },
+        utilities: { view: true, edit: true },
       };
     case 'employee_logistics':
       return {
@@ -34,7 +39,13 @@ export const getDefaultPermissions = (role: UserRole): UserPermissions => {
         shipments: { view: true, edit: true },
         customs: { view: true, edit: true },
         finance: { view: false, edit: false },
+        finance_report: { view: false, edit: false },
+        finance_kpi: { view: false, edit: false },
+        finance_advances: { view: false, edit: false },
+        finance_quotations: { view: false, edit: false },
+        finance_debt: { view: false, edit: false },
         catalog: { view: true, edit: false },
+        utilities: { view: true, edit: true },
       };
     case 'employee_accounting':
       return {
@@ -42,7 +53,13 @@ export const getDefaultPermissions = (role: UserRole): UserPermissions => {
         shipments: { view: true, edit: false },
         customs: { view: true, edit: false },
         finance: { view: true, edit: true },
+        finance_report: { view: true, edit: true },
+        finance_kpi: { view: true, edit: true },
+        finance_advances: { view: true, edit: true },
+        finance_quotations: { view: true, edit: true },
+        finance_debt: { view: true, edit: true },
         catalog: { view: true, edit: false },
+        utilities: { view: true, edit: true },
       };
     case 'customer':
       return {
@@ -50,7 +67,13 @@ export const getDefaultPermissions = (role: UserRole): UserPermissions => {
         shipments: { view: true, edit: false },
         customs: { view: true, edit: false },
         finance: { view: true, edit: false },
+        finance_report: { view: false, edit: false },
+        finance_kpi: { view: false, edit: false },
+        finance_advances: { view: false, edit: false },
+        finance_quotations: { view: true, edit: false },
+        finance_debt: { view: true, edit: false },
         catalog: { view: false, edit: false },
+        utilities: { view: false, edit: false },
       };
     default:
       return {
@@ -58,7 +81,13 @@ export const getDefaultPermissions = (role: UserRole): UserPermissions => {
         shipments: { view: false, edit: false },
         customs: { view: false, edit: false },
         finance: { view: false, edit: false },
+        finance_report: { view: false, edit: false },
+        finance_kpi: { view: false, edit: false },
+        finance_advances: { view: false, edit: false },
+        finance_quotations: { view: false, edit: false },
+        finance_debt: { view: false, edit: false },
         catalog: { view: false, edit: false },
+        utilities: { view: false, edit: false },
       };
   }
 };
@@ -66,11 +95,13 @@ export const getDefaultPermissions = (role: UserRole): UserPermissions => {
 export const hasPermission = (user: any, module: keyof UserPermissions, action: 'view' | 'edit'): boolean => {
   if (!user) return false;
   if (user.role === 'admin') return true;
-  const perms = user.permissions || getDefaultPermissions(user.role);
-  if (perms && perms[module]) {
-    return perms[module][action];
-  }
-  return false;
+  
+  const defaultPerms = getDefaultPermissions(user.role as UserRole);
+  const defaultModulePerms = defaultPerms?.[module] || { view: false, edit: false };
+  const userModulePerms = user.permissions?.[module];
+  
+  const val = userModulePerms?.[action] ?? defaultModulePerms[action];
+  return Boolean(val);
 };
 
 export interface UserAccount {
@@ -239,7 +270,7 @@ export const canDeleteUser = (operator: UserAccount | null, targetUser: UserAcco
   return { allowed: true };
 };
 
-export type ActiveTab = 'entry' | 'general_work' | 'category' | 'finance' | 'users';
+export type ActiveTab = 'entry' | 'general_work' | 'category' | 'utilities' | 'finance' | 'users';
 export type WorkSubTab = 'customs';
 export type CatalogSubTab = 'warehouse' | 'transporter' | 'customer' | 'route';
 export type FinanceSubTab = 'report_shipment' | 'report_customs' | 'kpi' | 'quotation' | 'advance';

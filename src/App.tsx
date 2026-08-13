@@ -48,6 +48,7 @@ import { KPIManager } from './components/KPIManager';
 import { CustomsReport } from './components/CustomsReport';
 import { CustomerQuotationManager } from './components/CustomerQuotationManager';
 import { EmployeeAdvanceManager } from './components/EmployeeAdvanceManager';
+import { UtilitiesManager } from './components/UtilitiesManager';
 import { WelcomeModal } from './components/WelcomeModal';
 import { Toast, ToastState } from './components/Toast';
 import { Trash2, Briefcase, DollarSign, FileSpreadsheet, BarChart3, Award, Tag, Wallet } from 'lucide-react';
@@ -1104,6 +1105,14 @@ export default function App() {
             routes={routes}
             onSaveCatalogItem={handleSaveCatalogItem}
             onDeleteCatalogItem={handleDeleteCatalogItem}
+          />
+        )}
+
+        {/* Tab 3.5: Tiện Ích Hỗ Trợ */}
+        {activeTab === 'utilities' && currentUser && hasPermission(currentUser, 'utilities', 'view') && (
+          <UtilitiesManager
+            currentUser={currentUser}
+            onShowToast={showToast}
           />
         )}
 
