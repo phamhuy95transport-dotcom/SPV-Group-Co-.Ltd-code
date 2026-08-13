@@ -14,7 +14,8 @@ import {
   KeyRound,
   ShieldCheck,
   UserCheck,
-  Pencil
+  Pencil,
+  Sparkles
 } from 'lucide-react';
 import { ActiveTab, UserAccount, hasPermission } from '../types';
 
@@ -237,6 +238,21 @@ export const Header: React.FC<HeaderProps> = ({
             >
               <FolderTree className="w-4 h-4 text-emerald-400" />
               <span>Danh mục</span>
+            </button>
+          )}
+
+          {/* Tab 3.5: Tiện ích hỗ trợ */}
+          {currentUser && hasPermission(currentUser, 'utilities', 'view') && (
+            <button
+              onClick={() => switchTab('utilities')}
+              className={`px-3.5 py-2 rounded-md text-xs font-medium transition-colors flex items-center gap-2 shrink-0 ${
+                activeTab === 'utilities'
+                  ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30 font-semibold'
+                  : 'text-slate-300 hover:bg-slate-800'
+              }`}
+            >
+              <Sparkles className="w-4 h-4 text-cyan-400" />
+              <span>Tiện ích hỗ trợ</span>
             </button>
           )}
 

@@ -72,20 +72,28 @@ export const UserManagementModal: React.FC<UserManagementProps> = ({
   const togglePermission = (userId: string, currentPerms: UserPermissions | undefined, userRole: UserRole, module: keyof UserPermissions, action: 'view' | 'edit') => {
     if (!onChangeUserPermissions) return;
     const defaultPerms = getDefaultPermissions(userRole);
-    const newPerms = { ...defaultPerms, ...currentPerms };
+    const newPerms: UserPermissions = { ...defaultPerms, ...(currentPerms || {}) };
     
-    const currentModulePerms = newPerms[module] || { view: false, edit: false };
-    newPerms[module] = { ...currentModulePerms, [action]: !currentModulePerms[action] };
+    const defaultMod = defaultPerms[module] || { view: false, edit: false };
+    const currentModulePerms = newPerms[module] || { ...defaultMod };
+    const isCurrentlyChecked = Boolean(currentModulePerms[action]);
+    
+    const updatedModulePerms = {
+      view: Boolean(currentModulePerms.view),
+      edit: Boolean(currentModulePerms.edit),
+      [action]: !isCurrentlyChecked
+    };
     
     // If edit is true, view must be true
-    if (action === 'edit' && newPerms[module].edit) {
-      newPerms[module].view = true;
+    if (action === 'edit' && updatedModulePerms.edit) {
+      updatedModulePerms.view = true;
     }
     // If view is false, edit must be false
-    if (action === 'view' && !newPerms[module].view) {
-      newPerms[module].edit = false;
+    if (action === 'view' && !updatedModulePerms.view) {
+      updatedModulePerms.edit = false;
     }
 
+    newPerms[module] = updatedModulePerms;
     onChangeUserPermissions(userId, newPerms);
   };
 
@@ -301,6 +309,7 @@ export const UserManagementModal: React.FC<UserManagementProps> = ({
                               { key: 'shipments', label: 'Quản lý vận chuyển' },
                               { key: 'customs', label: 'Thủ tục hải quan' },
                               { key: 'catalog', label: 'Danh mục chuẩn' },
+                              { key: 'utilities', label: 'Tiện ích hỗ trợ' },
                               { key: 'finance', label: 'Tài chính (Chung)' },
                               { key: 'finance_report', label: '├─ Báo cáo vận chuyển', indent: true },
                               { key: 'finance_kpi', label: '├─ Quản lý KPI', indent: true },
@@ -309,7 +318,12 @@ export const UserManagementModal: React.FC<UserManagementProps> = ({
                               { key: 'finance_debt', label: '└─ Công nợ khách hàng', indent: true }
                             ].map((mod) => {
                               const moduleKey = mod.key as keyof UserPermissions;
-                              const perms = user.permissions?.[moduleKey] || getDefaultPermissions(user.role)[moduleKey];
+                              const defaultModPerms = getDefaultPermissions(user.role)?.[moduleKey] || { view: false, edit: false };
+                              const userModPerms = user.permissions?.[moduleKey];
+                              const perms = {
+                                view: Boolean(userModPerms?.view ?? defaultModPerms.view),
+                                edit: Boolean(userModPerms?.edit ?? defaultModPerms.edit),
+                              };
                               return (
                                 <div key={mod.key} className={`flex items-center justify-between bg-slate-50 px-2 py-1 rounded border border-slate-100 ${mod.indent ? 'ml-4' : ''}`}>
                                   <span className={`text-[10px] ${mod.indent ? 'text-slate-600' : 'font-semibold text-slate-700'}`}>{mod.label}</span>
