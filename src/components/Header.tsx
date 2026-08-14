@@ -15,7 +15,8 @@ import {
   ShieldCheck,
   UserCheck,
   Pencil,
-  Sparkles
+  Sparkles,
+  HardDrive
 } from 'lucide-react';
 import { ActiveTab, UserAccount, hasPermission } from '../types';
 
@@ -117,6 +118,8 @@ export const Header: React.FC<HeaderProps> = ({
                     ></span>
                     {isAdmin
                       ? 'Administrator (Full Access)'
+                      : currentUser?.role === 'manager'
+                      ? 'Quản lý (Manager)'
                       : currentUser?.role === 'employee_accounting'
                       ? 'NV Kế toán'
                       : currentUser?.role === 'employee_logistics' || currentUser?.role === ('employee' as any)
@@ -168,8 +171,8 @@ export const Header: React.FC<HeaderProps> = ({
               </button>
             )}
 
-            {/* Admin Pending Staff Approvals Button */}
-            {isAdmin && (
+            {/* Admin/Manager Pending Staff Approvals Button */}
+            {(isAdmin || currentUser?.role === 'manager') && (
               <button
                 onClick={() => switchTab('users')}
                 className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold border transition ${
@@ -271,8 +274,8 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
           )}
 
-          {/* Tab 5: Quản lý người dùng (Admin Only) */}
-          {isAdmin && (
+          {/* Tab 5: Quản lý người dùng (Admin & Manager) */}
+          {(isAdmin || currentUser?.role === 'manager') && (
             <button
               onClick={() => switchTab('users')}
               className={`px-3.5 py-2 rounded-md text-xs font-medium transition-colors flex items-center gap-2 shrink-0 ${
@@ -288,6 +291,21 @@ export const Header: React.FC<HeaderProps> = ({
                   {pendingUsersCount}
                 </span>
               )}
+            </button>
+          )}
+
+          {/* Tab 6: Lưu trữ & Sao lưu Google Drive */}
+          {currentUser && hasPermission(currentUser, 'gdrive', 'view') && (
+            <button
+              onClick={() => switchTab('gdrive')}
+              className={`px-3.5 py-2 rounded-md text-xs font-medium transition-colors flex items-center gap-2 shrink-0 ${
+                activeTab === 'gdrive'
+                  ? 'bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 font-semibold'
+                  : 'text-slate-300 hover:bg-slate-800'
+              }`}
+            >
+              <HardDrive className="w-4 h-4 text-emerald-400" />
+              <span>Lưu trữ Google Drive</span>
             </button>
           )}
         </div>

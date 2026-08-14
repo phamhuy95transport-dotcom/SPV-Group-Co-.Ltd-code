@@ -64,7 +64,7 @@ export const UserManagementModal: React.FC<UserManagementProps> = ({
   const displayedUsers = users.filter(u => {
     if (filterTab === 'pending') return u.status === 'pending';
     if (filterTab === 'employee') return (u.role === 'employee_logistics' || u.role === 'employee_accounting' || (u.role as any) === 'employee') && u.status !== 'pending';
-    if (filterTab === 'manager') return (u.role === 'manager' || u.role === 'admin') && u.status !== 'pending';
+    if (filterTab === 'manager') return u.role === 'manager' && u.status !== 'pending';
     if (filterTab === 'customer') return u.role === 'customer' && u.status !== 'pending';
     return true; // all
   });
@@ -308,6 +308,7 @@ export const UserManagementModal: React.FC<UserManagementProps> = ({
                               { key: 'dashboard', label: 'Tổng quan (Dashboard)' },
                               { key: 'shipments', label: 'Quản lý vận chuyển' },
                               { key: 'customs', label: 'Thủ tục hải quan' },
+                              { key: 'customs_report', label: '├─ Báo cáo hải quan', indent: true },
                               { key: 'catalog', label: 'Danh mục chuẩn' },
                               { key: 'utilities', label: 'Tiện ích hỗ trợ' },
                               { key: 'finance', label: 'Tài chính (Chung)' },
@@ -315,7 +316,8 @@ export const UserManagementModal: React.FC<UserManagementProps> = ({
                               { key: 'finance_kpi', label: '├─ Quản lý KPI', indent: true },
                               { key: 'finance_advances', label: '├─ Tạm ứng nhân viên', indent: true },
                               { key: 'finance_quotations', label: '├─ Báo giá khách hàng', indent: true },
-                              { key: 'finance_debt', label: '└─ Công nợ khách hàng', indent: true }
+                              { key: 'finance_debt', label: '└─ Công nợ khách hàng', indent: true },
+                              { key: 'gdrive', label: 'Lưu trữ & Sao lưu Google Drive' }
                             ].map((mod) => {
                               const moduleKey = mod.key as keyof UserPermissions;
                               const defaultModPerms = getDefaultPermissions(user.role)?.[moduleKey] || { view: false, edit: false };
@@ -389,7 +391,7 @@ export const UserManagementModal: React.FC<UserManagementProps> = ({
                         )}
                         {user.status !== 'pending' && (
                           <div className="flex items-center justify-end gap-1.5">
-                            {currentUser?.role === 'admin' && onResetUserPassword && (
+                            {(currentUser?.role === 'admin' || currentUser?.role === 'manager') && onResetUserPassword && (
                               <button
                                 onClick={() => setResetConfirmUser(user)}
                                 className="px-2.5 py-1 bg-amber-500/10 text-amber-800 hover:bg-amber-500/20 border border-amber-300 rounded-lg text-xs font-extrabold transition flex items-center gap-1 inline-flex"
