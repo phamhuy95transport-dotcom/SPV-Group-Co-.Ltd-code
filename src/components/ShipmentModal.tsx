@@ -51,6 +51,191 @@ export const ShipmentModal: React.FC<ShipmentModalProps> = ({
   const [isSearchingTax, setIsSearchingTax] = useState(false);
   const [taxSearchResult, setTaxSearchResult] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
 
+  // Catalog item creation sub-modal state with strict validation
+  const [catalogModal, setCatalogModal] = useState<{
+    isOpen: boolean;
+    subTab: CatalogSubTab;
+    title: string;
+    data: {
+      name?: string;
+      customer_name?: string;
+      transporter_name?: string;
+      warehouse_name?: string;
+      route_name?: string;
+      company_full_name?: string;
+      tax_code?: string;
+      address?: string;
+      location?: string;
+      contact_person?: string;
+      contact_phone?: string;
+    };
+    errors: Record<string, string>;
+    isSearchingTax?: boolean;
+  }>({
+    isOpen: false,
+    subTab: 'customer',
+    title: '',
+    data: {},
+    errors: {}
+  });
+
+  const handleLookupCatalogTaxCode = async (taxCode: string) => {
+    if (!taxCode || !taxCode.trim()) {
+      setCatalogModal(prev => ({
+        ...prev,
+        errors: { ...prev.errors, tax_code: 'Vui lòng nhập Mã số thuế trước khi tra cứu!' }
+      }));
+      return;
+    }
+    const cleanCode = taxCode.replace(/\D/g, '');
+    setCatalogModal(prev => ({
+      ...prev,
+      isSearchingTax: true,
+      errors: { ...prev.errors, tax_code: '' }
+    }));
+
+    try {
+      let fullCompanyName = '';
+      let address = '';
+
+      // 1. VietQR Business API
+      try {
+        const res = await fetch(`https://api.vietqr.io/v2/business/${cleanCode}`);
+        const data = await res.json();
+        if (data && data.code === '00' && data.data) {
+          fullCompanyName = data.data.name || data.data.shortName || '';
+          address = data.data.address || '';
+        }
+      } catch (e) {
+        console.warn('Lỗi VietQR API:', e);
+      }
+
+      // 2. Thongtindoanhnghiep API
+      if (!fullCompanyName) {
+        try {
+          const res = await fetch(`https://api.thongtindoanhnghiep.co/api/company/${cleanCode}`);
+          const data = await res.json();
+          if (data && (data.Title || data.name)) {
+            fullCompanyName = data.Title || data.name || '';
+            address = data.Address || data.address || '';
+          }
+        } catch (e) {
+          console.warn('Lỗi Thongtindoanhnghiep API:', e);
+        }
+      }
+
+      if (fullCompanyName) {
+        setCatalogModal(prev => ({
+          ...prev,
+          isSearchingTax: false,
+          data: {
+            ...prev.data,
+            company_full_name: fullCompanyName,
+            address: address || prev.data.address || ''
+          },
+          errors: {
+            ...prev.errors,
+            company_full_name: '',
+            address: ''
+          }
+        }));
+      } else {
+        setCatalogModal(prev => ({
+          ...prev,
+          isSearchingTax: false,
+          errors: {
+            ...prev.errors,
+            tax_code: 'Không tìm thấy thông tin tự động. Vui lòng tự nhập tên công ty và địa chỉ.'
+          }
+        }));
+      }
+    } catch (err) {
+      setCatalogModal(prev => ({
+        ...prev,
+        isSearchingTax: false,
+        errors: { ...prev.errors, tax_code: 'Lỗi tra cứu MST.' }
+      }));
+    }
+  };
+
+  const handleSaveCatalogModalSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!onSaveCatalogItem) return;
+
+    const { subTab, data } = catalogModal;
+    const errors: Record<string, string> = {};
+
+    if (subTab === 'route') {
+      if (!data.route_name?.trim()) errors.route_name = 'Vui lòng nhập tên tuyến đường (*)!';
+    } else if (subTab === 'customer') {
+      if (!data.customer_name?.trim()) errors.customer_name = 'Vui lòng nhập Tên viết tắt / Tên khách hàng (*)!';
+      if (!data.company_full_name?.trim()) errors.company_full_name = 'Vui lòng nhập Tên đầy đủ công ty (*)!';
+      if (!data.tax_code?.trim()) errors.tax_code = 'Vui lòng nhập Mã số thuế (*)!';
+      if (!data.address?.trim()) errors.address = 'Vui lòng nhập Địa chỉ xuất hóa đơn (*)!';
+    } else if (subTab === 'transporter') {
+      if (!data.transporter_name?.trim()) errors.transporter_name = 'Vui lòng nhập Tên nhà xe (*)!';
+      if (!data.company_full_name?.trim()) errors.company_full_name = 'Vui lòng nhập Tên đầy đủ công ty (*)!';
+      if (!data.tax_code?.trim()) errors.tax_code = 'Vui lòng nhập Mã số thuế (*)!';
+      if (!data.address?.trim()) errors.address = 'Vui lòng nhập Địa chỉ công ty (*)!';
+    } else if (subTab === 'warehouse') {
+      if (!data.warehouse_name?.trim()) errors.warehouse_name = 'Vui lòng nhập Tên kho / xưởng (*)!';
+      if (!data.location?.trim()) errors.location = 'Vui lòng nhập Vị trí / Địa chỉ kho xưởng (*)!';
+      if (!data.contact_person?.trim()) errors.contact_person = 'Vui lòng nhập Người liên hệ (*)!';
+      if (!data.contact_phone?.trim()) errors.contact_phone = 'Vui lòng nhập Số điện thoại liên hệ (*)!';
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setCatalogModal(prev => ({ ...prev, errors }));
+      return;
+    }
+
+    try {
+      if (subTab === 'route') {
+        await onSaveCatalogItem('route', { route_name: data.route_name!.trim() });
+        setFormData(prev => ({ ...prev, route: data.route_name!.trim() }));
+      } else if (subTab === 'customer') {
+        await onSaveCatalogItem('customer', {
+          customer_name: data.customer_name!.trim(),
+          company_full_name: data.company_full_name!.trim(),
+          tax_code: data.tax_code!.trim(),
+          address: data.address!.trim(),
+        });
+        setFormData(prev => ({
+          ...prev,
+          customer: data.customer_name!.trim(),
+          return_invoice_tax_code: data.tax_code!.trim(),
+          return_invoice_company_name: data.company_full_name!.trim(),
+          return_invoice_address: data.address!.trim()
+        }));
+      } else if (subTab === 'transporter') {
+        await onSaveCatalogItem('transporter', {
+          transporter_name: data.transporter_name!.trim(),
+          company_full_name: data.company_full_name!.trim(),
+          tax_code: data.tax_code!.trim(),
+          address: data.address!.trim(),
+        });
+        setFormData(prev => ({ ...prev, transporter: data.transporter_name!.trim() }));
+      } else if (subTab === 'warehouse') {
+        await onSaveCatalogItem('warehouse', {
+          warehouse_name: data.warehouse_name!.trim(),
+          location: data.location!.trim(),
+          contact_person: data.contact_person!.trim(),
+          contact_phone: data.contact_phone!.trim(),
+        });
+        setFormData(prev => ({
+          ...prev,
+          warehouse: data.warehouse_name!.trim(),
+          contact_person: data.contact_person!.trim(),
+          contact_phone: data.contact_phone!.trim()
+        }));
+      }
+
+      setCatalogModal(prev => ({ ...prev, isOpen: false, errors: {} }));
+    } catch (err) {
+      console.error('Error adding catalog item:', err);
+    }
+  };
+
   useEffect(() => {
     setContErrorMsg(null);
     setTaxSearchResult(null);
@@ -412,8 +597,16 @@ export const ShipmentModal: React.FC<ShipmentModalProps> = ({
                 {formData.route?.trim() && !routes.some(r => r.route_name.toLowerCase() === formData.route!.trim().toLowerCase()) && onSaveCatalogItem && (
                   <button
                     type="button"
-                    onClick={async () => {
-                      await onSaveCatalogItem('route', { route_name: formData.route!.trim() });
+                    onClick={() => {
+                      setCatalogModal({
+                        isOpen: true,
+                        subTab: 'route',
+                        title: 'Thêm Tuyến Đường Vào Danh Mục',
+                        data: {
+                          route_name: formData.route!.trim()
+                        },
+                        errors: {}
+                      });
                     }}
                     className="mt-1 text-[11px] font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-lg transition"
                   >
@@ -442,8 +635,19 @@ export const ShipmentModal: React.FC<ShipmentModalProps> = ({
                 {formData.transporter?.trim() && !transporters.some(t => t.transporter_name.toLowerCase() === formData.transporter!.trim().toLowerCase()) && onSaveCatalogItem && (
                   <button
                     type="button"
-                    onClick={async () => {
-                      await onSaveCatalogItem('transporter', { transporter_name: formData.transporter!.trim(), tax_code: '' });
+                    onClick={() => {
+                      setCatalogModal({
+                        isOpen: true,
+                        subTab: 'transporter',
+                        title: 'Thêm Nhà Xe (Đơn Vị Vận Chuyển) Vào Danh Mục',
+                        data: {
+                          transporter_name: formData.transporter!.trim(),
+                          company_full_name: '',
+                          tax_code: '',
+                          address: '',
+                        },
+                        errors: {}
+                      });
                     }}
                     className="mt-1 text-[11px] font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-lg transition"
                   >
@@ -472,8 +676,19 @@ export const ShipmentModal: React.FC<ShipmentModalProps> = ({
                 {formData.customer?.trim() && !customers.some(c => c.customer_name.toLowerCase() === formData.customer!.trim().toLowerCase()) && onSaveCatalogItem && (
                   <button
                     type="button"
-                    onClick={async () => {
-                      await onSaveCatalogItem('customer', { customer_name: formData.customer!.trim(), tax_code: '' });
+                    onClick={() => {
+                      setCatalogModal({
+                        isOpen: true,
+                        subTab: 'customer',
+                        title: 'Thêm Khách Hàng Vào Danh Mục',
+                        data: {
+                          customer_name: formData.customer!.trim(),
+                          company_full_name: '',
+                          tax_code: '',
+                          address: '',
+                        },
+                        errors: {}
+                      });
                     }}
                     className="mt-1 text-[11px] font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-lg transition"
                   >
@@ -561,12 +776,18 @@ export const ShipmentModal: React.FC<ShipmentModalProps> = ({
                 {formData.warehouse?.trim() && !warehouses.some(w => w.warehouse_name.toLowerCase() === formData.warehouse!.trim().toLowerCase()) && onSaveCatalogItem && (
                   <button
                     type="button"
-                    onClick={async () => {
-                      await onSaveCatalogItem('warehouse', {
-                        warehouse_name: formData.warehouse!.trim(),
-                        contact_person: formData.contact_person || '',
-                        contact_phone: formData.contact_phone || '',
-                        location: ''
+                    onClick={() => {
+                      setCatalogModal({
+                        isOpen: true,
+                        subTab: 'warehouse',
+                        title: 'Thêm Kho / Xưởng Vào Danh Mục',
+                        data: {
+                          warehouse_name: formData.warehouse!.trim(),
+                          location: '',
+                          contact_person: formData.contact_person || '',
+                          contact_phone: formData.contact_phone || '',
+                        },
+                        errors: {}
                       });
                     }}
                     className="mt-1 text-[11px] font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-lg transition"
@@ -965,6 +1186,366 @@ export const ShipmentModal: React.FC<ShipmentModalProps> = ({
           </div>
         </form>
       </div>
+
+      {/* Quick Add Catalog Item Sub-Modal with Strict Field Validation */}
+      {catalogModal.isOpen && (
+        <div className="fixed inset-0 z-60 overflow-y-auto bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex justify-between items-center pb-3 border-b border-slate-200 mb-4">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-indigo-100 text-indigo-700 rounded-xl">
+                  <PlusCircle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="font-extrabold text-sm text-slate-900">{catalogModal.title}</h4>
+                  <p className="text-[11px] text-slate-500">Yêu cầu nhập đầy đủ các trường thông tin bắt buộc (*)</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCatalogModal(prev => ({ ...prev, isOpen: false }))}
+                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveCatalogModalSubmit} className="space-y-3.5">
+              {/* Route Fields */}
+              {catalogModal.subTab === 'route' && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Tên Tuyến Đường <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Ví dụ: Hải Phòng - Hà Nội"
+                    value={catalogModal.data.route_name || ''}
+                    onChange={e => setCatalogModal(prev => ({
+                      ...prev,
+                      data: { ...prev.data, route_name: e.target.value },
+                      errors: { ...prev.errors, route_name: '' }
+                    }))}
+                    className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                  {catalogModal.errors.route_name && (
+                    <p className="text-[11px] text-rose-600 mt-1 font-semibold">{catalogModal.errors.route_name}</p>
+                  )}
+                </div>
+              )}
+
+              {/* Customer Fields */}
+              {catalogModal.subTab === 'customer' && (
+                <>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Tên Viết Tắt / Tên Khách Hàng <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Ví dụ: Samsung Electronics"
+                      value={catalogModal.data.customer_name || ''}
+                      onChange={e => setCatalogModal(prev => ({
+                        ...prev,
+                        data: { ...prev.data, customer_name: e.target.value },
+                        errors: { ...prev.errors, customer_name: '' }
+                      }))}
+                      className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                    {catalogModal.errors.customer_name && (
+                      <p className="text-[11px] text-rose-600 mt-1 font-semibold">{catalogModal.errors.customer_name}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Mã Số Thuế <span className="text-rose-500">*</span>
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        required
+                        placeholder="Nhập MST (10 hoặc 13 số)..."
+                        value={catalogModal.data.tax_code || ''}
+                        onChange={e => setCatalogModal(prev => ({
+                          ...prev,
+                          data: { ...prev.data, tax_code: e.target.value },
+                          errors: { ...prev.errors, tax_code: '' }
+                        }))}
+                        className="flex-1 px-3 py-2 text-xs sm:text-sm font-mono bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      />
+                      <button
+                        type="button"
+                        disabled={catalogModal.isSearchingTax}
+                        onClick={() => handleLookupCatalogTaxCode(catalogModal.data.tax_code || '')}
+                        className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 transition disabled:opacity-50 shrink-0"
+                      >
+                        {catalogModal.isSearchingTax ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
+                        <span>Tra Cứu</span>
+                      </button>
+                    </div>
+                    {catalogModal.errors.tax_code && (
+                      <p className="text-[11px] text-rose-600 mt-1 font-semibold">{catalogModal.errors.tax_code}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Tên Đầy Đủ Công Ty / Pháp Nhân <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="CÔNG TY TNHH..."
+                      value={catalogModal.data.company_full_name || ''}
+                      onChange={e => setCatalogModal(prev => ({
+                        ...prev,
+                        data: { ...prev.data, company_full_name: e.target.value },
+                        errors: { ...prev.errors, company_full_name: '' }
+                      }))}
+                      className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                    {catalogModal.errors.company_full_name && (
+                      <p className="text-[11px] text-rose-600 mt-1 font-semibold">{catalogModal.errors.company_full_name}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Địa Chỉ Công Ty (Xuất Hóa Đơn) <span className="text-rose-500">*</span>
+                    </label>
+                    <textarea
+                      rows={2}
+                      required
+                      placeholder="Địa chỉ đăng ký kinh doanh..."
+                      value={catalogModal.data.address || ''}
+                      onChange={e => setCatalogModal(prev => ({
+                        ...prev,
+                        data: { ...prev.data, address: e.target.value },
+                        errors: { ...prev.errors, address: '' }
+                      }))}
+                      className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                    {catalogModal.errors.address && (
+                      <p className="text-[11px] text-rose-600 mt-1 font-semibold">{catalogModal.errors.address}</p>
+                    )}
+                  </div>
+                </>
+              )}
+
+              {/* Transporter Fields */}
+              {catalogModal.subTab === 'transporter' && (
+                <>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Tên Nhà Xe / ĐVVC <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Ví dụ: Vận Tải Á Châu"
+                      value={catalogModal.data.transporter_name || ''}
+                      onChange={e => setCatalogModal(prev => ({
+                        ...prev,
+                        data: { ...prev.data, transporter_name: e.target.value },
+                        errors: { ...prev.errors, transporter_name: '' }
+                      }))}
+                      className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                    {catalogModal.errors.transporter_name && (
+                      <p className="text-[11px] text-rose-600 mt-1 font-semibold">{catalogModal.errors.transporter_name}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Mã Số Thuế <span className="text-rose-500">*</span>
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        required
+                        placeholder="Nhập MST nhà xe..."
+                        value={catalogModal.data.tax_code || ''}
+                        onChange={e => setCatalogModal(prev => ({
+                          ...prev,
+                          data: { ...prev.data, tax_code: e.target.value },
+                          errors: { ...prev.errors, tax_code: '' }
+                        }))}
+                        className="flex-1 px-3 py-2 text-xs sm:text-sm font-mono bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      />
+                      <button
+                        type="button"
+                        disabled={catalogModal.isSearchingTax}
+                        onClick={() => handleLookupCatalogTaxCode(catalogModal.data.tax_code || '')}
+                        className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 transition disabled:opacity-50 shrink-0"
+                      >
+                        {catalogModal.isSearchingTax ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
+                        <span>Tra Cứu</span>
+                      </button>
+                    </div>
+                    {catalogModal.errors.tax_code && (
+                      <p className="text-[11px] text-rose-600 mt-1 font-semibold">{catalogModal.errors.tax_code}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Tên Đầy Đủ Doanh Nghiệp <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="CÔNG TY CỔ PHẦN..."
+                      value={catalogModal.data.company_full_name || ''}
+                      onChange={e => setCatalogModal(prev => ({
+                        ...prev,
+                        data: { ...prev.data, company_full_name: e.target.value },
+                        errors: { ...prev.errors, company_full_name: '' }
+                      }))}
+                      className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                    {catalogModal.errors.company_full_name && (
+                      <p className="text-[11px] text-rose-600 mt-1 font-semibold">{catalogModal.errors.company_full_name}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Địa Chỉ Nhà Xe <span className="text-rose-500">*</span>
+                    </label>
+                    <textarea
+                      rows={2}
+                      required
+                      placeholder="Địa chỉ trụ sở..."
+                      value={catalogModal.data.address || ''}
+                      onChange={e => setCatalogModal(prev => ({
+                        ...prev,
+                        data: { ...prev.data, address: e.target.value },
+                        errors: { ...prev.errors, address: '' }
+                      }))}
+                      className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                    {catalogModal.errors.address && (
+                      <p className="text-[11px] text-rose-600 mt-1 font-semibold">{catalogModal.errors.address}</p>
+                    )}
+                  </div>
+                </>
+              )}
+
+              {/* Warehouse Fields */}
+              {catalogModal.subTab === 'warehouse' && (
+                <>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Tên Kho / Xưởng <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Ví dụ: Kho ICD Đình Vũ"
+                      value={catalogModal.data.warehouse_name || ''}
+                      onChange={e => setCatalogModal(prev => ({
+                        ...prev,
+                        data: { ...prev.data, warehouse_name: e.target.value },
+                        errors: { ...prev.errors, warehouse_name: '' }
+                      }))}
+                      className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                    {catalogModal.errors.warehouse_name && (
+                      <p className="text-[11px] text-rose-600 mt-1 font-semibold">{catalogModal.errors.warehouse_name}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Địa Chỉ / Vị Trí Kho Xưởng <span className="text-rose-500">*</span>
+                    </label>
+                    <textarea
+                      rows={2}
+                      required
+                      placeholder="Địa chỉ cụ thể hoặc link bản đồ vị trí kho..."
+                      value={catalogModal.data.location || ''}
+                      onChange={e => setCatalogModal(prev => ({
+                        ...prev,
+                        data: { ...prev.data, location: e.target.value },
+                        errors: { ...prev.errors, location: '' }
+                      }))}
+                      className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                    {catalogModal.errors.location && (
+                      <p className="text-[11px] text-rose-600 mt-1 font-semibold">{catalogModal.errors.location}</p>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Người Liên Hệ <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="Anh Hùng / Chị Mai"
+                        value={catalogModal.data.contact_person || ''}
+                        onChange={e => setCatalogModal(prev => ({
+                          ...prev,
+                          data: { ...prev.data, contact_person: e.target.value },
+                          errors: { ...prev.errors, contact_person: '' }
+                        }))}
+                        className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      />
+                      {catalogModal.errors.contact_person && (
+                        <p className="text-[11px] text-rose-600 mt-1 font-semibold">{catalogModal.errors.contact_person}</p>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Số Điện Thoại <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="0901234567"
+                        value={catalogModal.data.contact_phone || ''}
+                        onChange={e => setCatalogModal(prev => ({
+                          ...prev,
+                          data: { ...prev.data, contact_phone: e.target.value },
+                          errors: { ...prev.errors, contact_phone: '' }
+                        }))}
+                        className="w-full px-3 py-2 text-xs sm:text-sm font-mono bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      />
+                      {catalogModal.errors.contact_phone && (
+                        <p className="text-[11px] text-rose-600 mt-1 font-semibold">{catalogModal.errors.contact_phone}</p>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
+
+              <div className="pt-3 border-t border-slate-100 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCatalogModal(prev => ({ ...prev, isOpen: false }))}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl"
+                >
+                  Hủy Bỏ
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-md transition flex items-center gap-1.5"
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>Lưu Vào Danh Mục</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

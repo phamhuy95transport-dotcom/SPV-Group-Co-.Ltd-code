@@ -1,12 +1,13 @@
 import React from 'react';
 import { X, Printer, FileCheck2, MapPin, Globe, ExternalLink, FileText } from 'lucide-react';
-import { ShipmentRecord, CustomerItem, findCustomerByName, formatDateVN } from '../types';
+import { ShipmentRecord, CustomerItem, WarehouseItem, findCustomerByName, formatDateVN } from '../types';
 
 interface DeliveryReceiptModalProps {
   isOpen: boolean;
   onClose: () => void;
   record: ShipmentRecord | null;
   customers?: CustomerItem[];
+  warehouses?: WarehouseItem[];
 }
 
 export const DeliveryReceiptModal: React.FC<DeliveryReceiptModalProps> = ({
@@ -14,6 +15,7 @@ export const DeliveryReceiptModal: React.FC<DeliveryReceiptModalProps> = ({
   onClose,
   record,
   customers = [],
+  warehouses = [],
 }) => {
   if (!isOpen || !record) return null;
 
@@ -34,8 +36,8 @@ export const DeliveryReceiptModal: React.FC<DeliveryReceiptModalProps> = ({
     if (custObj) {
       return {
         taxCode: custObj.tax_code || record.return_invoice_tax_code || '—',
-        companyName: custObj.company_full_name || custObj.customer_name || record.return_invoice_company_name || record.customer || '—',
-        address: custObj.address || record.return_invoice_address || '—',
+        companyName: record.return_invoice_company_name || custObj.company_full_name || custObj.customer_name || record.customer || '—',
+        address: record.return_invoice_address || custObj.address || '—',
       };
     }
 
@@ -47,6 +49,16 @@ export const DeliveryReceiptModal: React.FC<DeliveryReceiptModalProps> = ({
   };
 
   const invInfo = getReturnInvoiceInfo();
+
+  // Find Warehouse Location info
+  const matchedWarehouse = warehouses.find(
+    w => w.warehouse_name?.toLowerCase() === record.warehouse?.toLowerCase() || w.id === record.warehouse
+  );
+  const warehouseLocationDisplay = matchedWarehouse?.location?.trim() || record.warehouse || 'Theo hợp đồng';
+
+  // Customer display name: prefer extracted company name from tax extraction if available
+  const extractedCompanyName = record.return_invoice_company_name?.trim() || (invInfo.companyName && invInfo.companyName !== '—' ? invInfo.companyName : '');
+  const customerDisplayName = extractedCompanyName || record.customer || '—';
 
   const handlePrint = () => {
     try {
@@ -180,7 +192,10 @@ export const DeliveryReceiptModal: React.FC<DeliveryReceiptModalProps> = ({
           <div className="grid grid-cols-2 gap-x-6 gap-y-2.5 bg-slate-50/80 p-4 rounded-xl border border-slate-200 text-xs print:bg-white print:p-3">
             <div>
               <p className="text-slate-500 font-medium">1. Khách Hàng (Bên Giao/Yêu cầu):</p>
-              <p className="font-bold text-slate-900 mt-0.5">{record.customer || '—'}</p>
+              <p className="font-bold text-slate-900 mt-0.5 leading-snug">{customerDisplayName}</p>
+              {record.customer && customerDisplayName !== record.customer && (
+                <p className="text-[10px] text-slate-500 font-normal mt-0.5">Tên viết tắt: {record.customer}</p>
+              )}
             </div>
             <div>
               <p className="text-slate-500 font-medium">2. Đơn Vị Vận Chuyển:</p>
@@ -208,7 +223,7 @@ export const DeliveryReceiptModal: React.FC<DeliveryReceiptModalProps> = ({
                   <th className="p-2.5 border-r border-slate-300 w-10 text-center">STT</th>
                   <th className="p-2.5 border-r border-slate-300">Số Container</th>
                   <th className="p-2.5 border-r border-slate-300 text-center w-24">Số Lượng</th>
-                  <th className="p-2.5 border-r border-slate-300">Địa Điểm Kho/Xưởng</th>
+                  <th className="p-2.5 border-r border-slate-300">Địa Điểm / Vị Trí Kho Xưởng</th>
                   <th className="p-2.5">Người Nhận & SĐT</th>
                 </tr>
               </thead>
@@ -221,8 +236,11 @@ export const DeliveryReceiptModal: React.FC<DeliveryReceiptModalProps> = ({
                   <td className="p-2.5 text-center font-bold text-slate-800 border-r border-slate-200">
                     {record.cont_quantity || 1} Cont
                   </td>
-                  <td className="p-2.5 text-slate-800 border-r border-slate-200">
-                    {record.warehouse || 'Theo hợp đồng'}
+                  <td className="p-2.5 text-slate-800 border-r border-slate-200 break-words">
+                    <span className="font-medium text-slate-900 block">{warehouseLocationDisplay}</span>
+                    {matchedWarehouse && matchedWarehouse.location && matchedWarehouse.warehouse_name !== warehouseLocationDisplay && (
+                      <span className="text-[10px] text-slate-500 block">({matchedWarehouse.warehouse_name})</span>
+                    )}
                   </td>
                   <td className="p-2.5 text-slate-800">
                     <span className="font-bold block">{record.contact_person || 'N/A'}</span>
