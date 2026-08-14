@@ -27,10 +27,36 @@ const DEFAULT_SERVICE_ACCOUNT_KEY = {
   universe_domain: "googleapis.com"
 };
 
-function getServiceAccount() {
+// Dynamic in-memory configuration (allows user to switch API key and target folder)
+let activeCustomServiceAccount: any = null;
+let activeTargetFolderName: string = "SPV_DATABASE_BACKUPS";
+let activeTargetFolderId: string | null = null;
+
+function parseServiceAccount(raw: any) {
+  if (!raw) return null;
+  if (typeof raw === "object") return raw;
+  if (typeof raw === "string") {
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+function getServiceAccount(customSa?: any) {
+  if (customSa) {
+    const parsed = parseServiceAccount(customSa);
+    if (parsed?.client_email && parsed?.private_key) return parsed;
+  }
+  if (activeCustomServiceAccount) {
+    return activeCustomServiceAccount;
+  }
   if (process.env.GOOGLE_DRIVE_SERVICE_ACCOUNT_KEY) {
     try {
-      return JSON.parse(process.env.GOOGLE_DRIVE_SERVICE_ACCOUNT_KEY);
+      const parsedEnv = JSON.parse(process.env.GOOGLE_DRIVE_SERVICE_ACCOUNT_KEY);
+      if (parsedEnv?.client_email && parsedEnv?.private_key) return parsedEnv;
     } catch {
       // ignore
     }
@@ -40,8 +66,11 @@ function getServiceAccount() {
 
 const SCOPES = ["https://www.googleapis.com/auth/drive"];
 
-function getDriveClient() {
-  const sa = getServiceAccount();
+function getDriveClient(customSa?: any) {
+  const sa = getServiceAccount(customSa);
+  if (!sa || !sa.client_email || !sa.private_key) {
+    throw new Error("Thông tin Service Account không hợp lệ! Thiếu client_email hoặc private_key.");
+  }
   const auth = new google.auth.JWT({
     email: sa.client_email,
     key: sa.private_key.replace(/\\n/g, "\n"),
@@ -50,21 +79,42 @@ function getDriveClient() {
   return google.drive({ version: "v3", auth });
 }
 
-// Find or create SPV backup folder on Google Drive
-async function getOrCreateBackupFolder(drive: ReturnType<typeof google.drive>): Promise<string> {
-  const folderName = "SPV_DATABASE_BACKUPS";
+// Find or create backup folder on Google Drive
+async function resolveBackupFolder(
+  drive: ReturnType<typeof google.drive>,
+  customFolderNameOrId?: string
+): Promise<{ folderId: string; folderName: string }> {
+  const target = (customFolderNameOrId || activeTargetFolderId || activeTargetFolderName || "SPV_DATABASE_BACKUPS").trim();
+
+  // 1. If target looks like a direct Google Drive folder ID (alphanumeric, underscores/hyphens, length > 20)
+  if (target.length >= 20 && !target.includes(" ") && !target.includes("/")) {
+    try {
+      const folderRes = await drive.files.get({
+        fileId: target,
+        fields: "id, name, mimeType, trashed",
+      });
+      if (folderRes.data && !folderRes.data.trashed && folderRes.data.mimeType === "application/vnd.google-apps.folder") {
+        return { folderId: folderRes.data.id!, folderName: folderRes.data.name || target };
+      }
+    } catch {
+      // If direct ID lookup fails, fallback to name search
+    }
+  }
+
+  // 2. Search by folder name
+  const folderName = target.length >= 20 && !target.includes(" ") ? activeTargetFolderName || "SPV_DATABASE_BACKUPS" : target;
   try {
     const res = await drive.files.list({
-      q: `name='${folderName}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+      q: `name='${folderName.replace(/'/g, "\\'")}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
       fields: "files(id, name)",
       spaces: "drive",
     });
 
     if (res.data.files && res.data.files.length > 0) {
-      return res.data.files[0].id!;
+      return { folderId: res.data.files[0].id!, folderName: res.data.files[0].name! };
     }
 
-    // Create folder
+    // 3. Create folder if not found
     const createRes = await drive.files.create({
       requestBody: {
         name: folderName,
@@ -74,7 +124,7 @@ async function getOrCreateBackupFolder(drive: ReturnType<typeof google.drive>): 
       fields: "id, name",
     });
 
-    return createRes.data.id!;
+    return { folderId: createRes.data.id!, folderName: createRes.data.name! };
   } catch (error) {
     console.error("Lỗi khi tìm/tạo thư mục Google Drive:", error);
     throw error;
@@ -87,12 +137,12 @@ app.get("/api/gdrive/status", async (req, res) => {
     const sa = getServiceAccount();
     const drive = getDriveClient();
     
-    // Check drive connection
-    const folderId = await getOrCreateBackupFolder(drive);
+    // Check drive connection and folder
+    const folderInfo = await resolveBackupFolder(drive);
     
     // Count files in folder
     const listRes = await drive.files.list({
-      q: `'${folderId}' in parents and trashed=false`,
+      q: `'${folderInfo.folderId}' in parents and trashed=false`,
       fields: "files(id, name, size, createdTime, modifiedTime)",
       orderBy: "createdTime desc",
       pageSize: 10,
@@ -101,35 +151,237 @@ app.get("/api/gdrive/status", async (req, res) => {
     res.json({
       success: true,
       connected: true,
+      isCustomKey: !!activeCustomServiceAccount,
       serviceAccount: {
         email: sa.client_email,
         projectId: sa.project_id,
         clientId: sa.client_id,
       },
-      folderId,
-      folderName: "SPV_DATABASE_BACKUPS",
+      folderId: folderInfo.folderId,
+      folderName: folderInfo.folderName,
+      activeTargetFolderName,
+      activeTargetFolderId,
       fileCount: listRes.data.files?.length || 0,
       recentFiles: listRes.data.files || [],
-      message: "Kết nối thành công với Google Drive API (SPV Service Account)",
+      message: "Kết nối thành công với Google Drive API",
     });
   } catch (error: any) {
     console.error("Lỗi Google Drive API status:", error);
+    const sa = getServiceAccount();
     res.status(500).json({
       success: false,
       connected: false,
+      isCustomKey: !!activeCustomServiceAccount,
+      serviceAccount: {
+        email: sa?.client_email || "Chưa thiết lập",
+        projectId: sa?.project_id || "N/A",
+      },
       error: error?.message || "Không thể kết nối với Google Drive API",
     });
   }
 });
 
-// 2. List all backup files in Google Drive
-app.get("/api/gdrive/files", async (req, res) => {
+// 2. Test a custom Service Account connection
+app.post("/api/gdrive/test-connection", async (req, res) => {
+  try {
+    const { serviceAccountKey } = req.body;
+    if (!serviceAccountKey) {
+      return res.status(400).json({ success: false, error: "Vui lòng cung cấp nội dung JSON Service Account!" });
+    }
+
+    const sa = parseServiceAccount(serviceAccountKey);
+    if (!sa || !sa.client_email || !sa.private_key) {
+      return res.status(400).json({
+        success: false,
+        error: "File JSON không hợp lệ! Thiếu trường client_email hoặc private_key.",
+      });
+    }
+
+    const drive = getDriveClient(sa);
+    // Test listing root files
+    const testRes = await drive.files.list({
+      pageSize: 3,
+      fields: "files(id, name)",
+    });
+
+    res.json({
+      success: true,
+      message: "Kiểm tra kết nối thành công!",
+      serviceAccount: {
+        email: sa.client_email,
+        projectId: sa.project_id,
+        clientId: sa.client_id,
+      },
+      accessibleFilesSampleCount: testRes.data.files?.length || 0,
+    });
+  } catch (error: any) {
+    console.error("Lỗi kiểm tra Service Account:", error);
+    res.status(400).json({
+      success: false,
+      error: error?.message || "Xác thực thất bại với Google Drive API. Hãy kiểm tra lại Private Key hoặc quyền chia sẻ.",
+    });
+  }
+});
+
+// 3. Update or reset active Service Account Credentials
+app.post("/api/gdrive/config/credentials", async (req, res) => {
+  try {
+    const { serviceAccountKey, resetToDefault } = req.body;
+
+    if (resetToDefault) {
+      activeCustomServiceAccount = null;
+      return res.json({
+        success: true,
+        isCustomKey: false,
+        message: "Đã khôi phục về khóa Service Account mặc định (spv-management-contract) thành công!",
+        serviceAccount: {
+          email: DEFAULT_SERVICE_ACCOUNT_KEY.client_email,
+          projectId: DEFAULT_SERVICE_ACCOUNT_KEY.project_id,
+        },
+      });
+    }
+
+    if (!serviceAccountKey) {
+      return res.status(400).json({ success: false, error: "Dữ liệu khóa Service Account không được để trống!" });
+    }
+
+    const sa = parseServiceAccount(serviceAccountKey);
+    if (!sa || !sa.client_email || !sa.private_key) {
+      return res.status(400).json({
+        success: false,
+        error: "File JSON không đúng chuẩn Google Service Account!",
+      });
+    }
+
+    // Verify key before applying
+    const drive = getDriveClient(sa);
+    await drive.files.list({ pageSize: 1, fields: "files(id)" });
+
+    // Store as active
+    activeCustomServiceAccount = sa;
+
+    res.json({
+      success: true,
+      isCustomKey: true,
+      message: `Đã kết nối thành công với tài khoản: ${sa.client_email}`,
+      serviceAccount: {
+        email: sa.client_email,
+        projectId: sa.project_id,
+        clientId: sa.client_id,
+      },
+    });
+  } catch (error: any) {
+    console.error("Lỗi cập nhật Service Account:", error);
+    res.status(400).json({
+      success: false,
+      error: error?.message || "Lỗi khi áp dụng khóa Service Account mới",
+    });
+  }
+});
+
+// 4. Update Target Folder Configuration
+app.post("/api/gdrive/config/folder", async (req, res) => {
+  try {
+    const { folderName, folderId } = req.body;
+
+    if (folderName && folderName.trim()) {
+      activeTargetFolderName = folderName.trim();
+    }
+    if (folderId !== undefined) {
+      activeTargetFolderId = folderId ? folderId.trim() : null;
+    }
+
+    const drive = getDriveClient();
+    const resolved = await resolveBackupFolder(drive, activeTargetFolderId || activeTargetFolderName);
+
+    res.json({
+      success: true,
+      message: `Đã cập nhật thư mục lưu trữ: ${resolved.folderName} (ID: ${resolved.folderId})`,
+      folderId: resolved.folderId,
+      folderName: resolved.folderName,
+      activeTargetFolderName,
+      activeTargetFolderId,
+    });
+  } catch (error: any) {
+    console.error("Lỗi cấu hình thư mục:", error);
+    res.status(400).json({
+      success: false,
+      error: error?.message || "Lỗi cấu hình thư mục Google Drive",
+    });
+  }
+});
+
+// 5. List all folders in Google Drive
+app.get("/api/gdrive/folders", async (req, res) => {
   try {
     const drive = getDriveClient();
-    const folderId = await getOrCreateBackupFolder(drive);
+    const listRes = await drive.files.list({
+      q: "mimeType='application/vnd.google-apps.folder' and trashed=false",
+      fields: "files(id, name, createdTime, modifiedTime, webViewLink)",
+      orderBy: "name asc",
+      pageSize: 100,
+    });
+
+    res.json({
+      success: true,
+      folders: listRes.data.files || [],
+    });
+  } catch (error: any) {
+    console.error("Lỗi lấy danh sách thư mục:", error);
+    res.status(500).json({
+      success: false,
+      error: error?.message || "Lỗi khi lấy danh sách thư mục từ Google Drive",
+    });
+  }
+});
+
+// 6. Create a new folder on Google Drive
+app.post("/api/gdrive/folders/create", async (req, res) => {
+  try {
+    const { folderName, parentFolderId } = req.body;
+    if (!folderName || !folderName.trim()) {
+      return res.status(400).json({ success: false, error: "Vui lòng nhập tên thư mục cần tạo!" });
+    }
+
+    const drive = getDriveClient();
+    const requestBody: any = {
+      name: folderName.trim(),
+      mimeType: "application/vnd.google-apps.folder",
+      description: "Thư mục tạo từ hệ thống SPV Logistics",
+    };
+
+    if (parentFolderId && parentFolderId.trim()) {
+      requestBody.parents = [parentFolderId.trim()];
+    }
+
+    const createRes = await drive.files.create({
+      requestBody,
+      fields: "id, name, webViewLink, createdTime",
+    });
+
+    res.json({
+      success: true,
+      message: `Đã tạo thư mục [${createRes.data.name}] thành công trên Google Drive!`,
+      folder: createRes.data,
+    });
+  } catch (error: any) {
+    console.error("Lỗi tạo thư mục Google Drive:", error);
+    res.status(500).json({
+      success: false,
+      error: error?.message || "Lỗi khi tạo thư mục trên Google Drive",
+    });
+  }
+});
+
+// 7. List backup files in Google Drive
+app.get("/api/gdrive/files", async (req, res) => {
+  try {
+    const { folderId } = req.query;
+    const drive = getDriveClient();
+    const resolved = await resolveBackupFolder(drive, folderId as string);
 
     const listRes = await drive.files.list({
-      q: `'${folderId}' in parents and trashed=false`,
+      q: `'${resolved.folderId}' in parents and trashed=false`,
       fields: "files(id, name, size, mimeType, createdTime, modifiedTime, webViewLink, webContentLink, description)",
       orderBy: "createdTime desc",
       pageSize: 100,
@@ -137,6 +389,8 @@ app.get("/api/gdrive/files", async (req, res) => {
 
     res.json({
       success: true,
+      folderId: resolved.folderId,
+      folderName: resolved.folderName,
       files: listRes.data.files || [],
     });
   } catch (error: any) {
@@ -148,17 +402,17 @@ app.get("/api/gdrive/files", async (req, res) => {
   }
 });
 
-// 3. Backup database to Google Drive
+// 8. Backup database to Google Drive (supports custom target folder)
 app.post("/api/gdrive/backup", async (req, res) => {
   try {
-    const { data, backupName, description, createdBy } = req.body;
+    const { data, backupName, description, createdBy, targetFolderId, targetFolderName } = req.body;
 
     if (!data) {
       return res.status(400).json({ success: false, error: "Không có dữ liệu sao lưu!" });
     }
 
     const drive = getDriveClient();
-    const folderId = await getOrCreateBackupFolder(drive);
+    const resolved = await resolveBackupFolder(drive, targetFolderId || targetFolderName);
 
     const now = new Date();
     const pad = (n: number) => n.toString().padStart(2, "0");
@@ -175,6 +429,7 @@ app.post("/api/gdrive/backup", async (req, res) => {
         dateFormatted: `${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear()} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`,
         createdBy: createdBy || "SPV System",
         description: description || "Bản sao lưu cơ sở dữ liệu SPV Logistics & Hải quan",
+        targetFolder: resolved.folderName,
         itemCounts: {
           shipments: Array.isArray(data.shipments) ? data.shipments.length : 0,
           customs: Array.isArray(data.declarations) ? data.declarations.length : 0,
@@ -198,8 +453,8 @@ app.post("/api/gdrive/backup", async (req, res) => {
 
     const fileMeta = {
       name: fileName,
-      parents: [folderId],
-      description: description || `Sao lưu dữ liệu lúc ${payload.backupInfo.dateFormatted} bởi ${createdBy || "Người dùng"}`,
+      parents: [resolved.folderId],
+      description: description || `Sao lưu dữ liệu lúc ${payload.backupInfo.dateFormatted} bởi ${createdBy || "Người dùng"} tại thư mục ${resolved.folderName}`,
       mimeType: "application/json",
     };
 
@@ -214,8 +469,9 @@ app.post("/api/gdrive/backup", async (req, res) => {
 
     res.json({
       success: true,
-      message: `Đã sao lưu thành công lên Google Drive: ${fileName}`,
+      message: `Đã sao lưu thành công lên Google Drive: ${fileName} tại thư mục [${resolved.folderName}]`,
       file: uploadRes.data,
+      folder: resolved,
       backupInfo: payload.backupInfo,
     });
   } catch (error: any) {
@@ -227,7 +483,7 @@ app.post("/api/gdrive/backup", async (req, res) => {
   }
 });
 
-// 4. Restore database from a specific Google Drive file
+// 9. Restore database from a specific Google Drive file
 app.post("/api/gdrive/restore", async (req, res) => {
   try {
     const { fileId } = req.body;
@@ -275,7 +531,7 @@ app.post("/api/gdrive/restore", async (req, res) => {
   }
 });
 
-// 5. Delete a backup file from Google Drive
+// 10. Delete a backup file from Google Drive
 app.delete("/api/gdrive/files/:fileId", async (req, res) => {
   try {
     const { fileId } = req.params;
@@ -296,21 +552,21 @@ app.delete("/api/gdrive/files/:fileId", async (req, res) => {
   }
 });
 
-// 6. Live Master Sync (Single continuous file on Drive: SPV_Database_Master_Sync.json)
+// 11. Live Master Sync (supports custom folder)
 app.post("/api/gdrive/sync-master", async (req, res) => {
   try {
-    const { data, updatedBy } = req.body;
+    const { data, updatedBy, targetFolderId, targetFolderName } = req.body;
     if (!data) {
       return res.status(400).json({ success: false, error: "Dữ liệu đồng bộ trống!" });
     }
 
     const drive = getDriveClient();
-    const folderId = await getOrCreateBackupFolder(drive);
+    const resolved = await resolveBackupFolder(drive, targetFolderId || targetFolderName);
     const masterFileName = "SPV_Database_Master_Sync.json";
 
-    // Check if master file exists
+    // Check if master file exists in that folder
     const listRes = await drive.files.list({
-      q: `name='${masterFileName}' and '${folderId}' in parents and trashed=false`,
+      q: `name='${masterFileName}' and '${resolved.folderId}' in parents and trashed=false`,
       fields: "files(id, name)",
     });
 
@@ -318,6 +574,7 @@ app.post("/api/gdrive/sync-master", async (req, res) => {
     const payload = {
       lastSyncTimestamp: now.toISOString(),
       updatedBy: updatedBy || "SPV System",
+      targetFolder: resolved.folderName,
       data,
     };
 
@@ -340,8 +597,8 @@ app.post("/api/gdrive/sync-master", async (req, res) => {
       const createRes = await drive.files.create({
         requestBody: {
           name: masterFileName,
-          parents: [folderId],
-          description: "Bản đồng bộ tự động thời gian thực của SPV System",
+          parents: [resolved.folderId],
+          description: `Bản đồng bộ tự động thời gian thực của SPV System tại ${resolved.folderName}`,
           mimeType: "application/json",
         },
         media: {
@@ -355,8 +612,9 @@ app.post("/api/gdrive/sync-master", async (req, res) => {
 
     res.json({
       success: true,
-      message: "Đồng bộ Master Database lên Google Drive thành công",
+      message: `Đồng bộ Master Database lên Google Drive thành công tại thư mục [${resolved.folderName}]`,
       fileId,
+      folder: resolved,
       lastSyncTimestamp: now.toISOString(),
     });
   } catch (error: any) {
