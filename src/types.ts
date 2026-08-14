@@ -6,6 +6,7 @@ export interface UserPermissions {
   dashboard: { view: boolean, edit: boolean };
   shipments: { view: boolean, edit: boolean };
   customs: { view: boolean, edit: boolean };
+  customs_report: { view: boolean, edit: boolean };
   finance: { view: boolean, edit: boolean };
   finance_report: { view: boolean, edit: boolean };
   finance_kpi: { view: boolean, edit: boolean };
@@ -14,6 +15,7 @@ export interface UserPermissions {
   finance_debt: { view: boolean, edit: boolean };
   catalog: { view: boolean, edit: boolean };
   utilities: { view: boolean, edit: boolean };
+  gdrive: { view: boolean, edit: boolean };
 }
 
 export const getDefaultPermissions = (role: UserRole): UserPermissions => {
@@ -24,6 +26,7 @@ export const getDefaultPermissions = (role: UserRole): UserPermissions => {
         dashboard: { view: true, edit: true },
         shipments: { view: true, edit: true },
         customs: { view: true, edit: true },
+        customs_report: { view: true, edit: true },
         finance: { view: true, edit: true },
         finance_report: { view: true, edit: true },
         finance_kpi: { view: true, edit: true },
@@ -32,12 +35,14 @@ export const getDefaultPermissions = (role: UserRole): UserPermissions => {
         finance_debt: { view: true, edit: true },
         catalog: { view: true, edit: true },
         utilities: { view: true, edit: true },
+        gdrive: { view: true, edit: true },
       };
     case 'employee_logistics':
       return {
         dashboard: { view: true, edit: false },
         shipments: { view: true, edit: true },
         customs: { view: true, edit: true },
+        customs_report: { view: true, edit: false },
         finance: { view: false, edit: false },
         finance_report: { view: false, edit: false },
         finance_kpi: { view: false, edit: false },
@@ -46,12 +51,14 @@ export const getDefaultPermissions = (role: UserRole): UserPermissions => {
         finance_debt: { view: false, edit: false },
         catalog: { view: true, edit: false },
         utilities: { view: true, edit: true },
+        gdrive: { view: false, edit: false },
       };
     case 'employee_accounting':
       return {
         dashboard: { view: true, edit: false },
         shipments: { view: true, edit: false },
         customs: { view: true, edit: false },
+        customs_report: { view: true, edit: false },
         finance: { view: true, edit: true },
         finance_report: { view: true, edit: true },
         finance_kpi: { view: true, edit: true },
@@ -60,12 +67,14 @@ export const getDefaultPermissions = (role: UserRole): UserPermissions => {
         finance_debt: { view: true, edit: true },
         catalog: { view: true, edit: false },
         utilities: { view: true, edit: true },
+        gdrive: { view: false, edit: false },
       };
     case 'customer':
       return {
         dashboard: { view: true, edit: false },
         shipments: { view: true, edit: false },
         customs: { view: true, edit: false },
+        customs_report: { view: false, edit: false },
         finance: { view: true, edit: false },
         finance_report: { view: false, edit: false },
         finance_kpi: { view: false, edit: false },
@@ -74,12 +83,14 @@ export const getDefaultPermissions = (role: UserRole): UserPermissions => {
         finance_debt: { view: true, edit: false },
         catalog: { view: false, edit: false },
         utilities: { view: false, edit: false },
+        gdrive: { view: false, edit: false },
       };
     default:
       return {
         dashboard: { view: false, edit: false },
         shipments: { view: false, edit: false },
         customs: { view: false, edit: false },
+        customs_report: { view: false, edit: false },
         finance: { view: false, edit: false },
         finance_report: { view: false, edit: false },
         finance_kpi: { view: false, edit: false },
@@ -88,6 +99,7 @@ export const getDefaultPermissions = (role: UserRole): UserPermissions => {
         finance_debt: { view: false, edit: false },
         catalog: { view: false, edit: false },
         utilities: { view: false, edit: false },
+        gdrive: { view: false, edit: false },
       };
   }
 };
@@ -270,7 +282,7 @@ export const canDeleteUser = (operator: UserAccount | null, targetUser: UserAcco
   return { allowed: true };
 };
 
-export type ActiveTab = 'entry' | 'general_work' | 'category' | 'utilities' | 'finance' | 'users';
+export type ActiveTab = 'entry' | 'general_work' | 'category' | 'utilities' | 'finance' | 'users' | 'gdrive';
 export type WorkSubTab = 'customs';
 export type CatalogSubTab = 'warehouse' | 'transporter' | 'customer' | 'route';
 export type FinanceSubTab = 'report_shipment' | 'report_customs' | 'kpi' | 'quotation' | 'advance';

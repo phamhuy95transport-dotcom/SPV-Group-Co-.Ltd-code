@@ -49,6 +49,7 @@ import { CustomsReport } from './components/CustomsReport';
 import { CustomerQuotationManager } from './components/CustomerQuotationManager';
 import { EmployeeAdvanceManager } from './components/EmployeeAdvanceManager';
 import { UtilitiesManager } from './components/UtilitiesManager';
+import { GoogleDriveManager } from './components/GoogleDriveManager';
 import { WelcomeModal } from './components/WelcomeModal';
 import { Toast, ToastState } from './components/Toast';
 import { Trash2, Briefcase, DollarSign, FileSpreadsheet, BarChart3, Award, Tag, Wallet } from 'lucide-react';
@@ -453,8 +454,8 @@ export default function App() {
   };
 
   const handleResetUserPassword = async (userId: string) => {
-    if (currentUser?.role !== 'admin') {
-      showToast('Chỉ Quản trị viên mới có quyền reset mật khẩu.', 'error');
+    if (currentUser?.role !== 'admin' && currentUser?.role !== 'manager') {
+      showToast('Chỉ Quản trị viên hoặc Quản lý mới có quyền reset mật khẩu.', 'error');
       return;
     }
     const targetUser = users.find(u => u.id === userId);
@@ -890,6 +891,89 @@ export default function App() {
     }
   };
 
+  // Google Drive / Cloud Full Database Restore Handler
+  const handleRestoreDatabase = async (restoredData: {
+    records?: ShipmentRecord[];
+    declarations?: CustomsDeclarationRecord[];
+    warehouses?: WarehouseItem[];
+    transporters?: TransporterItem[];
+    customers?: CustomerItem[];
+    routes?: RouteItem[];
+    users?: UserAccount[];
+    kpiRates?: KPIRateItem[];
+    quotations?: CustomerQuotation[];
+    advances?: EmployeeAdvanceItem[];
+  }) => {
+    if (restoredData.records && Array.isArray(restoredData.records)) {
+      setRecords(restoredData.records);
+      localStorage.setItem(`${LOCAL_STORAGE_KEY}_shipments`, JSON.stringify(restoredData.records));
+      for (const item of restoredData.records) {
+        await saveRecordToCloud('shipments', item.id, item);
+      }
+    }
+    if (restoredData.declarations && Array.isArray(restoredData.declarations)) {
+      setDeclarations(restoredData.declarations);
+      localStorage.setItem(`${LOCAL_STORAGE_KEY}_customs`, JSON.stringify(restoredData.declarations));
+      for (const item of restoredData.declarations) {
+        await saveRecordToCloud('customs', item.id, item);
+      }
+    }
+    if (restoredData.warehouses && Array.isArray(restoredData.warehouses)) {
+      setWarehouses(restoredData.warehouses);
+      localStorage.setItem(`${LOCAL_STORAGE_KEY}_warehouses`, JSON.stringify(restoredData.warehouses));
+      for (const item of restoredData.warehouses) {
+        await saveRecordToCloud('warehouses', item.id, item);
+      }
+    }
+    if (restoredData.transporters && Array.isArray(restoredData.transporters)) {
+      setTransporters(restoredData.transporters);
+      localStorage.setItem(`${LOCAL_STORAGE_KEY}_transporters`, JSON.stringify(restoredData.transporters));
+      for (const item of restoredData.transporters) {
+        await saveRecordToCloud('transporters', item.id, item);
+      }
+    }
+    if (restoredData.customers && Array.isArray(restoredData.customers)) {
+      setCustomers(restoredData.customers);
+      localStorage.setItem(`${LOCAL_STORAGE_KEY}_customers`, JSON.stringify(restoredData.customers));
+      for (const item of restoredData.customers) {
+        await saveRecordToCloud('customers', item.id, item);
+      }
+    }
+    if (restoredData.routes && Array.isArray(restoredData.routes)) {
+      setRoutes(restoredData.routes);
+      localStorage.setItem(`${LOCAL_STORAGE_KEY}_routes`, JSON.stringify(restoredData.routes));
+      for (const item of restoredData.routes) {
+        await saveRecordToCloud('routes', item.id, item);
+      }
+    }
+    if (restoredData.kpiRates && Array.isArray(restoredData.kpiRates)) {
+      setKpiRates(restoredData.kpiRates);
+      localStorage.setItem(`${LOCAL_STORAGE_KEY}_kpi_rates`, JSON.stringify(restoredData.kpiRates));
+      for (const item of restoredData.kpiRates) {
+        await saveRecordToCloud('kpi_rates', item.id, item);
+      }
+    }
+    if (restoredData.quotations && Array.isArray(restoredData.quotations)) {
+      setQuotations(restoredData.quotations);
+      localStorage.setItem(`${LOCAL_STORAGE_KEY}_quotations`, JSON.stringify(restoredData.quotations));
+      for (const item of restoredData.quotations) {
+        await saveRecordToCloud('quotations', item.id, item);
+      }
+    }
+    if (restoredData.advances && Array.isArray(restoredData.advances)) {
+      setAdvances(restoredData.advances);
+      localStorage.setItem(`${LOCAL_STORAGE_KEY}_advances`, JSON.stringify(restoredData.advances));
+      for (const item of restoredData.advances) {
+        await saveRecordToCloud('advances', item.id, item);
+      }
+    }
+    if (restoredData.users && Array.isArray(restoredData.users)) {
+      setUsers(restoredData.users);
+      localStorage.setItem(`${LOCAL_STORAGE_KEY}_users`, JSON.stringify(restoredData.users));
+    }
+    showToast('Đã đồng bộ và khôi phục toàn bộ cơ sở dữ liệu thành công!');
+  };
+
   // Execute Confirmed Delete
   const executeConfirmedDelete = async () => {
     if (!deleteTarget) return;
@@ -1132,15 +1216,10 @@ export default function App() {
                 >
                   <BarChart3 className="w-4 h-4" />
                   <span>Báo cáo vận chuyển</span>
-                  {currentUser.role === 'admin' && (
-                    <span className="bg-amber-400/30 text-amber-100 text-[9px] px-1.5 py-0.2 rounded uppercase">
-                      Admin
-                    </span>
-                  )}
                 </button>
               )}
 
-              {hasPermission(currentUser, 'finance_report', 'view') && (
+              {hasPermission(currentUser, 'customs_report', 'view') && (
                 <button
                   onClick={() => setFinanceSubTab('report_customs')}
                   className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-2 ${
@@ -1150,12 +1229,7 @@ export default function App() {
                   }`}
                 >
                   <FileSpreadsheet className="w-4 h-4" />
-                  <span>Báo cáo thủ tục HQ</span>
-                  {currentUser?.role === 'admin' && (
-                    <span className="bg-amber-400/30 text-amber-100 text-[9px] px-1.5 py-0.2 rounded uppercase">
-                      Admin
-                    </span>
-                  )}
+                  <span>Báo cáo hải quan</span>
                 </button>
               )}
 
@@ -1254,8 +1328,8 @@ export default function App() {
           </div>
         )}
 
-        {/* Tab 5: Admin User Management Panel */}
-        {activeTab === 'users' && currentUser?.role === 'admin' && (
+        {/* Tab 5: Admin & Manager User Management Panel */}
+        {activeTab === 'users' && (currentUser?.role === 'admin' || currentUser?.role === 'manager') && (
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs">
             <h3 className="text-lg font-bold text-slate-900 mb-4">Quản Lý Nhân Viên & Phân Quyền</h3>
             <p className="text-xs text-slate-500 mb-4">Duyệt tài khoản nhân viên mới đăng ký và quản lý vai trò trong hệ thống.</p>
@@ -1266,6 +1340,25 @@ export default function App() {
               Mở Bảng Duyệt Tài Khoản Nhân Viên
             </button>
           </div>
+        )}
+
+        {/* Tab 6: Google Drive Cloud Storage & Backup Manager */}
+        {activeTab === 'gdrive' && hasPermission(currentUser, 'gdrive', 'view') && (
+          <GoogleDriveManager
+            currentUser={currentUser}
+            records={records}
+            declarations={declarations}
+            warehouses={warehouses}
+            transporters={transporters}
+            customers={customers}
+            routes={routes}
+            users={users}
+            kpiRates={kpiRates}
+            quotations={quotations}
+            advances={advances}
+            onRestoreData={handleRestoreDatabase}
+            onShowToast={showToast}
+          />
         )}
       </main>
 
@@ -1386,6 +1479,7 @@ export default function App() {
         onClose={() => setIsReceiptModalOpen(false)}
         record={receiptRecord}
         customers={customers}
+        warehouses={warehouses}
       />
 
       {/* Confirm Delete Dialog Modal */}
