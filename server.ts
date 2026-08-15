@@ -132,6 +132,101 @@ async function resolveBackupFolder(
 }
 
 // 1. Health & Connection Status
+app.get("/api/tax-lookup/:taxCode", async (req, res) => {
+  try {
+    const { taxCode } = req.params;
+    const cleanCode = (taxCode || "").replace(/\s+/g, "").replace(/[^0-9-]/g, "");
+
+    if (!cleanCode) {
+      return res.status(400).json({ found: false, error: "Mã số thuế không hợp lệ" });
+    }
+
+    // 1. Try VietQR
+    try {
+      const vqrRes = await fetch(`https://api.vietqr.io/v2/business/${cleanCode}`);
+      if (vqrRes.ok) {
+        const vqrData = (await vqrRes.json()) as any;
+        if (vqrData && vqrData.code === "00" && vqrData.data) {
+          return res.json({
+            found: true,
+            taxCode: vqrData.data.taxCode || cleanCode,
+            companyName: vqrData.data.name || vqrData.data.shortName || "",
+            address: vqrData.data.address || "",
+            source: "masothue.com / CSDL Doanh nghiệp",
+          });
+        }
+      }
+    } catch {
+      // ignore
+    }
+
+    // 2. Try thongtindoanhnghiep
+    try {
+      const ttdnRes = await fetch(`https://api.thongtindoanhnghiep.co/api/company/${cleanCode}`);
+      if (ttdnRes.ok) {
+        const ttdnData = (await ttdnRes.json()) as any;
+        if (ttdnData && (ttdnData.Title || ttdnData.name)) {
+          return res.json({
+            found: true,
+            taxCode: cleanCode,
+            companyName: ttdnData.Title || ttdnData.name || "",
+            address: ttdnData.Address || ttdnData.address || "",
+            source: "masothue.com / CSDL Doanh nghiệp",
+          });
+        }
+      }
+    } catch {
+      // ignore
+    }
+
+    // 3. Try masothue.com direct fetch
+    try {
+      const mstRes = await fetch(`https://masothue.com/${cleanCode}`, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+          "Accept-Language": "vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7",
+        }
+      });
+      if (mstRes.ok) {
+        const html = await mstRes.text();
+        // Look for JSON-LD or itemprop in HTML
+        let companyName = "";
+        let address = "";
+
+        const titleMatch = html.match(/<h1[^>]*>([^<]+)<\/h1>/i) || html.match(/<span[^>]*itemprop=["']name["'][^>]*>([^<]+)<\/span>/i);
+        if (titleMatch) {
+          companyName = titleMatch[1].replace(/Mã số thuế\s*:\s*\d+/gi, "").trim();
+        }
+
+        const addressMatch = html.match(/itemprop=["']address["'][^>]*>([^<]+)</i) ||
+                             html.match(/Địa chỉ[^<]*<\/td>\s*<td[^>]*>([^<]+)</i) ||
+                             html.match(/<td[^>]*itemprop=["']streetAddress["'][^>]*>([^<]+)</i);
+        if (addressMatch) {
+          address = addressMatch[1].trim();
+        }
+
+        if (companyName) {
+          return res.json({
+            found: true,
+            taxCode: cleanCode,
+            companyName,
+            address,
+            source: "masothue.com",
+          });
+        }
+      }
+    } catch {
+      // ignore
+    }
+
+    res.json({ found: false, taxCode: cleanCode });
+  } catch (err: any) {
+    res.status(500).json({ found: false, error: err?.message || "Lỗi tra cứu MST" });
+  }
+});
+
+// 1. Health & Connection Status
 app.get("/api/gdrive/status", async (req, res) => {
   try {
     const sa = getServiceAccount();
