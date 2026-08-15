@@ -17,7 +17,8 @@ import {
   EmployeeAdvanceItem,
   canDeleteUser,
   hasPermission,
-  UserPermissions
+  UserPermissions,
+  getDefaultPermissions
 } from './types';
 import {
   DEFAULT_USERS,
@@ -381,16 +382,29 @@ export default function App() {
       return;
     }
 
+    const defaultPerms = getDefaultPermissions(newRole);
+    const updatedRoleUser: UserAccount = {
+      ...(targetUser || {}),
+      id: userId,
+      name: targetUser?.name || 'Người dùng',
+      email: targetUser?.email || '',
+      role: newRole,
+      status: targetUser?.status || 'active',
+      customer_name: newRole === 'customer' ? targetUser?.customer_name : undefined,
+      permissions: (newRole === 'manager' || newRole === 'admin') ? defaultPerms : (targetUser?.permissions || defaultPerms),
+      createdAt: targetUser?.createdAt || new Date().toISOString()
+    };
+
     setUsers(prev =>
-      prev.map(u => (u.id === userId ? { ...u, role: newRole } : u))
+      prev.map(u => (u.id === userId ? updatedRoleUser : u))
     );
     if (targetUser) {
-      const roleUpdatedUser = { ...targetUser, role: newRole };
-      await saveRecordToCloud('users', userId, roleUpdatedUser);
+      await saveRecordToCloud('users', userId, updatedRoleUser);
       if (currentUser?.id === userId) {
-        setCurrentUser(roleUpdatedUser);
+        setCurrentUser(updatedRoleUser);
       }
-      showToast(`Đã cập nhật vai trò thành ${newRole.toUpperCase()}`);
+      const roleName = newRole === 'manager' ? 'QUẢN LÝ (MANAGER)' : newRole === 'admin' ? 'QUẢN TRỊ VIÊN (ADMIN)' : newRole.toUpperCase();
+      showToast(`Đã cập nhật vai trò thành ${roleName}`);
     }
   };
 
@@ -683,7 +697,8 @@ export default function App() {
       setIsAuthModalOpen(true);
       return;
     }
-    if (!hasPermission(currentUser, 'shipments', 'edit')) {
+    const isAccountingUser = currentUser?.role === 'employee_accounting' || hasPermission(currentUser, 'finance', 'edit');
+    if (!hasPermission(currentUser, 'shipments', 'edit') && !isAccountingUser) {
       showToast('Tài khoản của bạn chưa được cấp quyền thêm/sửa chuyến hàng.', 'error');
       return;
     }
@@ -771,14 +786,31 @@ export default function App() {
   };
 
   const handleToggleCheckbox = async (record: ShipmentRecord, field: keyof ShipmentRecord) => {
-    if (!hasPermission(currentUser, 'shipments', 'edit')) {
+    const isInvoiceField = field === 'hd_dich_vu' || field === 'hd_dau_ra' || field === 'hd_dau_vao';
+    const isAccountingUser = currentUser?.role === 'employee_accounting' || hasPermission(currentUser, 'finance', 'edit') || currentUser?.role === 'admin' || currentUser?.role === 'manager';
+    const hasGeneralShipmentEdit = hasPermission(currentUser, 'shipments', 'edit');
+
+    if (!isInvoiceField && !hasGeneralShipmentEdit) {
       showToast('Tài khoản của bạn chưa được cấp quyền chỉnh sửa chuyến hàng.', 'error');
       return;
     }
+    if (isInvoiceField && !isAccountingUser && !hasGeneralShipmentEdit) {
+      showToast('Bạn không có quyền chỉnh sửa trạng thái hóa đơn.', 'error');
+      return;
+    }
+
     const updated = { ...record, [field]: !record[field] };
     setRecords(prev => prev.map(r => (r.id === record.id ? updated : r)));
     await saveRecordToCloud('shipments', record.id, updated);
-    showToast(`Đã cập nhật ${String(field)}: ${updated[field] ? 'Có' : 'Không'}`);
+    
+    let fieldLabel = String(field);
+    if (field === 'hd_dich_vu' || field === 'hd_dau_vao') fieldLabel = 'HĐ đầu vào';
+    else if (field === 'hd_dau_ra') fieldLabel = 'HĐ đầu ra';
+    else if (field === 'phoi_nang') fieldLabel = 'Phơi nâng';
+    else if (field === 'phoi_ha') fieldLabel = 'Phơi hạ';
+    else if (field === 'hd_ha_rong') fieldLabel = 'HĐ hạ rỗng';
+
+    showToast(`Đã cập nhật ${fieldLabel}: ${updated[field] ? 'Có' : 'Không'}`);
   };
 
   const handleDuplicateRecord = (record: ShipmentRecord) => {
@@ -1032,8 +1064,8 @@ export default function App() {
         currentUser={currentUser}
         activeTab={activeTab}
         switchTab={tab => {
-          if (tab === 'users' && currentUser?.role !== 'admin') {
-            showToast('Chỉ Quản trị viên mới được quản lý tài khoản.', 'error');
+          if (tab === 'users' && currentUser?.role !== 'admin' && currentUser?.role !== 'manager') {
+            showToast('Chỉ Quản trị viên hoặc Quản lý mới được quản lý tài khoản.', 'error');
             return;
           }
           if (tab === 'category' && !hasPermission(currentUser, 'catalog', 'view')) {
