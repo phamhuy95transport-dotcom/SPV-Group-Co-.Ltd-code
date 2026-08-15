@@ -1,6 +1,7 @@
-import React from 'react';
-import { X, Printer, FileCheck2, MapPin, Globe, ExternalLink, FileText } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Printer, FileCheck2, MapPin, Globe, ExternalLink, FileText, Loader2, RefreshCw } from 'lucide-react';
 import { ShipmentRecord, CustomerItem, WarehouseItem, findCustomerByName, formatDateVN } from '../types';
+import { lookupTaxCode, TaxLookupResult } from '../lib/taxLookup';
 
 interface DeliveryReceiptModalProps {
   isOpen: boolean;
@@ -21,44 +22,101 @@ export const DeliveryReceiptModal: React.FC<DeliveryReceiptModalProps> = ({
 
   const formattedReceiptNo = String(record.id || '1').replace(/\D/g, '').slice(-5).padStart(5, '0') || '00001';
 
-  // Extract Return Invoice Info (Thông tin hóa đơn hạ vỏ)
-  const getReturnInvoiceInfo = () => {
-    if (record.return_invoice_type === 'other') {
-      return {
-        taxCode: record.return_invoice_tax_code || '—',
-        companyName: record.return_invoice_company_name || '—',
-        address: record.return_invoice_address || '—',
-      };
+  // 1. Strictly extract Tax Code from Customer Catalog
+  const custObj = findCustomerByName(record.customer, customers);
+  const extractedTaxCode = (
+    record.return_invoice_type === 'other'
+      ? (record.return_invoice_tax_code || custObj?.tax_code || '')
+      : (custObj?.tax_code || record.return_invoice_tax_code || '')
+  ).trim();
+
+  // State to hold live data fetched from masothue.com
+  const [taxData, setTaxData] = useState<{
+    companyName: string;
+    address: string;
+    loading: boolean;
+    source: string;
+  }>({
+    companyName: record.return_invoice_company_name || custObj?.company_full_name || custObj?.customer_name || record.customer || '—',
+    address: record.return_invoice_address || custObj?.address || '—',
+    loading: false,
+    source: 'Danh mục'
+  });
+
+  // Fetch company name & address from masothue.com based on the extracted tax code
+  useEffect(() => {
+    let isMounted = true;
+
+    async function fetchMasothueData() {
+      if (!extractedTaxCode || extractedTaxCode === '—') {
+        if (isMounted) {
+          setTaxData({
+            companyName: custObj?.company_full_name || custObj?.customer_name || record?.customer || '—',
+            address: custObj?.address || '—',
+            loading: false,
+            source: 'Danh mục'
+          });
+        }
+        return;
+      }
+
+      setTaxData(prev => ({ ...prev, loading: true }));
+
+      try {
+        const result: TaxLookupResult = await lookupTaxCode(extractedTaxCode);
+        if (isMounted) {
+          if (result && result.found && (result.companyName || result.address)) {
+            setTaxData({
+              companyName: result.companyName || custObj?.company_full_name || custObj?.customer_name || record?.customer || '—',
+              address: result.address || custObj?.address || '—',
+              loading: false,
+              source: result.source || 'masothue.com'
+            });
+          } else {
+            // Fallback to catalog if tax lookup returned empty
+            setTaxData({
+              companyName: custObj?.company_full_name || custObj?.customer_name || record?.customer || '—',
+              address: custObj?.address || '—',
+              loading: false,
+              source: 'Danh mục (Không tìm thấy trên masothue.com)'
+            });
+          }
+        }
+      } catch (err) {
+        console.warn('Error fetching masothue data:', err);
+        if (isMounted) {
+          setTaxData({
+            companyName: custObj?.company_full_name || custObj?.customer_name || record?.customer || '—',
+            address: custObj?.address || '—',
+            loading: false,
+            source: 'Danh mục (Lỗi kết nối masothue.com)'
+          });
+        }
+      }
     }
 
-    const custObj = findCustomerByName(record.customer, customers);
+    fetchMasothueData();
 
-    if (custObj) {
-      return {
-        taxCode: custObj.tax_code || record.return_invoice_tax_code || '—',
-        companyName: record.return_invoice_company_name || custObj.company_full_name || custObj.customer_name || record.customer || '—',
-        address: record.return_invoice_address || custObj.address || '—',
-      };
-    }
-
-    return {
-      taxCode: record.return_invoice_tax_code || '—',
-      companyName: record.return_invoice_company_name || record.customer || '—',
-      address: record.return_invoice_address || '—',
+    return () => {
+      isMounted = false;
     };
-  };
+  }, [extractedTaxCode, record?.id, record?.customer, customers]);
 
-  const invInfo = getReturnInvoiceInfo();
-
-  // Find Warehouse Location info
+  // Find Warehouse Location info - Show exact warehouse location
   const matchedWarehouse = warehouses.find(
-    w => w.warehouse_name?.toLowerCase() === record.warehouse?.toLowerCase() || w.id === record.warehouse
+    w =>
+      (w.warehouse_name && record.warehouse && w.warehouse_name.trim().toLowerCase() === record.warehouse.trim().toLowerCase()) ||
+      w.id === record.warehouse ||
+      (w.location && record.warehouse && w.location.trim().toLowerCase() === record.warehouse.trim().toLowerCase())
   );
   const warehouseLocationDisplay = matchedWarehouse?.location?.trim() || record.warehouse || 'Theo hợp đồng';
 
-  // Customer display name: prefer extracted company name from tax extraction if available
-  const extractedCompanyName = record.return_invoice_company_name?.trim() || (invInfo.companyName && invInfo.companyName !== '—' ? invInfo.companyName : '');
-  const customerDisplayName = extractedCompanyName || record.customer || '—';
+  // Customer display name: prefer live company name from masothue.com if available
+  const customerDisplayName = (taxData.companyName && taxData.companyName !== '—')
+    ? taxData.companyName
+    : (record.return_invoice_company_name?.trim() || custObj?.company_full_name || record.customer || '—');
+
+  const cleanTaxForUrl = extractedTaxCode.replace(/\D/g, '');
 
   const handlePrint = () => {
     try {
@@ -253,22 +311,55 @@ export const DeliveryReceiptModal: React.FC<DeliveryReceiptModalProps> = ({
 
           {/* Return Container Invoice Info (Thông tin hóa đơn hạ vỏ) */}
           <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-xs print:bg-white print:p-2.5 space-y-1.5">
-            <div className="flex items-center gap-1.5 font-extrabold uppercase text-[11px] text-indigo-950 border-b border-slate-200 pb-1">
-              <FileText className="w-3.5 h-3.5 text-indigo-600" />
-              <span>THÔNG TIN HÓA ĐƠN HẠ VỎ (CONTAINER):</span>
+            <div className="flex items-center justify-between border-b border-slate-200 pb-1">
+              <div className="flex items-center gap-1.5 font-extrabold uppercase text-[11px] text-indigo-950">
+                <FileText className="w-3.5 h-3.5 text-indigo-600" />
+                <span>THÔNG TIN HÓA ĐƠN HẠ VỎ (CONTAINER):</span>
+              </div>
+              <div className="flex items-center gap-2 no-print">
+                {taxData.loading && (
+                  <span className="text-[10px] text-indigo-600 font-medium flex items-center gap-1">
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    Đang tra cứu masothue.com...
+                  </span>
+                )}
+                {extractedTaxCode && cleanTaxForUrl && (
+                  <a
+                    href={`https://masothue.com/${cleanTaxForUrl}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[10px] text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-0.5 font-semibold"
+                    title="Mở trang masothue.com để xem chi tiết doanh nghiệp"
+                  >
+                    <ExternalLink className="w-3 h-3" />
+                    masothue.com
+                  </a>
+                )}
+              </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-0.5">
               <div>
                 <span className="text-slate-500 font-medium block text-[11px]">Mã số thuế:</span>
-                <span className="font-mono font-bold text-slate-900">{invInfo.taxCode}</span>
+                <span className="font-mono font-bold text-slate-900">{extractedTaxCode || '—'}</span>
               </div>
               <div className="sm:col-span-2">
-                <span className="text-slate-500 font-medium block text-[11px]">Tên công ty xuất hóa đơn:</span>
-                <span className="font-bold text-slate-900">{invInfo.companyName}</span>
+                <span className="text-slate-500 font-medium block text-[11px] flex items-center justify-between">
+                  <span>Tên công ty xuất hóa đơn:</span>
+                  {taxData.source && !taxData.loading && (
+                    <span className="text-[9px] text-slate-400 font-normal no-print italic">
+                      (Nguồn: {taxData.source})
+                    </span>
+                  )}
+                </span>
+                <span className="font-bold text-slate-900 leading-snug">
+                  {taxData.loading ? 'Đang tải từ masothue.com...' : taxData.companyName}
+                </span>
               </div>
               <div className="sm:col-span-3">
                 <span className="text-slate-500 font-medium block text-[11px]">Địa chỉ công ty:</span>
-                <span className="text-slate-800">{invInfo.address}</span>
+                <span className="text-slate-800 leading-relaxed">
+                  {taxData.loading ? 'Đang tải từ masothue.com...' : taxData.address}
+                </span>
               </div>
             </div>
           </div>

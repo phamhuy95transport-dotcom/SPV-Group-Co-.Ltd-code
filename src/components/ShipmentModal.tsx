@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, PlusCircle, Edit2, Lock, Save, User, AlertCircle, FileText, Globe, Search, Loader2, CheckCircle2 } from 'lucide-react';
 import { ShipmentRecord, WarehouseItem, TransporterItem, CustomerItem, RouteItem, UserAccount, findCustomerByName, CatalogSubTab } from '../types';
+import { lookupTaxCode } from '../lib/taxLookup';
 
 export const formatNumberWithDots = (val: number | string | undefined | null): string => {
   if (val === undefined || val === null || val === '') return '';
@@ -95,43 +96,16 @@ export const ShipmentModal: React.FC<ShipmentModalProps> = ({
     }));
 
     try {
-      let fullCompanyName = '';
-      let address = '';
+      const result = await lookupTaxCode(cleanCode);
 
-      // 1. VietQR Business API
-      try {
-        const res = await fetch(`https://api.vietqr.io/v2/business/${cleanCode}`);
-        const data = await res.json();
-        if (data && data.code === '00' && data.data) {
-          fullCompanyName = data.data.name || data.data.shortName || '';
-          address = data.data.address || '';
-        }
-      } catch (e) {
-        console.warn('Lỗi VietQR API:', e);
-      }
-
-      // 2. Thongtindoanhnghiep API
-      if (!fullCompanyName) {
-        try {
-          const res = await fetch(`https://api.thongtindoanhnghiep.co/api/company/${cleanCode}`);
-          const data = await res.json();
-          if (data && (data.Title || data.name)) {
-            fullCompanyName = data.Title || data.name || '';
-            address = data.Address || data.address || '';
-          }
-        } catch (e) {
-          console.warn('Lỗi Thongtindoanhnghiep API:', e);
-        }
-      }
-
-      if (fullCompanyName) {
+      if (result && result.found && (result.companyName || result.address)) {
         setCatalogModal(prev => ({
           ...prev,
           isSearchingTax: false,
           data: {
             ...prev.data,
-            company_full_name: fullCompanyName,
-            address: address || prev.data.address || ''
+            company_full_name: result.companyName || prev.data.company_full_name || '',
+            address: result.address || prev.data.address || ''
           },
           errors: {
             ...prev.errors,
@@ -339,36 +313,10 @@ export const ShipmentModal: React.FC<ShipmentModalProps> = ({
     setTaxSearchResult({ type: 'info', message: 'Đang tra cứu dữ liệu masothue.com...' });
 
     try {
-      let fullCompanyName = '';
-      let address = '';
-      let foundTaxCode = cleanCode;
-
-      // 1. Try VietQR Business API
-      try {
-        const res = await fetch(`https://api.vietqr.io/v2/business/${cleanCode}`);
-        const data = await res.json();
-        if (data && data.code === '00' && data.data) {
-          fullCompanyName = data.data.name || data.data.shortName || '';
-          address = data.data.address || '';
-          foundTaxCode = data.data.taxCode || cleanCode;
-        }
-      } catch (e) {
-        console.warn('Lỗi kết nối VietQR API, thử API dự phòng...', e);
-      }
-
-      // 2. Fallback to Thongtindoanhnghiep API
-      if (!fullCompanyName) {
-        try {
-          const res = await fetch(`https://api.thongtindoanhnghiep.co/api/company/${cleanCode}`);
-          const data = await res.json();
-          if (data && (data.Title || data.name)) {
-            fullCompanyName = data.Title || data.name || '';
-            address = data.Address || data.address || '';
-          }
-        } catch (e) {
-          console.warn('Lỗi kết nối Thongtindoanhnghiep API', e);
-        }
-      }
+      const result = await lookupTaxCode(cleanCode);
+      let fullCompanyName = result.found ? result.companyName : '';
+      let address = result.found ? result.address : '';
+      let foundTaxCode = result.found ? result.taxCode : cleanCode;
 
       // 3. Fallback to Catalog search if online API did not return data
       if (!fullCompanyName) {
@@ -394,7 +342,7 @@ export const ShipmentModal: React.FC<ShipmentModalProps> = ({
 
         setTaxSearchResult({
           type: 'success',
-          message: `Đã trích xuất thành công từ Masothue: ${fullCompanyName || 'Đã cập nhật địa chỉ'}`
+          message: `Đã trích xuất thành công từ ${result.source || 'Masothue'}: ${fullCompanyName || 'Đã cập nhật địa chỉ'}`
         });
       } else {
         setTaxSearchResult({

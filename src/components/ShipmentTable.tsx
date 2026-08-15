@@ -69,8 +69,11 @@ export const ShipmentTable: React.FC<ShipmentTableProps> = ({
     }
   };
   const isCustomer = currentUser?.role === 'customer';
-  const isEmployee = currentUser?.role === 'employee_logistics' || currentUser?.role === 'employee_accounting' || currentUser?.role === ('employee' as any);
+  const isAccounting = currentUser?.role === 'employee_accounting' || (currentUser?.permissions?.finance?.edit ?? false);
+  const isLogisticsEmployee = currentUser?.role === 'employee_logistics' || currentUser?.role === ('employee' as any);
+  const isEmployee = isLogisticsEmployee || currentUser?.role === 'employee_accounting' || currentUser?.role === ('employee' as any);
   const isAdmin = currentUser?.role === 'admin';
+  const isManager = currentUser?.role === 'manager';
 
   // Filters State
   const [searchQuery, setSearchQuery] = useState('');
@@ -181,9 +184,10 @@ export const ShipmentTable: React.FC<ShipmentTableProps> = ({
   // Helper to check if current user can edit/delete this specific record
   const canModifyRecord = (record: ShipmentRecord): boolean => {
     if (isCustomer) return false; // Read-only customer
-    if (isAdmin) return true; // Admin has full access
-    if (isEmployee) {
-      // Employee can only modify if created by themselves
+    if (isAdmin || isManager) return true; // Admin and Manager have full access
+    if (isAccounting) return true; // NV Kế toán được quyền sửa của tất cả người nhập liệu
+    if (isLogisticsEmployee) {
+      // Logistics Employee can only modify if created by themselves
       if (!record.created_by) return true; // fallback for legacy
       return record.created_by.email?.toLowerCase() === currentUser?.email.toLowerCase() ||
              record.created_by.uid === currentUser?.id;
@@ -259,9 +263,17 @@ export const ShipmentTable: React.FC<ShipmentTableProps> = ({
                 <span className="bg-amber-100 text-amber-800 text-[10px] font-extrabold px-2 py-0.5 rounded-md flex items-center gap-1 border border-amber-300">
                   <Lock className="w-3 h-3 text-amber-600" /> Tài khoản Khách hàng (Chỉ xem)
                 </span>
-              ) : isEmployee ? (
+              ) : isAccounting ? (
+                <span className="bg-cyan-100 text-cyan-800 text-[10px] font-extrabold px-2 py-0.5 rounded-md border border-cyan-300">
+                  Phân quyền Nhân viên Kế toán
+                </span>
+              ) : isLogisticsEmployee ? (
                 <span className="bg-blue-100 text-blue-800 text-[10px] font-extrabold px-2 py-0.5 rounded-md border border-blue-300">
-                  Phân quyền Nhân viên
+                  Phân quyền Nhân viên Logistics
+                </span>
+              ) : isManager ? (
+                <span className="bg-purple-100 text-purple-800 text-[10px] font-extrabold px-2 py-0.5 rounded-md border border-purple-300">
+                  Phân quyền Quản lý (Manager)
                 </span>
               ) : (
                 <span className="bg-emerald-100 text-emerald-800 text-[10px] font-extrabold px-2 py-0.5 rounded-md border border-emerald-300">
@@ -272,8 +284,10 @@ export const ShipmentTable: React.FC<ShipmentTableProps> = ({
             <p className="text-xs text-slate-500 mt-0.5">
               {isCustomer
                 ? 'Đã ẩn danh mục kho, nhà xe và báo cáo tài chính bảo mật.'
-                : isEmployee
-                ? 'Nhân viên chỉ có quyền chỉnh sửa/xóa các chuyến do chính mình nhập liệu.'
+                : isAccounting
+                ? 'Nhân viên Kế toán có quyền chỉnh sửa ô HĐ đầu vào/ra của tất cả người nhập liệu.'
+                : isLogisticsEmployee
+                ? 'Nhân viên Logistics có quyền chỉnh sửa các chuyến do chính mình nhập liệu.'
                 : 'Cập nhật trực tiếp Cloud Database & Đồng bộ toàn hệ thống.'}
             </p>
           </div>
@@ -281,7 +295,7 @@ export const ShipmentTable: React.FC<ShipmentTableProps> = ({
 
         {!isCustomer && (
           <div className="flex items-center gap-2">
-            {isAdmin && (
+            {(isAdmin || isManager) && (
               <>
                 <input
                   type="file"
@@ -721,21 +735,33 @@ export const ShipmentTable: React.FC<ShipmentTableProps> = ({
                     )}
 
                     {/* Checkbox status toggles */}
-                    {(['phoi_nang', 'phoi_ha', 'hd_ha_rong', 'hd_dich_vu', 'hd_dau_ra'] as const).map(field => (
-                      <td key={field} className="p-3.5 text-center whitespace-nowrap">
-                        <button
-                          disabled={!canModify}
-                          onClick={() => onToggleCheckbox(record, field)}
-                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold transition ${
-                            record[field]
-                              ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                              : 'bg-slate-100 text-slate-400 border border-slate-200'
-                          } ${canModify ? 'cursor-pointer hover:opacity-80' : 'cursor-default'}`}
-                        >
-                          {record[field] ? 'Có' : 'Không'}
-                        </button>
-                      </td>
-                    ))}
+                    {(['phoi_nang', 'phoi_ha', 'hd_ha_rong', 'hd_dich_vu', 'hd_dau_ra'] as const).map(field => {
+                      const isInvoiceField = field === 'hd_dich_vu' || field === 'hd_dau_ra';
+                      const canToggleThisField = isInvoiceField
+                        ? (isAccounting || isAdmin || isManager || canModify)
+                        : canModify;
+
+                      return (
+                        <td key={field} className="p-3.5 text-center whitespace-nowrap">
+                          <button
+                            disabled={!canToggleThisField}
+                            onClick={() => onToggleCheckbox(record, field)}
+                            className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold transition ${
+                              record[field]
+                                ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                                : 'bg-slate-100 text-slate-400 border border-slate-200'
+                            } ${canToggleThisField ? 'cursor-pointer hover:opacity-80' : 'cursor-default'}`}
+                            title={
+                              canToggleThisField
+                                ? `Bấm để đổi trạng thái ${field === 'hd_dich_vu' ? 'HĐ đầu vào' : field === 'hd_dau_ra' ? 'HĐ đầu ra' : ''}`
+                                : (isCustomer ? 'Tài khoản khách hàng chỉ xem' : 'Chỉ người tạo hoặc NV kế toán/Quản lý mới có quyền chỉnh sửa')
+                            }
+                          >
+                            {record[field] ? 'Có' : 'Không'}
+                          </button>
+                        </td>
+                      );
+                    })}
 
                     <td className="p-3.5 text-slate-600 max-w-[180px] truncate" title={record.notes}>
                       {record.notes || '—'}

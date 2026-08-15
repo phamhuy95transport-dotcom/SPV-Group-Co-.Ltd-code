@@ -23,6 +23,7 @@ import {
   CustomerItem,
   RouteItem
 } from '../types';
+import { lookupTaxCode } from '../lib/taxLookup';
 
 interface CatalogManagerProps {
   activeSubTab: CatalogSubTab;
@@ -142,13 +143,11 @@ export const CatalogManager: React.FC<CatalogManagerProps> = ({
     setTaxSearchResult({ type: 'info', message: 'Đang kết nối cơ sở dữ liệu Mã Số Thuế masothue.com...' });
 
     try {
-      const res = await fetch(`https://api.vietqr.io/v2/business/${cleanCode}`);
-      const data = await res.json();
+      const result = await lookupTaxCode(cleanCode);
 
-      if (data && data.code === '00' && data.data) {
-        const company = data.data;
-        const fullCompanyName = company.name || company.shortName || '';
-        const address = company.address || '';
+      if (result && result.found && (result.companyName || result.address)) {
+        const fullCompanyName = result.companyName || '';
+        const address = result.address || '';
 
         setFormData(prev => {
           let shortName = activeSubTab === 'transporter' ? prev.transporter_name : prev.customer_name;
@@ -158,7 +157,7 @@ export const CatalogManager: React.FC<CatalogManagerProps> = ({
 
           return {
             ...prev,
-            tax_code: company.taxCode || cleanCode,
+            tax_code: result.taxCode || cleanCode,
             company_full_name: fullCompanyName,
             transporter_name: activeSubTab === 'transporter' ? shortName : prev.transporter_name,
             customer_name: activeSubTab === 'customer' ? shortName : prev.customer_name,
@@ -168,7 +167,7 @@ export const CatalogManager: React.FC<CatalogManagerProps> = ({
 
         setTaxSearchResult({
           type: 'success',
-          message: `Đã tự động lấy Tên công ty đầy đủ & Địa chỉ từ Masothue.com: ${fullCompanyName}`
+          message: `Đã tự động lấy Tên công ty & Địa chỉ từ ${result.source || 'masothue.com'}: ${fullCompanyName}`
         });
       } else {
         setTaxSearchResult({
