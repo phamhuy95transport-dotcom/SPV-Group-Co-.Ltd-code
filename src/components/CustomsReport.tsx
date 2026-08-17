@@ -11,12 +11,18 @@ import {
   CheckCircle2,
   ShieldCheck,
   BarChart3,
-  CreditCard
+  CreditCard,
+  Search,
+  X,
+  RefreshCw,
+  UserCheck,
+  Tag
 } from 'lucide-react';
 import {
   CustomsDeclarationRecord,
   CustomerItem,
   UserAccount,
+  CustomsDeclarationType,
   formatDateVN,
   formatMonthYearVN
 } from '../types';
@@ -41,10 +47,12 @@ export const CustomsReport: React.FC<CustomsReportProps> = ({
   const isAdminOrManager = currentUser?.role === 'admin' || currentUser?.role === 'manager';
 
   // Filters
+  const [searchQuery, setSearchQuery] = useState('');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
-  const [selectedCustomer, setSelectedCustomer] = useState('');
-  const [selectedStaff, setSelectedStaff] = useState('');
+  const [filterCustomer, setFilterCustomer] = useState('');
+  const [filterStaff, setFilterStaff] = useState('');
+  const [filterType, setFilterType] = useState('');
 
   const isAdmin = currentUser?.role === 'admin';
 
@@ -68,17 +76,93 @@ export const CustomsReport: React.FC<CustomsReportProps> = ({
     return declarations;
   }, [declarations, isAdmin, currentUser]);
 
+  // Unique Customer list for smart autocomplete
+  const customerSuggestions = useMemo(() => {
+    const set = new Set<string>();
+    customers.forEach(c => {
+      if (c.customer_name?.trim()) set.add(c.customer_name.trim());
+    });
+    declarations.forEach(d => {
+      if (d.customer?.trim()) set.add(d.customer.trim());
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'vi'));
+  }, [customers, declarations]);
+
+  // Unique Staff list for smart autocomplete
+  const staffSuggestions = useMemo(() => {
+    const map = new Map<string, { id: string; name: string }>();
+    users.forEach(u => {
+      if (u.name?.trim()) map.set(u.name.trim().toLowerCase(), { id: u.id, name: u.name.trim() });
+    });
+    declarations.forEach(d => {
+      const name = d.support_transfer?.staff_name?.trim();
+      const id = d.support_transfer?.staff_id || '';
+      if (name && !map.has(name.toLowerCase())) {
+        map.set(name.toLowerCase(), { id, name });
+      }
+    });
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name, 'vi'));
+  }, [users, declarations]);
+
   // Filtered Declarations
   const filteredDeclarations = useMemo(() => {
     return userDeclarations.filter(item => {
+      // Keyword search across declaration number, customer, staff, notes
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase().trim();
+        const numMatch = (item.declaration_number || '').toLowerCase().includes(q);
+        const custMatch = (item.customer || '').toLowerCase().includes(q);
+        const staffMatch = (item.support_transfer?.staff_name || '').toLowerCase().includes(q);
+        const notesMatch = (item.notes || '').toLowerCase().includes(q);
+        const creatorMatch = (item.created_by?.name || '').toLowerCase().includes(q);
+        if (!numMatch && !custMatch && !staffMatch && !notesMatch && !creatorMatch) return false;
+      }
+
       const dateToCheck = item.approved_date || item.completed_date || item.execution_date;
       if (fromDate && dateToCheck < fromDate) return false;
       if (toDate && dateToCheck > toDate) return false;
-      if (selectedCustomer && item.customer !== selectedCustomer) return false;
-      if (selectedStaff && item.support_transfer?.staff_id !== selectedStaff) return false;
+
+      // Smart customer search (partial or exact)
+      if (filterCustomer.trim()) {
+        const targetCust = filterCustomer.trim().toLowerCase();
+        const itemCust = (item.customer || '').toLowerCase();
+        if (!itemCust.includes(targetCust)) return false;
+      }
+
+      // Smart staff search (matches staff name or staff ID)
+      if (filterStaff.trim()) {
+        const targetStaff = filterStaff.trim().toLowerCase();
+        const staffName = (item.support_transfer?.staff_name || '').toLowerCase();
+        const staffId = (item.support_transfer?.staff_id || '').toLowerCase();
+        if (!staffName.includes(targetStaff) && staffId !== targetStaff) return false;
+      }
+
+      // Declaration type filter
+      if (filterType.trim()) {
+        if (item.type !== filterType.trim()) return false;
+      }
+
       return true;
     });
-  }, [userDeclarations, fromDate, toDate, selectedCustomer, selectedStaff]);
+  }, [userDeclarations, searchQuery, fromDate, toDate, filterCustomer, filterStaff, filterType]);
+
+  const isFiltering = Boolean(
+    searchQuery ||
+    fromDate ||
+    toDate ||
+    filterCustomer ||
+    filterStaff ||
+    filterType
+  );
+
+  const resetFilters = () => {
+    setSearchQuery('');
+    setFromDate('');
+    setToDate('');
+    setFilterCustomer('');
+    setFilterStaff('');
+    setFilterType('');
+  };
 
   // Overall Statistics
   const totalCount = filteredDeclarations.length;
@@ -218,67 +302,251 @@ export const CustomsReport: React.FC<CustomsReportProps> = ({
         </div>
       </div>
 
+      {/* Datalists for Smart Auto-suggestions */}
+      <datalist id="customs-report-customer-datalist">
+        {customerSuggestions.map(cust => (
+          <option key={cust} value={cust} />
+        ))}
+      </datalist>
+
+      <datalist id="customs-report-staff-datalist">
+        {staffSuggestions.map(st => (
+          <option key={st.id || st.name} value={st.name} />
+        ))}
+      </datalist>
+
+      <datalist id="customs-report-type-datalist">
+        {['Xuất khẩu', 'Nhập khẩu', 'XKTC', 'NKTC', 'XNKTC'].map(t => (
+          <option key={t} value={t} />
+        ))}
+      </datalist>
+
       {/* Filter Toolbar */}
-      <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-        <div>
-          <label className="block text-[11px] font-bold text-slate-600 mb-1">
-            Từ ngày:
-          </label>
-          <input
-            type="date"
-            value={fromDate}
-            onChange={e => setFromDate(e.target.value)}
-            className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl font-medium"
-          />
+      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3 text-xs">
+        <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
+          <div className="flex items-center gap-2 text-slate-700 font-bold">
+            <Filter className="w-4 h-4 text-indigo-600" />
+            <span>Bộ Lọc Tìm Kiếm Thông Minh</span>
+            {isFiltering && (
+              <span className="px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-full text-[10px] font-extrabold">
+                Đang lọc ({filteredDeclarations.length} kết quả)
+              </span>
+            )}
+          </div>
+
+          {isFiltering && (
+            <button
+              onClick={resetFilters}
+              className="px-2.5 py-1 text-slate-600 hover:text-rose-600 hover:bg-rose-50 rounded-lg text-xs font-semibold flex items-center gap-1 transition"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>Đặt lại bộ lọc</span>
+            </button>
+          )}
         </div>
 
-        <div>
-          <label className="block text-[11px] font-bold text-slate-600 mb-1">
-            Đến ngày:
-          </label>
-          <input
-            type="date"
-            value={toDate}
-            onChange={e => setToDate(e.target.value)}
-            className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl font-medium"
-          />
+        {/* Primary Filter Row */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+          {/* Ô tìm kiếm từ khóa tổng hợp */}
+          <div className="lg:col-span-1">
+            <label className="block text-[11px] font-bold text-slate-600 mb-1">
+              Từ khóa tìm kiếm:
+            </label>
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder="Số tờ khai, ghi chú..."
+                className="w-full pl-8 pr-7 py-1.5 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 text-slate-400 hover:text-slate-600 rounded-full"
+                  title="Xóa"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Ô nhập thông minh: Khách hàng */}
+          <div>
+            <label className="block text-[11px] font-bold text-slate-600 mb-1 flex items-center justify-between">
+              <span className="flex items-center gap-1">
+                <Building2 className="w-3 h-3 text-indigo-600" />
+                <span>Khách hàng:</span>
+              </span>
+              {filterCustomer && (
+                <button
+                  type="button"
+                  onClick={() => setFilterCustomer('')}
+                  className="text-[10px] text-rose-500 hover:underline"
+                >
+                  Xóa lọc
+                </button>
+              )}
+            </label>
+            <div className="relative">
+              <input
+                type="text"
+                list="customs-report-customer-datalist"
+                value={filterCustomer}
+                onChange={e => setFilterCustomer(e.target.value)}
+                placeholder="Nhập tên khách hàng (gợi ý tự động)..."
+                className="w-full pl-3 pr-7 py-1.5 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800"
+              />
+              {filterCustomer && (
+                <button
+                  type="button"
+                  onClick={() => setFilterCustomer('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 text-slate-400 hover:text-slate-600 rounded-full"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Ô nhập thông minh: Nhân viên */}
+          <div>
+            <label className="block text-[11px] font-bold text-slate-600 mb-1 flex items-center justify-between">
+              <span className="flex items-center gap-1">
+                <UserCheck className="w-3 h-3 text-indigo-600" />
+                <span>Nhân viên thực hiện:</span>
+              </span>
+              {filterStaff && (
+                <button
+                  type="button"
+                  onClick={() => setFilterStaff('')}
+                  className="text-[10px] text-rose-500 hover:underline"
+                >
+                  Xóa lọc
+                </button>
+              )}
+            </label>
+            <div className="relative">
+              <input
+                type="text"
+                list="customs-report-staff-datalist"
+                value={filterStaff}
+                onChange={e => setFilterStaff(e.target.value)}
+                placeholder="Nhập tên nhân viên (gợi ý tự động)..."
+                className="w-full pl-3 pr-7 py-1.5 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800"
+              />
+              {filterStaff && (
+                <button
+                  type="button"
+                  onClick={() => setFilterStaff('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 text-slate-400 hover:text-slate-600 rounded-full"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Ô nhập thông minh: Loại tờ khai */}
+          <div>
+            <label className="block text-[11px] font-bold text-slate-600 mb-1 flex items-center justify-between">
+              <span className="flex items-center gap-1">
+                <Tag className="w-3 h-3 text-indigo-600" />
+                <span>Loại tờ khai:</span>
+              </span>
+              {filterType && (
+                <button
+                  type="button"
+                  onClick={() => setFilterType('')}
+                  className="text-[10px] text-rose-500 hover:underline"
+                >
+                  Tất cả
+                </button>
+              )}
+            </label>
+            <div className="relative">
+              <input
+                type="text"
+                list="customs-report-type-datalist"
+                value={filterType}
+                onChange={e => setFilterType(e.target.value)}
+                placeholder="Xuất khẩu, Nhập khẩu, XKTC..."
+                className="w-full pl-3 pr-7 py-1.5 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800"
+              />
+              {filterType && (
+                <button
+                  type="button"
+                  onClick={() => setFilterType('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 text-slate-400 hover:text-slate-600 rounded-full"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Khoảng thời gian: Từ ngày - Đến ngày */}
+          <div>
+            <label className="block text-[11px] font-bold text-slate-600 mb-1 flex items-center gap-1">
+              <Calendar className="w-3 h-3 text-indigo-600" />
+              <span>Khoảng thời gian:</span>
+            </label>
+            <div className="flex items-center gap-1">
+              <input
+                type="date"
+                value={fromDate}
+                onChange={e => setFromDate(e.target.value)}
+                title="Từ ngày"
+                className="w-1/2 px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-medium focus:bg-white focus:outline-none"
+              />
+              <span className="text-slate-400">-</span>
+              <input
+                type="date"
+                value={toDate}
+                onChange={e => setToDate(e.target.value)}
+                title="Đến ngày"
+                className="w-1/2 px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-medium focus:bg-white focus:outline-none"
+              />
+            </div>
+          </div>
         </div>
 
-        <div>
-          <label className="block text-[11px] font-bold text-slate-600 mb-1">
-            Khách hàng:
-          </label>
-          <select
-            value={selectedCustomer}
-            onChange={e => setSelectedCustomer(e.target.value)}
-            className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl font-medium"
-          >
-            <option value="">-- Tất cả Khách hàng --</option>
-            {customers.map(c => (
-              <option key={c.id} value={c.customer_name}>
-                {c.customer_name}
-              </option>
+        {/* Quick Suggestion Chips */}
+        {(customerSuggestions.length > 0 || staffSuggestions.length > 0) && (
+          <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center gap-1.5 text-[11px]">
+            <span className="text-slate-400 font-semibold mr-1">Gợi ý nhanh:</span>
+            {customerSuggestions.slice(0, 5).map(cust => (
+              <button
+                key={cust}
+                type="button"
+                onClick={() => setFilterCustomer(filterCustomer === cust ? '' : cust)}
+                className={`px-2 py-0.5 rounded-lg border transition ${
+                  filterCustomer === cust
+                    ? 'bg-indigo-600 text-white border-indigo-600 font-bold shadow-xs'
+                    : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-200'
+                }`}
+              >
+                {cust}
+              </button>
             ))}
-          </select>
-        </div>
-
-        <div>
-          <label className="block text-[11px] font-bold text-slate-600 mb-1">
-            Nhân viên thực hiện:
-          </label>
-          <select
-            value={selectedStaff}
-            onChange={e => setSelectedStaff(e.target.value)}
-            className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl font-medium"
-          >
-            <option value="">-- Tất cả Nhân viên --</option>
-            {users.map(u => (
-              <option key={u.id} value={u.id}>
-                {u.name}
-              </option>
+            {staffSuggestions.slice(0, 4).map(st => (
+              <button
+                key={st.id || st.name}
+                type="button"
+                onClick={() => setFilterStaff(filterStaff === st.name ? '' : st.name)}
+                className={`px-2 py-0.5 rounded-lg border transition ${
+                  filterStaff === st.name
+                    ? 'bg-emerald-600 text-white border-emerald-600 font-bold shadow-xs'
+                    : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200'
+                }`}
+              >
+                NV: {st.name}
+              </button>
             ))}
-          </select>
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Metrics Grid */}

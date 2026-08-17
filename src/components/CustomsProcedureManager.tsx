@@ -18,7 +18,10 @@ import {
   Clock,
   Check,
   X,
-  LogIn
+  LogIn,
+  RefreshCw,
+  Tag,
+  UserCheck
 } from 'lucide-react';
 import {
   CustomsDeclarationRecord,
@@ -77,7 +80,7 @@ export const CustomsProcedureManager: React.FC<CustomsProcedureManagerProps> = (
   onToggleDamage,
   onSaveCatalogItem
 }) => {
-  const isAdmin = currentUser?.role === 'admin';
+  const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'manager';
 
   // Search & Filter State
   const [searchTerm, setSearchTerm] = useState('');
@@ -88,6 +91,34 @@ export const CustomsProcedureManager: React.FC<CustomsProcedureManagerProps> = (
   const [damageFilter, setDamageFilter] = useState<'all' | 'yes' | 'no'>('all');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
+
+  // Unique Customer list for smart autocomplete
+  const customerSuggestions = useMemo(() => {
+    const set = new Set<string>();
+    customers.forEach(c => {
+      if (c.customer_name?.trim()) set.add(c.customer_name.trim());
+    });
+    declarations.forEach(d => {
+      if (d.customer?.trim()) set.add(d.customer.trim());
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'vi'));
+  }, [customers, declarations]);
+
+  // Unique Staff list for smart autocomplete
+  const staffSuggestions = useMemo(() => {
+    const map = new Map<string, { id: string; name: string; role?: string }>();
+    users.forEach(u => {
+      if (u.name?.trim()) map.set(u.id, { id: u.id, name: u.name.trim(), role: u.role });
+    });
+    declarations.forEach(d => {
+      const name = d.support_transfer?.staff_name?.trim();
+      const id = d.support_transfer?.staff_id;
+      if (id && name && !map.has(id)) {
+        map.set(id, { id, name, role: 'employee' });
+      }
+    });
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name, 'vi'));
+  }, [users, declarations]);
 
   // Inline note editing state
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
@@ -306,19 +337,27 @@ export const CustomsProcedureManager: React.FC<CustomsProcedureManagerProps> = (
       // Search term
       if (searchTerm.trim()) {
         const term = searchTerm.toLowerCase().trim();
-        const numMatch = item.declaration_number.toLowerCase().includes(term);
-        const custMatch = item.customer.toLowerCase().includes(term);
+        const numMatch = (item.declaration_number || '').toLowerCase().includes(term);
+        const custMatch = (item.customer || '').toLowerCase().includes(term);
         const staffMatch = (item.support_transfer?.staff_name || '').toLowerCase().includes(term);
         const notesMatch = (item.notes || '').toLowerCase().includes(term);
         const creatorMatch = (item.created_by?.name || '').toLowerCase().includes(term);
         if (!numMatch && !custMatch && !staffMatch && !notesMatch && !creatorMatch) return false;
       }
 
-      // Customer Filter
-      if (selectedCustomer && item.customer !== selectedCustomer) return false;
+      // Customer Filter (case-insensitive partial matching)
+      if (selectedCustomer.trim()) {
+        const custTerm = selectedCustomer.trim().toLowerCase();
+        const itemCust = (item.customer || '').toLowerCase();
+        if (!itemCust.includes(custTerm)) return false;
+      }
 
-      // Type Filter
-      if (selectedType && item.type !== selectedType) return false;
+      // Type Filter (case-insensitive partial matching)
+      if (selectedType.trim()) {
+        const typeTerm = selectedType.trim().toLowerCase();
+        const itemType = (item.type || '').toLowerCase();
+        if (!itemType.includes(typeTerm)) return false;
+      }
 
       // Completed Filter
       if (completedFilter === 'done' && !item.completed) return false;
@@ -339,6 +378,28 @@ export const CustomsProcedureManager: React.FC<CustomsProcedureManagerProps> = (
       return true;
     });
   }, [userDeclarations, searchTerm, selectedCustomer, selectedType, completedFilter, approvedFilter, damageFilter, fromDate, toDate]);
+
+  const isFiltering = Boolean(
+    searchTerm ||
+    selectedCustomer ||
+    selectedType ||
+    completedFilter !== 'all' ||
+    approvedFilter !== 'all' ||
+    damageFilter !== 'all' ||
+    fromDate ||
+    toDate
+  );
+
+  const resetFilters = () => {
+    setSearchTerm('');
+    setSelectedCustomer('');
+    setSelectedType('');
+    setCompletedFilter('all');
+    setApprovedFilter('all');
+    setDamageFilter('all');
+    setFromDate('');
+    setToDate('');
+  };
 
   // Helper to calculate raw/potential KPI for a declaration (= Rate * Quantity * Ratio)
   const getRawKpiAmount = (d: CustomsDeclarationRecord) => {
@@ -426,124 +487,208 @@ export const CustomsProcedureManager: React.FC<CustomsProcedureManagerProps> = (
       {/* Control & Table for Logged-In Users / Lock Notice for Guests */}
       {currentUser ? (
         <>
+          {/* Datalists for Table Filter Auto-suggestions */}
+          <datalist id="cpm-filter-customer-list">
+            {customerSuggestions.map(c => (
+              <option key={c} value={c} />
+            ))}
+          </datalist>
+
+          <datalist id="cpm-filter-type-list">
+            {DECLARATION_TYPES.map(t => (
+              <option key={t} value={t} />
+            ))}
+          </datalist>
+
           {/* Control & Search Toolbar */}
           <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
-              <FileSpreadsheet className="w-5 h-5" />
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
+                  <FileSpreadsheet className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-slate-800">Bảng Thủ Tục Hải Quan</h2>
+                  <p className="text-xs text-slate-500">Tính thưởng KPI & Theo dõi tiến độ tờ khai</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {isFiltering && (
+                  <button
+                    onClick={resetFilters}
+                    className="px-3 py-1.5 text-slate-600 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 hover:border-rose-200 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>Đặt lại bộ lọc</span>
+                  </button>
+                )}
+
+                <button
+                  onClick={handleOpenAddModal}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-sm transition flex items-center gap-2"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Thêm Tờ Khai Mới</span>
+                </button>
+              </div>
             </div>
-            <div>
-              <h2 className="text-base font-bold text-slate-800">Bảng Thủ Tục Hải Quan</h2>
-              <p className="text-xs text-slate-500">Tính thưởng KPI</p>
+
+            {/* Search & Filters Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-2.5 pt-2 border-t border-slate-100">
+              {/* Ô tìm kiếm từ khóa tổng hợp */}
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={e => setSearchTerm(e.target.value)}
+                  placeholder="Số tờ khai, KH, NV..."
+                  className="w-full pl-8 pr-7 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 font-medium"
+                />
+                {searchTerm && (
+                  <button
+                    onClick={() => setSearchTerm('')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 text-slate-400 hover:text-slate-600 rounded-full"
+                    title="Xóa"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+
+              {/* Ô nhập thông minh: Khách hàng */}
+              <div className="relative">
+                <input
+                  type="text"
+                  list="cpm-filter-customer-list"
+                  value={selectedCustomer}
+                  onChange={e => setSelectedCustomer(e.target.value)}
+                  placeholder="Tìm khách hàng..."
+                  className="w-full pl-2.5 pr-7 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 font-medium text-slate-800"
+                />
+                {selectedCustomer && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedCustomer('')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 text-slate-400 hover:text-slate-600 rounded-full"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+
+              {/* Ô nhập thông minh: Loại tờ khai */}
+              <div className="relative">
+                <input
+                  type="text"
+                  list="cpm-filter-type-list"
+                  value={selectedType}
+                  onChange={e => setSelectedType(e.target.value)}
+                  placeholder="Loại tờ khai (XK, NK...)"
+                  className="w-full pl-2.5 pr-7 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 font-medium text-slate-800"
+                />
+                {selectedType && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedType('')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 text-slate-400 hover:text-slate-600 rounded-full"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+
+              <div>
+                <select
+                  value={completedFilter}
+                  onChange={e => setCompletedFilter(e.target.value as any)}
+                  className="w-full px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none font-medium"
+                >
+                  <option value="all">Hoàn thành: Tất cả</option>
+                  <option value="done">Hoàn thành: Đã</option>
+                  <option value="pending">Hoàn thành: Chưa</option>
+                </select>
+              </div>
+
+              <div>
+                <select
+                  value={approvedFilter}
+                  onChange={e => setApprovedFilter(e.target.value as any)}
+                  className="w-full px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none font-medium"
+                >
+                  <option value="all">Duyệt: Tất cả</option>
+                  <option value="yes">Duyệt: Có</option>
+                  <option value="no">Duyệt: Chưa</option>
+                </select>
+              </div>
+
+              <div>
+                <select
+                  value={damageFilter}
+                  onChange={e => setDamageFilter(e.target.value as any)}
+                  className="w-full px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none font-medium"
+                >
+                  <option value="all">Thiệt hại: Tất cả</option>
+                  <option value="yes">Thiệt hại: Có</option>
+                  <option value="no">Thiệt hại: Không</option>
+                </select>
+              </div>
+
+              <div className="flex gap-1 items-center">
+                <input
+                  type="date"
+                  value={fromDate}
+                  onChange={e => setFromDate(e.target.value)}
+                  className="w-1/2 px-2 py-1.5 text-[11px] bg-slate-50 border border-slate-200 rounded-xl"
+                  title="Từ ngày"
+                />
+                <span className="text-slate-400 text-xs">-</span>
+                <input
+                  type="date"
+                  value={toDate}
+                  onChange={e => setToDate(e.target.value)}
+                  className="w-1/2 px-2 py-1.5 text-[11px] bg-slate-50 border border-slate-200 rounded-xl"
+                  title="Đến ngày"
+                />
+              </div>
             </div>
-          </div>
 
-          <button
-            onClick={handleOpenAddModal}
-            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-sm transition flex items-center gap-2"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Thêm Tờ Khai Mới</span>
-          </button>
-        </div>
-
-        {/* Search & Filters Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-2.5 pt-2 border-t border-slate-100">
-          <div className="relative">
-            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-              placeholder="Số tờ khai, KH, nhân viên..."
-              className="w-full pl-8 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
-            />
+            {/* Quick Filter Chips */}
+            {(customerSuggestions.length > 0 || DECLARATION_TYPES.length > 0) && (
+              <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center gap-1.5 text-[11px]">
+                <span className="text-slate-400 font-semibold mr-1">Gợi ý nhanh:</span>
+                {customerSuggestions.slice(0, 5).map(cust => (
+                  <button
+                    key={cust}
+                    type="button"
+                    onClick={() => setSelectedCustomer(selectedCustomer === cust ? '' : cust)}
+                    className={`px-2 py-0.5 rounded-lg border transition ${
+                      selectedCustomer === cust
+                        ? 'bg-indigo-600 text-white border-indigo-600 font-bold shadow-xs'
+                        : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-200'
+                    }`}
+                  >
+                    {cust}
+                  </button>
+                ))}
+                {DECLARATION_TYPES.map(t => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => setSelectedType(selectedType === t ? '' : t)}
+                    className={`px-2 py-0.5 rounded-lg border transition ${
+                      selectedType === t
+                        ? 'bg-blue-600 text-white border-blue-600 font-bold shadow-xs'
+                        : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200'
+                    }`}
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
-
-          <div>
-            <select
-              value={selectedCustomer}
-              onChange={e => setSelectedCustomer(e.target.value)}
-              className="w-full px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:outline-none"
-            >
-              <option value="">-- Tất cả Khách hàng --</option>
-              {customers.map(c => (
-                <option key={c.id} value={c.customer_name}>
-                  {c.customer_name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <select
-              value={selectedType}
-              onChange={e => setSelectedType(e.target.value)}
-              className="w-full px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:outline-none"
-            >
-              <option value="">-- Tất cả Loại tờ khai --</option>
-              {DECLARATION_TYPES.map(t => (
-                <option key={t} value={t}>{t}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <select
-              value={completedFilter}
-              onChange={e => setCompletedFilter(e.target.value as any)}
-              className="w-full px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:outline-none"
-            >
-              <option value="all">Hoàn thành: Tất cả</option>
-              <option value="done">Hoàn thành: Đã</option>
-              <option value="pending">Hoàn thành: Chưa</option>
-            </select>
-          </div>
-
-          <div>
-            <select
-              value={approvedFilter}
-              onChange={e => setApprovedFilter(e.target.value as any)}
-              className="w-full px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:outline-none"
-            >
-              <option value="all">Duyệt: Tất cả</option>
-              <option value="yes">Duyệt: Có</option>
-              <option value="no">Duyệt: Chưa</option>
-            </select>
-          </div>
-
-          <div>
-            <select
-              value={damageFilter}
-              onChange={e => setDamageFilter(e.target.value as any)}
-              className="w-full px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:outline-none"
-            >
-              <option value="all">Thiệt hại: Tất cả</option>
-              <option value="yes">Thiệt hại: Có</option>
-              <option value="no">Thiệt hại: Không</option>
-            </select>
-          </div>
-
-          <div className="flex gap-1 items-center">
-            <input
-              type="date"
-              value={fromDate}
-              onChange={e => setFromDate(e.target.value)}
-              className="w-1/2 px-2 py-1.5 text-[11px] bg-slate-50 border border-slate-200 rounded-lg"
-              title="Từ ngày"
-            />
-            <span className="text-slate-400 text-xs">-</span>
-            <input
-              type="date"
-              value={toDate}
-              onChange={e => setToDate(e.target.value)}
-              className="w-1/2 px-2 py-1.5 text-[11px] bg-slate-50 border border-slate-200 rounded-lg"
-              title="Đến ngày"
-            />
-          </div>
-        </div>
-      </div>
 
       {/* Main Table */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
@@ -1070,42 +1215,113 @@ export const CustomsProcedureManager: React.FC<CustomsProcedureManagerProps> = (
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                {/* Loại */}
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
+              {/* Datalists for Modal Inputs */}
+              <datalist id="customs-modal-type-list">
+                {DECLARATION_TYPES.map(t => (
+                  <option key={t} value={t} />
+                ))}
+              </datalist>
+
+              <datalist id="customs-modal-staff-list">
+                {staffSuggestions.map(s => (
+                  <option key={s.id} value={s.name}>
+                    {s.name} ({s.role === 'admin' ? 'Admin' : 'Nhân viên'})
+                  </option>
+                ))}
+              </datalist>
+
+              <datalist id="customs-modal-ratio-list">
+                {RATIO_OPTIONS.map(r => (
+                  <option key={r.text} value={r.text}>
+                    {r.label}
+                  </option>
+                ))}
+              </datalist>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* Loại tờ khai */}
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-slate-700">
                     Loại tờ khai *
                   </label>
-                  <select
-                    value={formData.type}
-                    onChange={e => setFormData({ ...formData, type: e.target.value as CustomsDeclarationType })}
-                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-indigo-900"
-                  >
+                  <div className="relative">
+                    <input
+                      type="text"
+                      list="customs-modal-type-list"
+                      required
+                      value={formData.type}
+                      onChange={e => setFormData({ ...formData, type: e.target.value as CustomsDeclarationType })}
+                      placeholder="Chọn hoặc nhập loại tờ khai..."
+                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-indigo-900"
+                    />
+                  </div>
+                  <div className="flex flex-wrap gap-1 pt-0.5">
                     {DECLARATION_TYPES.map(t => (
-                      <option key={t} value={t}>{t}</option>
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => setFormData({ ...formData, type: t })}
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded-lg border transition ${
+                          formData.type === t
+                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                            : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-indigo-50 hover:text-indigo-700'
+                        }`}
+                      >
+                        {t}
+                      </button>
                     ))}
-                  </select>
+                  </div>
                 </div>
 
                 {/* Khách hàng */}
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-slate-700">
                     Khách hàng *
                   </label>
-                  <input
-                    type="text"
-                    list="customs-customer-list"
-                    required
-                    value={formData.customer}
-                    onChange={e => setFormData({ ...formData, customer: e.target.value })}
-                    placeholder="Nhập tên khách hàng (gợi ý từ Danh mục)..."
-                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium text-slate-800"
-                  />
+                  <div className="relative">
+                    <input
+                      type="text"
+                      list="customs-customer-list"
+                      required
+                      value={formData.customer}
+                      onChange={e => setFormData({ ...formData, customer: e.target.value })}
+                      placeholder="Nhập tên khách hàng (gợi ý tự động)..."
+                      className="w-full pl-3 pr-7 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium text-slate-800"
+                    />
+                    {formData.customer && (
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, customer: '' })}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 text-slate-400 hover:text-slate-600 rounded-full"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
                   <datalist id="customs-customer-list">
-                    {customers.map(c => (
-                      <option key={c.id} value={c.customer_name} />
+                    {customerSuggestions.map(c => (
+                      <option key={c} value={c} />
                     ))}
                   </datalist>
+                  {customerSuggestions.length > 0 && (
+                    <div className="flex flex-wrap gap-1 pt-0.5">
+                      {customerSuggestions.slice(0, 3).map(c => (
+                        <button
+                          key={c}
+                          type="button"
+                          onClick={() => setFormData({ ...formData, customer: c })}
+                          className={`text-[10px] px-1.5 py-0.5 rounded border transition truncate max-w-[120px] ${
+                            formData.customer === c
+                              ? 'bg-indigo-50 text-indigo-700 border-indigo-300 font-bold'
+                              : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'
+                          }`}
+                          title={c}
+                        >
+                          {c}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                   {formData.customer?.trim() && !customers.some(c => c.customer_name.toLowerCase() === formData.customer.trim().toLowerCase()) && onSaveCatalogItem && (
                     <button
                       type="button"
@@ -1119,7 +1335,9 @@ export const CustomsProcedureManager: React.FC<CustomsProcedureManagerProps> = (
                     </button>
                   )}
                 </div>
+              </div>
 
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {/* Số lượng cont/lô */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
@@ -1159,38 +1377,84 @@ export const CustomsProcedureManager: React.FC<CustomsProcedureManagerProps> = (
                 </span>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                  {/* Tỷ lệ nhận thưởng */}
+                  <div className="space-y-1.5">
+                    <label className="block text-[11px] font-bold text-slate-600">
                       Tỷ lệ nhận thưởng
                     </label>
-                    <select
-                      value={formData.ratio_label}
-                      onChange={e => setFormData({ ...formData, ratio_label: e.target.value })}
-                      className="w-full px-3 py-2 text-xs bg-white border border-indigo-200 rounded-xl focus:outline-none font-bold text-indigo-800"
-                    >
+                    <div className="relative">
+                      <input
+                        type="text"
+                        list="customs-modal-ratio-list"
+                        value={formData.ratio_label}
+                        onChange={e => setFormData({ ...formData, ratio_label: e.target.value })}
+                        placeholder="VD: 1, 2/3, 1/2, 1/3, 0"
+                        className="w-full px-3 py-1.5 text-xs bg-white border border-indigo-200 rounded-xl focus:outline-none font-bold text-indigo-800"
+                      />
+                    </div>
+                    <div className="flex flex-wrap gap-1">
                       {RATIO_OPTIONS.map(r => (
-                        <option key={r.text} value={r.text}>
-                          {r.label}
-                        </option>
+                        <button
+                          key={r.text}
+                          type="button"
+                          onClick={() => setFormData({ ...formData, ratio_label: r.text })}
+                          className={`text-[10px] px-1.5 py-0.5 rounded border transition font-bold ${
+                            formData.ratio_label === r.text
+                              ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                              : 'bg-white text-indigo-800 border-indigo-200 hover:bg-indigo-100'
+                          }`}
+                        >
+                          {r.text}
+                        </button>
                       ))}
-                    </select>
+                    </div>
                   </div>
 
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                  {/* Nhân viên thực hiện/hỗ trợ */}
+                  <div className="space-y-1.5">
+                    <label className="block text-[11px] font-bold text-slate-600">
                       Nhân viên thực hiện/hỗ trợ
                     </label>
-                    <select
-                      value={formData.staff_id}
-                      onChange={e => setFormData({ ...formData, staff_id: e.target.value })}
-                      className="w-full px-3 py-2 text-xs bg-white border border-indigo-200 rounded-xl focus:outline-none font-medium text-slate-800"
-                    >
-                      {users.map(u => (
-                        <option key={u.id} value={u.id}>
-                          {u.name} ({u.role === 'admin' ? 'Admin' : 'Nhân viên'})
-                        </option>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        list="customs-modal-staff-list"
+                        value={
+                          staffSuggestions.find(s => s.id === formData.staff_id)?.name ||
+                          users.find(u => u.id === formData.staff_id)?.name ||
+                          formData.staff_id
+                        }
+                        onChange={e => {
+                          const val = e.target.value;
+                          const found = staffSuggestions.find(s => s.name.toLowerCase() === val.toLowerCase() || s.id === val) ||
+                            users.find(u => u.name.toLowerCase() === val.toLowerCase() || u.id === val);
+                          if (found) {
+                            setFormData({ ...formData, staff_id: found.id });
+                          } else {
+                            setFormData({ ...formData, staff_id: val });
+                          }
+                        }}
+                        placeholder="Gõ tên hoặc chọn nhân viên..."
+                        className="w-full px-3 py-1.5 text-xs bg-white border border-indigo-200 rounded-xl focus:outline-none font-medium text-slate-800"
+                      />
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {staffSuggestions.slice(0, 3).map(u => (
+                        <button
+                          key={u.id}
+                          type="button"
+                          onClick={() => setFormData({ ...formData, staff_id: u.id })}
+                          className={`text-[10px] px-1.5 py-0.5 rounded border transition truncate max-w-[110px] ${
+                            formData.staff_id === u.id
+                              ? 'bg-indigo-600 text-white border-indigo-600 font-bold shadow-xs'
+                              : 'bg-white text-slate-700 border-indigo-200 hover:bg-indigo-100'
+                          }`}
+                          title={u.name}
+                        >
+                          {u.name}
+                        </button>
                       ))}
-                    </select>
+                    </div>
                   </div>
                 </div>
               </div>
