@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Printer, FileCheck2, MapPin, Globe, ExternalLink, FileText, Loader2, RefreshCw } from 'lucide-react';
+import { X, Printer, FileCheck2, MapPin, Globe, ExternalLink, FileText, Loader2, RefreshCw, AlertTriangle, StickyNote, Info } from 'lucide-react';
 import { ShipmentRecord, CustomerItem, WarehouseItem, findCustomerByName, formatDateVN } from '../types';
 import { lookupTaxCode, TaxLookupResult } from '../lib/taxLookup';
 
@@ -381,13 +381,44 @@ export const DeliveryReceiptModal: React.FC<DeliveryReceiptModalProps> = ({
             </div>
           </div>
 
-          {/* Notes */}
-          <div className="text-xs">
-            <span className="font-bold text-slate-700">Ghi chú giao nhận: </span>
-            <span className="text-slate-600 italic">
-              {record.notes ||
-                'Hàng hóa đã được kiểm tra đầy đủ, đúng quy cách và nguyên niêm phong seal khi bàn giao.'}
-            </span>
+          {/* Notes Highlighted */}
+          <div className={`p-3 rounded-xl border text-xs break-inside-avoid ${
+            record.notes && record.notes.trim()
+              ? 'bg-amber-50/90 border-amber-300 text-amber-950 shadow-xs print:bg-amber-50 print:border-amber-400'
+              : 'bg-blue-50/70 border-blue-200 text-slate-800 print:bg-slate-50 print:border-slate-300'
+          }`}>
+            <div className="flex items-start gap-2.5">
+              <div className={`p-1 rounded-md shrink-0 mt-0.5 ${
+                record.notes && record.notes.trim()
+                  ? 'bg-amber-200/80 text-amber-800'
+                  : 'bg-blue-200/80 text-blue-800'
+              }`}>
+                <StickyNote className="w-3.5 h-3.5" />
+              </div>
+              <div className="flex-1 space-y-0.5">
+                <div className="flex items-center gap-2">
+                  <span className={`font-black uppercase tracking-wider text-[11px] ${
+                    record.notes && record.notes.trim() ? 'text-amber-900' : 'text-blue-900'
+                  }`}>
+                    Ghi Chú Giao Nhận & Chỉ Dẫn Vận Hành:
+                  </span>
+                  {record.notes && record.notes.trim() && (
+                    <span className="bg-amber-500 text-white font-extrabold text-[9px] px-1.5 py-0.2 rounded uppercase">
+                      Lưu ý đặc biệt
+                    </span>
+                  )}
+                </div>
+                <p className={`text-xs leading-relaxed ${
+                  record.notes && record.notes.trim()
+                    ? 'font-bold text-amber-950 not-italic'
+                    : 'text-slate-600 italic'
+                }`}>
+                  {record.notes && record.notes.trim()
+                    ? record.notes
+                    : 'Hàng hóa đã được kiểm tra đầy đủ, đúng quy cách và nguyên niêm phong seal khi bàn giao.'}
+                </p>
+              </div>
+            </div>
           </div>
 
           {/* Signatures */}

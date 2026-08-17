@@ -763,8 +763,14 @@ export const ShipmentTable: React.FC<ShipmentTableProps> = ({
                       );
                     })}
 
-                    <td className="p-3.5 text-slate-600 max-w-[180px] truncate" title={record.notes}>
-                      {record.notes || '—'}
+                    <td className="p-3.5 max-w-[200px]" title={record.notes}>
+                      {record.notes && record.notes.trim() ? (
+                        <span className="inline-block bg-amber-50 text-amber-900 border border-amber-200/80 px-2 py-1 rounded-lg text-xs font-semibold truncate max-w-full shadow-2xs">
+                          📝 {record.notes}
+                        </span>
+                      ) : (
+                        <span className="text-slate-400 text-xs">—</span>
+                      )}
                     </td>
 
                     {/* Requirement 5: Display Creator / Người nhập liệu */}
