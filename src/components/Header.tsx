@@ -16,7 +16,8 @@ import {
   UserCheck,
   Pencil,
   Sparkles,
-  HardDrive
+  HardDrive,
+  LayoutDashboard
 } from 'lucide-react';
 import { ActiveTab, UserAccount, hasPermission } from '../types';
 
@@ -52,6 +53,7 @@ export const Header: React.FC<HeaderProps> = ({
   const isCustomer = currentUser?.role === 'customer';
   const isEmployee = currentUser?.role === 'employee_logistics' || currentUser?.role === 'employee_accounting' || currentUser?.role === ('employee' as any);
   const isAdmin = currentUser?.role === 'admin';
+  const isManager = currentUser?.role === 'manager';
 
   return (
     <header className="bg-[#1E293B] text-white shadow-md no-print sticky top-0 z-30 border-b border-slate-700">
@@ -59,13 +61,17 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Top Header Bar */}
         <div className="flex items-center justify-between h-16 gap-4">
           {/* Logo & Title */}
-          <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center shrink-0 shadow-sm">
+          <div 
+            onClick={() => switchTab('dashboard')}
+            className="flex items-center space-x-3 cursor-pointer group"
+            title="Về Trang chủ & Dashboard SPV Logistics"
+          >
+            <div className="w-8 h-8 bg-blue-500 group-hover:bg-blue-600 rounded-lg flex items-center justify-center shrink-0 shadow-sm transition">
               <Truck className="w-5 h-5 text-white" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="font-bold text-white tracking-tight text-sm sm:text-base uppercase">
+                <h1 className="font-bold text-white tracking-tight text-sm sm:text-base uppercase group-hover:text-blue-200 transition">
                   CÔNG TY TNHH SPV GROUP
                 </h1>
                 <span className="bg-green-100 text-green-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-green-200 flex items-center gap-1">
@@ -74,7 +80,7 @@ export const Header: React.FC<HeaderProps> = ({
                 </span>
               </div>
               <p className="text-[11px] text-slate-400 font-medium hidden sm:block">
-                Hệ thống quản lý
+                Hệ thống quản lý & Chuỗi cung ứng
               </p>
             </div>
           </div>
@@ -88,6 +94,8 @@ export const Header: React.FC<HeaderProps> = ({
                   className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-white text-xs border border-white/10 ${
                     isAdmin
                       ? 'bg-orange-500'
+                      : isManager
+                      ? 'bg-purple-600'
                       : isEmployee
                       ? 'bg-blue-600'
                       : 'bg-emerald-600'
@@ -113,7 +121,7 @@ export const Header: React.FC<HeaderProps> = ({
                   <p className="text-[10px] text-slate-400 font-medium capitalize flex items-center gap-1">
                     <span
                       className={`inline-block w-1.5 h-1.5 rounded-full ${
-                        isAdmin ? 'bg-orange-400' : isEmployee ? 'bg-blue-400' : 'bg-emerald-400'
+                        isAdmin ? 'bg-orange-400' : isManager ? 'bg-purple-400' : isEmployee ? 'bg-blue-400' : 'bg-emerald-400'
                       }`}
                     ></span>
                     {isAdmin
@@ -196,6 +204,21 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Navigation Tabs */}
         <div className="flex space-x-1 pt-1 pb-1 overflow-x-auto no-scrollbar">
+          {/* Tab 0: Trang chủ & Dashboard SPV */}
+          {(!currentUser || hasPermission(currentUser, 'dashboard', 'view')) && (
+            <button
+              onClick={() => switchTab('dashboard')}
+              className={`px-3.5 py-2 rounded-md text-xs font-medium transition-colors flex items-center gap-2 shrink-0 ${
+                activeTab === 'dashboard'
+                  ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30 font-semibold'
+                  : 'text-slate-300 hover:bg-slate-800'
+              }`}
+            >
+              <LayoutDashboard className="w-4 h-4 text-blue-400" />
+              <span>Trang chủ & Dashboard</span>
+            </button>
+          )}
+
           {/* Tab 1: Công việc chung */}
           {(!currentUser || hasPermission(currentUser, 'customs', 'view')) && (
             <button
