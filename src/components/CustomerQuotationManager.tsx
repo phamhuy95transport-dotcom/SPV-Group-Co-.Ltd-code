@@ -5,6 +5,7 @@ import {
   Tag,
   Edit2,
   Trash2,
+  Copy,
   Building2,
   DollarSign,
   Save,
@@ -30,6 +31,7 @@ export const CustomerQuotationManager: React.FC<CustomerQuotationManagerProps> =
   const isAdmin = currentUser?.role === 'admin';
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalMode, setModalMode] = useState<'add' | 'edit' | 'duplicate'>('add');
   const [editingId, setEditingId] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
@@ -53,6 +55,7 @@ export const CustomerQuotationManager: React.FC<CustomerQuotationManagerProps> =
   });
 
   const handleOpenAddModal = () => {
+    setModalMode('add');
     setEditingId(null);
     setFormData({
       customer_name: customers[0]?.customer_name || '',
@@ -63,9 +66,21 @@ export const CustomerQuotationManager: React.FC<CustomerQuotationManagerProps> =
   };
 
   const handleOpenEditModal = (item: CustomerQuotation) => {
+    setModalMode('edit');
     setEditingId(item.id);
     setFormData({
       customer_name: item.customer_name,
+      unit_price: item.unit_price,
+      notes: item.notes || ''
+    });
+    setIsModalOpen(true);
+  };
+
+  const handleDuplicateQuotation = (item: CustomerQuotation) => {
+    setModalMode('duplicate');
+    setEditingId(null);
+    setFormData({
+      customer_name: item.customer_name ? `${item.customer_name} (Bản sao)` : '',
       unit_price: item.unit_price,
       notes: item.notes || ''
     });
@@ -168,6 +183,14 @@ export const CustomerQuotationManager: React.FC<CustomerQuotationManagerProps> =
                     </td>
                     <td className="p-3.5 text-center space-x-1 whitespace-nowrap">
                       <button
+                        type="button"
+                        onClick={() => handleDuplicateQuotation(item)}
+                        className="p-1.5 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition"
+                        title="Nhân bản báo giá (Tạo bản sao mới)"
+                      >
+                        <Copy className="w-4 h-4" />
+                      </button>
+                      <button
                         onClick={() => handleOpenEditModal(item)}
                         className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
                         title="Sửa báo giá"
@@ -196,8 +219,18 @@ export const CustomerQuotationManager: React.FC<CustomerQuotationManagerProps> =
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden border border-slate-200">
             <div className="bg-slate-900 text-white px-5 py-3.5 flex justify-between items-center border-b border-slate-800">
               <h3 className="font-bold text-sm flex items-center gap-2">
-                <Tag className="w-4 h-4 text-indigo-400" />
-                <span>{editingId ? 'Chỉnh Sửa Báo Giá' : 'Thêm Báo Giá Khách Hàng'}</span>
+                {modalMode === 'duplicate' ? (
+                  <Copy className="w-4 h-4 text-emerald-400" />
+                ) : (
+                  <Tag className="w-4 h-4 text-indigo-400" />
+                )}
+                <span>
+                  {modalMode === 'edit'
+                    ? 'Chỉnh Sửa Báo Giá'
+                    : modalMode === 'duplicate'
+                    ? 'Nhân Bản Báo Giá (Tạo bản sao mới)'
+                    : 'Thêm Báo Giá Khách Hàng'}
+                </span>
               </h3>
               <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-white">
                 <X className="w-4 h-4" />

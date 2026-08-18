@@ -8,6 +8,7 @@ import {
   Lock,
   Edit2,
   Trash2,
+  Copy,
   FileSpreadsheet,
   Calendar,
   User,
@@ -138,6 +139,7 @@ export const CustomsProcedureManager: React.FC<CustomsProcedureManagerProps> = (
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalMode, setModalMode] = useState<'add' | 'edit' | 'duplicate'>('add');
   const [editingId, setEditingId] = useState<string | null>(null);
 
   // Form State
@@ -198,6 +200,7 @@ export const CustomsProcedureManager: React.FC<CustomsProcedureManagerProps> = (
 
   const handleOpenAddModal = () => {
     const today = new Date().toISOString().split('T')[0];
+    setModalMode('add');
     setEditingId(null);
     setFormData({
       execution_date: today,
@@ -223,6 +226,7 @@ export const CustomsProcedureManager: React.FC<CustomsProcedureManagerProps> = (
       alert('Tờ khai đã được Duyệt! Chỉ Quản trị viên mới có thể sửa.');
       return;
     }
+    setModalMode('edit');
     setEditingId(item.id);
     setFormData({
       execution_date: item.execution_date,
@@ -238,6 +242,29 @@ export const CustomsProcedureManager: React.FC<CustomsProcedureManagerProps> = (
       extra_bonus: item.extra_bonus || 0,
       approved: item.approved,
       has_damage: item.has_damage || false,
+      notes: item.notes || ''
+    });
+    setIsModalOpen(true);
+  };
+
+  const handleDuplicateDeclaration = (item: CustomsDeclarationRecord) => {
+    const today = new Date().toISOString().split('T')[0];
+    setModalMode('duplicate');
+    setEditingId(null);
+    setFormData({
+      execution_date: item.execution_date || today,
+      completed_date: item.completed_date || item.execution_date || today,
+      approved_date: today,
+      declaration_number: item.declaration_number ? `${item.declaration_number} (Bản sao)` : '',
+      type: item.type,
+      customer: item.customer,
+      cont_quantity: item.cont_quantity || 1,
+      ratio_label: item.support_transfer?.ratio_label || '1',
+      staff_id: item.support_transfer?.staff_id || currentUser?.id || '',
+      completed: item.completed ?? true,
+      extra_bonus: item.extra_bonus || 0,
+      approved: false, // Bản sao mới tạo luôn ở trạng thái chưa duyệt
+      has_damage: false,
       notes: item.notes || ''
     });
     setIsModalOpen(true);
@@ -1109,6 +1136,14 @@ export const CustomsProcedureManager: React.FC<CustomsProcedureManagerProps> = (
                       {/* Thao tác */}
                       <td className="p-3 text-center">
                         <div className="flex items-center justify-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => handleDuplicateDeclaration(item)}
+                            className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition"
+                            title="Nhân bản tờ khai (Tạo bản sao mới)"
+                          >
+                            <Copy className="w-4 h-4" />
+                          </button>
                           {isRowLockedForUser ? (
                             <span
                               className="p-1.5 text-slate-300 opacity-50 cursor-not-allowed inline-flex"
@@ -1172,8 +1207,18 @@ export const CustomsProcedureManager: React.FC<CustomsProcedureManagerProps> = (
           <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-200">
             <div className="p-4 bg-slate-800 text-white flex justify-between items-center">
               <h3 className="font-bold text-sm flex items-center gap-2">
-                <FileSpreadsheet className="w-4 h-4 text-indigo-400" />
-                <span>{editingId ? 'Cập Nhật Tờ Khai Hải Quan' : 'Thêm Tờ Khai Hải Quan Mới'}</span>
+                {modalMode === 'duplicate' ? (
+                  <Copy className="w-4 h-4 text-emerald-400" />
+                ) : (
+                  <FileSpreadsheet className="w-4 h-4 text-indigo-400" />
+                )}
+                <span>
+                  {modalMode === 'edit'
+                    ? 'Cập Nhật Tờ Khai Hải Quan'
+                    : modalMode === 'duplicate'
+                    ? 'Nhân Bản Tờ Khai Hải Quan (Tạo bản sao mới)'
+                    : 'Thêm Tờ Khai Hải Quan Mới'}
+                </span>
               </h3>
               <button
                 onClick={() => setIsModalOpen(false)}

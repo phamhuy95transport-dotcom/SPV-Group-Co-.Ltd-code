@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, PlusCircle, Edit2, Lock, Save, User, AlertCircle, FileText, Globe, Search, Loader2, CheckCircle2 } from 'lucide-react';
+import { X, PlusCircle, Edit2, Copy, Lock, Save, User, AlertCircle, FileText, Globe, Search, Loader2, CheckCircle2 } from 'lucide-react';
 import { ShipmentRecord, WarehouseItem, TransporterItem, CustomerItem, RouteItem, UserAccount, findCustomerByName, CatalogSubTab } from '../types';
 import { lookupTaxCode } from '../lib/taxLookup';
 
@@ -214,7 +214,7 @@ export const ShipmentModal: React.FC<ShipmentModalProps> = ({
     setContErrorMsg(null);
     setTaxSearchResult(null);
 
-    if (modalMode === 'edit' && initialData) {
+    if (initialData) {
       const initType = initialData.return_invoice_type || 'customer';
       const custObj = findCustomerByName(initialData.customer, customers);
 
@@ -230,6 +230,7 @@ export const ShipmentModal: React.FC<ShipmentModalProps> = ({
 
       setFormData({
         ...initialData,
+        id: modalMode === 'add' ? ('rec_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7)) : initialData.id,
         return_invoice_type: initType,
         return_invoice_tax_code: taxCode,
         return_invoice_company_name: compName,
@@ -459,13 +460,19 @@ export const ShipmentModal: React.FC<ShipmentModalProps> = ({
         {/* Modal Header */}
         <div className="bg-slate-900 text-white px-6 py-4 flex justify-between items-center border-b border-slate-800">
           <div className="flex items-center gap-2.5">
-            {modalMode === 'add' ? (
+            {modalMode === 'add' && initialData ? (
+              <Copy className="w-5 h-5 text-emerald-400" />
+            ) : modalMode === 'add' ? (
               <PlusCircle className="w-5 h-5 text-emerald-400" />
             ) : (
               <Edit2 className="w-5 h-5 text-indigo-400" />
             )}
             <h3 className="font-extrabold text-slate-100 text-sm sm:text-base">
-              {modalMode === 'add' ? 'Thêm Mới Chuyến Hàng (Cột A đến R)' : 'Chỉnh Sửa Thông Tin Chuyến Hàng'}
+              {modalMode === 'add' && initialData
+                ? 'Nhân Bản Chuyến Hàng (Tạo bản sao mới)'
+                : modalMode === 'add'
+                ? 'Thêm Mới Chuyến Hàng (Cột A đến R)'
+                : 'Chỉnh Sửa Thông Tin Chuyến Hàng'}
             </h3>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-white transition">
