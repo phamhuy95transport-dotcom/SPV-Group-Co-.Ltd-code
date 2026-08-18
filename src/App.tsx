@@ -15,6 +15,9 @@ import {
   KPIRateItem,
   CustomerQuotation,
   EmployeeAdvanceItem,
+  SeaFreightRecord,
+  DashboardCustomSettings,
+  DEFAULT_DASHBOARD_SETTINGS,
   canDeleteUser,
   hasPermission,
   UserPermissions,
@@ -31,12 +34,14 @@ import {
   DEFAULT_CUSTOMS_DECLARATIONS,
   DEFAULT_CUSTOMER_QUOTATIONS,
   DEFAULT_EMPLOYEE_ADVANCES,
+  DEFAULT_SEA_FREIGHTS,
   saveRecordToCloud,
   deleteRecordFromCloud,
   subscribeToCloudCollection,
   LOCAL_STORAGE_KEY
 } from './lib/firebase';
 import { Header } from './components/Header';
+import { DashboardLandingPage } from './components/DashboardLandingPage';
 import { AuthModal } from './components/AuthModal';
 import { UserManagementModal } from './components/UserManagementModal';
 import { ShipmentTable } from './components/ShipmentTable';
@@ -45,6 +50,7 @@ import { DeliveryReceiptModal } from './components/DeliveryReceiptModal';
 import { CatalogManager } from './components/CatalogManager';
 import { FinancialReport } from './components/FinancialReport';
 import { CustomsProcedureManager } from './components/CustomsProcedureManager';
+import { SeaFreightManager } from './components/SeaFreightManager';
 import { KPIManager } from './components/KPIManager';
 import { CustomsReport } from './components/CustomsReport';
 import { CustomerQuotationManager } from './components/CustomerQuotationManager';
@@ -53,7 +59,7 @@ import { UtilitiesManager } from './components/UtilitiesManager';
 import { GoogleDriveManager } from './components/GoogleDriveManager';
 import { WelcomeModal } from './components/WelcomeModal';
 import { Toast, ToastState } from './components/Toast';
-import { Trash2, Briefcase, DollarSign, FileSpreadsheet, BarChart3, Award, Tag, Wallet } from 'lucide-react';
+import { Trash2, Briefcase, DollarSign, FileSpreadsheet, BarChart3, Award, Tag, Wallet, Ship } from 'lucide-react';
 
 const MOTIVATIONAL_QUOTES = [
   "Mỗi ngày là một món quà. Hãy trân trọng và tận hưởng nó.",
@@ -84,9 +90,28 @@ export default function App() {
   const [paidAmounts, setPaidAmounts] = useState<Record<string, number>>({});
   const [quotations, setQuotations] = useState<CustomerQuotation[]>(DEFAULT_CUSTOMER_QUOTATIONS);
   const [advances, setAdvances] = useState<EmployeeAdvanceItem[]>(DEFAULT_EMPLOYEE_ADVANCES);
+  const [seaFreights, setSeaFreights] = useState<SeaFreightRecord[]>(DEFAULT_SEA_FREIGHTS);
+
+  // Dashboard Settings State (Customizable for Admin, Manager & Staff)
+  const [dashboardSettings, setDashboardSettings] = useState<DashboardCustomSettings>(() => {
+    try {
+      const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY}_dashboard_settings`);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return {
+          ...DEFAULT_DASHBOARD_SETTINGS,
+          ...parsed,
+          widgets: { ...DEFAULT_DASHBOARD_SETTINGS.widgets, ...parsed?.widgets }
+        };
+      }
+    } catch (e) {
+      console.warn('Lỗi đọc dashboard settings:', e);
+    }
+    return DEFAULT_DASHBOARD_SETTINGS;
+  });
 
   // App UI & Navigation
-  const [activeTab, setActiveTab] = useState<ActiveTab>('entry');
+  const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
   const [activeSubTab, setActiveSubTab] = useState<CatalogSubTab>('warehouse');
   const [workSubTab, setWorkSubTab] = useState<WorkSubTab>('customs');
   const [financeSubTab, setFinanceSubTab] = useState<FinanceSubTab>('report_shipment');
@@ -112,7 +137,7 @@ export default function App() {
   // Confirm Delete Dialog
   const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{
-    type: 'shipment' | 'catalog' | 'customs' | 'advance' | 'quotation';
+    type: 'shipment' | 'catalog' | 'customs' | 'advance' | 'quotation' | 'sea_freight';
     id: string;
     ids?: string[];
     subTab?: CatalogSubTab;
@@ -186,6 +211,10 @@ export default function App() {
       if (data && data.length > 0) setAdvances(data as EmployeeAdvanceItem[]);
     });
 
+    const unsubSeaFreights = subscribeToCloudCollection('sea_freights', (data) => {
+      if (data && data.length > 0) setSeaFreights(data as SeaFreightRecord[]);
+    });
+
     const unsubUsers = subscribeToCloudCollection('users', (data) => {
       const userMap = new Map<string, UserAccount & { password?: string }>();
       DEFAULT_USERS.forEach(u => userMap.set(u.email.toLowerCase(), { ...u }));
@@ -205,6 +234,19 @@ export default function App() {
       setUsers(Array.from(userMap.values()));
     });
 
+    const unsubDashboardSettings = subscribeToCloudCollection('dashboard_settings', (data) => {
+      if (data && Array.isArray(data) && data.length > 0) {
+        const config = data.find((d: any) => d.id === 'main_config' || d.id === 'default');
+        if (config) {
+          setDashboardSettings(prev => ({
+            ...DEFAULT_DASHBOARD_SETTINGS,
+            ...config,
+            widgets: { ...DEFAULT_DASHBOARD_SETTINGS.widgets, ...config.widgets }
+          }));
+        }
+      }
+    });
+
     return () => {
       unsubShipments();
       unsubWarehouses();
@@ -216,9 +258,23 @@ export default function App() {
       unsubPaid();
       unsubQuotations();
       unsubAdvances();
+      unsubSeaFreights();
       unsubUsers();
+      unsubDashboardSettings();
     };
   }, []);
+
+  const handleUpdateDashboardSettings = async (newSettings: DashboardCustomSettings) => {
+    setDashboardSettings(newSettings);
+    localStorage.setItem(`${LOCAL_STORAGE_KEY}_dashboard_settings`, JSON.stringify(newSettings));
+    await saveRecordToCloud('dashboard_settings', 'main_config', {
+      id: 'main_config',
+      ...newSettings,
+      updatedBy: currentUser?.name || 'User',
+      updatedAt: new Date().toISOString()
+    });
+    showToast('Đã lưu cấu hình tùy biến Dashboard thành công!');
+  };
 
   const handleUpdatePaidAmount = async (key: string, amount: number) => {
     setPaidAmounts(prev => ({ ...prev, [key]: amount }));
@@ -635,6 +691,64 @@ export default function App() {
     }
   };
 
+  // Sea Freight Handlers (Cước Biển)
+  const handleSaveSeaFreight = async (record: SeaFreightRecord) => {
+    if (!hasPermission(currentUser, 'sea_freight', 'edit')) {
+      showToast('Tài khoản của bạn chưa được cấp quyền chỉnh sửa Cước biển.', 'error');
+      return;
+    }
+    setSeaFreights(prev => {
+      const exists = prev.some(s => s.id === record.id);
+      if (exists) return prev.map(s => (s.id === record.id ? record : s));
+      return [record, ...prev];
+    });
+    await saveRecordToCloud('sea_freights', record.id, record);
+    showToast('Đã lưu thông tin cước biển thành công!');
+  };
+
+  const handleDeleteSeaFreight = (id: string, name: string) => {
+    if (!hasPermission(currentUser, 'sea_freight', 'edit')) {
+      showToast('Tài khoản của bạn chưa được cấp quyền xóa Cước biển.', 'error');
+      return;
+    }
+    setDeleteTarget({
+      type: 'sea_freight',
+      id,
+      name
+    });
+    setIsConfirmDeleteOpen(true);
+  };
+
+  const handleToggleSeaFreightApproval = async (id: string, currentApproved: boolean) => {
+    if (currentUser?.role !== 'admin' && currentUser?.role !== 'manager') {
+      showToast('Chỉ Quản lý hoặc Quản trị viên mới có quyền Duyệt cước biển.', 'error');
+      return;
+    }
+    let updated: SeaFreightRecord | null = null;
+    const todayStr = new Date().toISOString().split('T')[0];
+    setSeaFreights(prev =>
+      prev.map(s => {
+        if (s.id === id) {
+          const nextApproved = !currentApproved;
+          const nextApprovedDate = nextApproved ? todayStr : undefined;
+          const nextApprovedBy = nextApproved && currentUser ? {
+            uid: currentUser.id,
+            email: currentUser.email,
+            name: currentUser.name,
+            role: currentUser.role
+          } : undefined;
+          updated = { ...s, approved: nextApproved, approved_date: nextApprovedDate, approved_by: nextApprovedBy };
+          return updated;
+        }
+        return s;
+      })
+    );
+    if (updated) {
+      await saveRecordToCloud('sea_freights', id, updated);
+      showToast((updated as SeaFreightRecord).approved ? 'Đã duyệt đơn cước biển!' : 'Đã hủy duyệt đơn cước biển.');
+    }
+  };
+
   const handleUpdateKPIRates = async (newRates: KPIRateItem[]) => {
     if (!hasPermission(currentUser, 'finance_kpi', 'edit')) {
       showToast('Bạn chưa được cấp quyền chỉnh sửa KPI.', 'error');
@@ -820,8 +934,8 @@ export default function App() {
     }
     const cloned: ShipmentRecord = {
       ...record,
-      id: 'rec_' + Date.now(),
-      cont_number: record.cont_number + '-COPY',
+      id: 'rec_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
+      cont_number: record.cont_number ? `${record.cont_number} (Bản sao)` : '',
       createdAt: new Date().toISOString()
     };
     setSelectedShipment(cloned);
@@ -1033,6 +1147,10 @@ export default function App() {
       setQuotations(prev => prev.filter(q => q.id !== deleteTarget.id));
       await deleteRecordFromCloud('quotations', deleteTarget.id);
       showToast('Đã xóa báo giá!');
+    } else if (deleteTarget.type === 'sea_freight') {
+      setSeaFreights(prev => prev.filter(s => s.id !== deleteTarget.id));
+      await deleteRecordFromCloud('sea_freights', deleteTarget.id);
+      showToast('Đã xóa đơn cước biển thành công!');
     } else if (deleteTarget.type === 'catalog' && deleteTarget.subTab) {
       const { subTab, id } = deleteTarget;
       if (subTab === 'warehouse') setWarehouses(prev => prev.filter(x => x.id !== id));
@@ -1117,6 +1235,53 @@ export default function App() {
 
       {/* Main Body Content */}
       <main className="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+        {/* Tab 0: SPV Logistics Landing Page & Dashboard */}
+        {activeTab === 'dashboard' && (
+          <DashboardLandingPage
+            currentUser={currentUser}
+            records={records}
+            declarations={declarations}
+            customers={customers}
+            warehouses={warehouses}
+            transporters={transporters}
+            routes={routes}
+            dashboardSettings={dashboardSettings}
+            onUpdateDashboardSettings={handleUpdateDashboardSettings}
+            onSwitchTab={tab => {
+              if (tab === 'users' && currentUser?.role !== 'admin' && currentUser?.role !== 'manager') {
+                showToast('Chỉ Quản trị viên hoặc Quản lý mới được quản lý tài khoản.', 'error');
+                return;
+              }
+              if (tab === 'category' && !hasPermission(currentUser, 'catalog', 'view')) {
+                showToast('Tài khoản của bạn không có quyền xem Danh mục.', 'error');
+                return;
+              }
+              if (tab === 'general_work' && !hasPermission(currentUser, 'customs', 'view')) {
+                showToast('Tài khoản của bạn không có quyền xem Thủ tục hải quan.', 'error');
+                return;
+              }
+              if (tab === 'entry' && !hasPermission(currentUser, 'shipments', 'view')) {
+                showToast('Tài khoản của bạn không có quyền xem Vận chuyển.', 'error');
+                return;
+              }
+              if (tab === 'finance' && !hasPermission(currentUser, 'finance', 'view')) {
+                showToast('Tài khoản của bạn không có quyền xem Tài chính.', 'error');
+                return;
+              }
+              setActiveTab(tab);
+            }}
+            onOpenNewTripModal={handleOpenNewTripModal}
+            onOpenReceiptModal={rec => {
+              setReceiptRecord(rec);
+              setIsReceiptModalOpen(true);
+            }}
+            onOpenLoginModal={() => {
+              setAuthModalMode('login');
+              setIsAuthModalOpen(true);
+            }}
+          />
+        )}
+
         {/* Tab 1: Vận Chuyển (Shipment Table) */}
         {activeTab === 'entry' && (
           <ShipmentTable
@@ -1184,9 +1349,21 @@ export default function App() {
                 <FileSpreadsheet className="w-4 h-4" />
                 <span>Thủ tục hải quan</span>
               </button>
+
+              <button
+                onClick={() => setWorkSubTab('sea_freight')}
+                className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-2 ${
+                  workSubTab === 'sea_freight'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <Ship className="w-4 h-4" />
+                <span>Cước biển</span>
+              </button>
             </div>
 
-            {/* Subtab View */}
+            {/* Subtab View: Thủ tục hải quan */}
             {workSubTab === 'customs' && (
               <CustomsProcedureManager
                 declarations={declarations}
@@ -1205,6 +1382,26 @@ export default function App() {
                 onToggleCompleted={handleToggleDeclarationCompleted}
                 onToggleDamage={handleToggleDeclarationDamage}
                 onSaveCatalogItem={handleSaveCatalogItem}
+              />
+            )}
+
+            {/* Subtab View: Cước biển */}
+            {workSubTab === 'sea_freight' && (
+              <SeaFreightManager
+                records={seaFreights}
+                customers={customers}
+                routes={routes}
+                transporters={transporters}
+                users={users}
+                currentUser={currentUser}
+                onSaveRecord={handleSaveSeaFreight}
+                onDeleteRecord={handleDeleteSeaFreight}
+                onToggleApproval={handleToggleSeaFreightApproval}
+                onSaveCatalogItem={handleSaveCatalogItem}
+                onOpenLoginModal={() => {
+                  setAuthModalMode('login');
+                  setIsAuthModalOpen(true);
+                }}
               />
             )}
           </div>
