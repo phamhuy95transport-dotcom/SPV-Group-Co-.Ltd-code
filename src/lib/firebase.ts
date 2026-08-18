@@ -10,7 +10,8 @@ import {
   KPIRateItem,
   CustomsDeclarationRecord,
   CustomerQuotation,
-  EmployeeAdvanceItem
+  EmployeeAdvanceItem,
+  SeaFreightRecord
 } from '../types';
 
 // Firebase Web App Configuration
@@ -222,6 +223,86 @@ export const DEFAULT_EMPLOYEE_ADVANCES: EmployeeAdvanceItem[] = [
     approved: true,
     createdAt: '2026-08-03T10:00:00Z',
     updatedAt: '2026-08-03T10:00:00Z'
+  }
+];
+
+export const DEFAULT_SEA_FREIGHTS: SeaFreightRecord[] = [
+  {
+    id: 'sf_1',
+    booking_date: '2026-08-10',
+    route: 'Hải Phòng - Los Angeles (USLAX)',
+    mbl_hbl: 'ONE260810HP / HBL-SPV01',
+    volume_info: '2x40HC',
+    agent: 'Ocean Network Express (ONE)',
+    customer: 'Samsung Electronics',
+    buy_price: 48000000,
+    sell_price: 56000000,
+    profit: 8000000,
+    notes: 'Hàng điện tử đóng ghép cont 40HC, hạ bãi trước 15/08',
+    created_by: {
+      uid: 'u_admin_1',
+      email: 'admin@spv.biz.vn',
+      name: "SPV's Boss",
+      role: 'admin'
+    },
+    approved: true,
+    approved_date: '2026-08-11',
+    approved_by: {
+      uid: 'u_admin_1',
+      email: 'admin@spv.biz.vn',
+      name: "SPV's Boss",
+      role: 'admin'
+    },
+    createdAt: '2026-08-10T09:00:00Z'
+  },
+  {
+    id: 'sf_2',
+    booking_date: '2026-08-14',
+    route: 'Hải Phòng - Singapore (SGSIN)',
+    mbl_hbl: 'COSU882190 / HBL-SPV02',
+    volume_info: '1x20GP',
+    agent: 'Cosco Shipping Lines',
+    customer: 'LG Display Vietnam',
+    buy_price: 18500000,
+    sell_price: 23000000,
+    profit: 4500000,
+    notes: 'Miễn phí lưu bãi lưu cont 14 ngày tại cảng đến',
+    created_by: {
+      uid: 'u_admin_1',
+      email: 'admin@spv.biz.vn',
+      name: "SPV's Boss",
+      role: 'admin'
+    },
+    approved: false,
+    createdAt: '2026-08-14T14:20:00Z'
+  },
+  {
+    id: 'sf_3',
+    booking_date: '2026-08-16',
+    route: 'Hải Phòng - Hamburg (DEHAM)',
+    mbl_hbl: 'HLCU260816 / HBL-SPV03',
+    volume_info: '18 CBM (LCL)',
+    agent: 'Hapag-Lloyd Logistics',
+    customer: 'VinFast Auto',
+    buy_price: 26000000,
+    sell_price: 32500000,
+    profit: 6500000,
+    notes: 'Hàng linh kiện mẫu, bốc dỡ nhẹ tay',
+    created_by: {
+      uid: 'u_admin_1',
+      email: 'admin@spv.biz.vn',
+      name: "SPV's Boss",
+      role: 'admin'
+    },
+    approved: true,
+    approved_date: '2026-08-16',
+    approved_by: {
+      uid: 'u_admin_1',
+      email: 'admin@spv.biz.vn',
+      name: "SPV's Boss",
+      role: 'admin'
+    },
+    createdAt: '2026-08-16T11:15:00Z'
   }
 ];
 
