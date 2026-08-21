@@ -209,6 +209,8 @@ export interface CustomerQuotation {
   customer_name: string;
   unit_price: number; // Đơn giá thủ tục hải quan cont/lô
   notes?: string;
+  date?: string; // Ngày áp dụng/báo giá (YYYY-MM-DD)
+  createdAt?: string;
   updatedAt?: string;
 }
 
@@ -218,6 +220,7 @@ export interface EmployeeAdvanceItem {
   staff_name: string;
   employee_id?: string;
   employee_name?: string;
+  date?: string;         // Ngày tạm ứng / phát sinh chi phí (YYYY-MM-DD)
   description: string;   // Diễn giải
   advance_amount: number;// Số tiền ứng
   expense_amount: number;// Chi phí
