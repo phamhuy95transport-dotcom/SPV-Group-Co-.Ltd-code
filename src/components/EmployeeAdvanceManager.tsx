@@ -12,9 +12,11 @@ import {
   CheckCircle2,
   Clock,
   X,
-  BookOpen
+  BookOpen,
+  Calendar,
+  ArrowDownUp
 } from 'lucide-react';
-import { EmployeeAdvanceItem, UserAccount } from '../types';
+import { EmployeeAdvanceItem, UserAccount, formatDateVN } from '../types';
 
 interface EmployeeAdvanceManagerProps {
   advances: EmployeeAdvanceItem[];
@@ -54,42 +56,48 @@ export const EmployeeAdvanceManager: React.FC<EmployeeAdvanceManagerProps> = ({
 
   // Form State for Advance
   const [formData, setFormData] = useState({
+    date: new Date().toISOString().split('T')[0],
     description: '',
     advance_amount: 0,
     expense_amount: 0,
     approved: false
   });
 
-  // Calculate Ledgers list
+  // Calculate Ledgers list and sort by most recent activity
   const ledgers = useMemo(() => {
     const staffIdsWithAdvances = new Set(advances.map(a => a.staff_id));
     explicitLedgers.forEach(id => staffIdsWithAdvances.add(id));
     
-    // For normal employees, if they shouldn't see others, we could filter here, 
-    // but typically if they have 'finance_advances' view permission they might be accounting staff.
-    // If not admin/manager, we can just show their own or let them see all if they have permission. 
-    // To be safe and meet "1 sổ là 1 nhân viên", we show them their own by default if they are normal employee.
     let allowedStaffIds = Array.from(staffIdsWithAdvances);
     if (!isAdminOrManager) {
-      // Normal employee only sees their own ledger unless they were granted permission, 
-      // but let's restrict to their own to ensure "nhân viên sẽ nhập liệu vào sổ" means THEIR sổ.
       allowedStaffIds = [currentUser?.id || ''];
     }
 
-    return allowedStaffIds.map(id => {
+    const list = allowedStaffIds.map(id => {
       const user = users.find(u => u.id === id);
       const staffAdvances = advances.filter(a => a.staff_id === id);
       const totalAdvance = staffAdvances.reduce((sum, a) => sum + (a.advance_amount || 0), 0);
       const totalExpense = staffAdvances.reduce((sum, a) => sum + (a.expense_amount || 0), 0);
       
+      // Find latest date in this ledger
+      let latestDate = '';
+      staffAdvances.forEach(a => {
+        const d = a.date || (a.createdAt ? a.createdAt.split('T')[0] : '');
+        if (d > latestDate) latestDate = d;
+      });
+
       return {
         staff_id: id,
         staff_name: user?.name || 'Chưa gán',
         totalAdvance,
         totalExpense,
-        count: staffAdvances.length
+        count: staffAdvances.length,
+        latestDate
       };
     }).filter(l => l.staff_id);
+
+    // Sort ledgers by latest activity date descending
+    return list.sort((a, b) => (b.latestDate || '').localeCompare(a.latestDate || ''));
   }, [advances, explicitLedgers, users, isAdminOrManager, currentUser?.id]);
 
   // Set default active ledger if none selected
@@ -101,6 +109,7 @@ export const EmployeeAdvanceManager: React.FC<EmployeeAdvanceManagerProps> = ({
 
   const activeLedgerData = ledgers.find(l => l.staff_id === activeLedgerStaffId);
   
+  // Sorted advances by most recent date descending (gần nhất từ trên xuống)
   const currentLedgerAdvances = useMemo(() => {
     if (!activeLedgerStaffId) return [];
     let filtered = advances.filter(a => a.staff_id === activeLedgerStaffId);
@@ -108,8 +117,16 @@ export const EmployeeAdvanceManager: React.FC<EmployeeAdvanceManagerProps> = ({
       const lower = searchTerm.toLowerCase();
       filtered = filtered.filter(a => a.description.toLowerCase().includes(lower));
     }
-    // Sort by created at or date (latest first)
-    return filtered.reverse();
+    
+    // Sort strictly by most recent date from top to bottom (descending)
+    return [...filtered].sort((a, b) => {
+      const dateA = a.date || (a.createdAt ? a.createdAt.split('T')[0] : '');
+      const dateB = b.date || (b.createdAt ? b.createdAt.split('T')[0] : '');
+      if (dateA !== dateB) {
+        return dateB.localeCompare(dateA);
+      }
+      return (b.createdAt || '').localeCompare(a.createdAt || '');
+    });
   }, [advances, activeLedgerStaffId, searchTerm]);
 
   // Handlers
@@ -127,6 +144,7 @@ export const EmployeeAdvanceManager: React.FC<EmployeeAdvanceManagerProps> = ({
     setAdvanceModalMode('add');
     setEditingId(null);
     setFormData({
+      date: new Date().toISOString().split('T')[0],
       description: '',
       advance_amount: 0,
       expense_amount: 0,
@@ -139,6 +157,7 @@ export const EmployeeAdvanceManager: React.FC<EmployeeAdvanceManagerProps> = ({
     setAdvanceModalMode('edit');
     setEditingId(item.id);
     setFormData({
+      date: item.date || (item.createdAt ? item.createdAt.split('T')[0] : new Date().toISOString().split('T')[0]),
       description: item.description || '',
       advance_amount: item.advance_amount || 0,
       expense_amount: item.expense_amount || 0,
@@ -151,6 +170,7 @@ export const EmployeeAdvanceManager: React.FC<EmployeeAdvanceManagerProps> = ({
     setAdvanceModalMode('duplicate');
     setEditingId(null);
     setFormData({
+      date: new Date().toISOString().split('T')[0],
       description: item.description ? `${item.description} (Bản sao)` : '',
       advance_amount: item.advance_amount || 0,
       expense_amount: item.expense_amount || 0,
@@ -170,11 +190,13 @@ export const EmployeeAdvanceManager: React.FC<EmployeeAdvanceManagerProps> = ({
       id: editingId || `adv-${Date.now()}`,
       staff_id: staffUser.id,
       staff_name: staffUser.name,
+      date: formData.date || new Date().toISOString().split('T')[0],
       description: formData.description,
       advance_amount: formData.advance_amount,
       expense_amount: formData.expense_amount,
       approved: formData.approved,
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     };
 
     onSaveAdvance(itemToSave);
@@ -235,7 +257,12 @@ export const EmployeeAdvanceManager: React.FC<EmployeeAdvanceManagerProps> = ({
                     <p className={`text-xs font-bold truncate ${
                       activeLedgerStaffId === ledger.staff_id ? 'text-indigo-900' : 'text-slate-700'
                     }`}>{ledger.staff_name}</p>
-                    <p className="text-[10px] text-slate-500">{ledger.count} khoản tạm ứng</p>
+                    <div className="flex items-center justify-between text-[10px] text-slate-500 mt-0.5">
+                      <span>{ledger.count} khoản</span>
+                      {ledger.latestDate && (
+                        <span className="text-indigo-600 font-semibold">{formatDateVN(ledger.latestDate)}</span>
+                      )}
+                    </div>
                   </div>
                 </div>
               </button>
@@ -251,15 +278,26 @@ export const EmployeeAdvanceManager: React.FC<EmployeeAdvanceManagerProps> = ({
             {/* Header */}
             <div className="p-5 border-b border-slate-100 bg-slate-50/50 flex flex-wrap items-center justify-between gap-4">
               <div>
-                <h2 className="text-lg font-black text-slate-800">
-                  Sổ Tạm Ứng: <span className="text-indigo-700">{activeLedgerData.staff_name}</span>
-                </h2>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-lg font-black text-slate-800">
+                    Sổ Tạm Ứng: <span className="text-indigo-700">{activeLedgerData.staff_name}</span>
+                  </h2>
+                  <span className="bg-indigo-50 text-indigo-700 text-[11px] font-bold px-2 py-0.5 rounded-full border border-indigo-200/60 flex items-center gap-1">
+                    <ArrowDownUp className="w-3 h-3 text-indigo-600" />
+                    <span>Xếp theo ngày gần nhất</span>
+                  </span>
+                </div>
                 <div className="flex items-center gap-4 mt-2">
                   <p className="text-xs font-semibold text-slate-600">
                     Tổng ứng: <span className="text-indigo-600 font-mono font-bold">{formatCurrency(activeLedgerData.totalAdvance)}</span>
                   </p>
                   <p className="text-xs font-semibold text-slate-600">
                     Tổng chi: <span className="text-amber-600 font-mono font-bold">{formatCurrency(activeLedgerData.totalExpense)}</span>
+                  </p>
+                  <p className="text-xs font-semibold text-slate-600">
+                    Còn lại: <span className={`font-mono font-bold ${(activeLedgerData.totalAdvance - activeLedgerData.totalExpense) >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                      {formatCurrency(activeLedgerData.totalAdvance - activeLedgerData.totalExpense)}
+                    </span>
                   </p>
                 </div>
               </div>
@@ -288,37 +326,53 @@ export const EmployeeAdvanceManager: React.FC<EmployeeAdvanceManagerProps> = ({
             <div className="flex-1 overflow-auto">
               <table className="w-full text-left border-collapse">
                 <thead className="sticky top-0 z-10 bg-white shadow-sm">
-                  <tr className="bg-slate-100/50 text-slate-700 text-[11px] font-bold uppercase">
-                    <th className="p-4 border-b border-slate-200">Diễn giải</th>
-                    <th className="p-4 text-right border-b border-slate-200">Tiền ứng</th>
-                    <th className="p-4 text-right border-b border-slate-200">Tiền chi</th>
-                    <th className="p-4 text-center border-b border-slate-200">Trạng thái</th>
-                    <th className="p-4 text-center border-b border-slate-200">Thao tác</th>
+                  <tr className="bg-slate-100/70 text-slate-700 text-[11px] font-bold uppercase">
+                    <th className="p-3.5 border-b border-slate-200 text-center w-12">STT</th>
+                    <th className="p-3.5 border-b border-slate-200 whitespace-nowrap">
+                      <div className="flex items-center gap-1 text-indigo-900">
+                        <Calendar className="w-3.5 h-3.5 text-indigo-600" />
+                        <span>Ngày tháng (Gần nhất)</span>
+                      </div>
+                    </th>
+                    <th className="p-3.5 border-b border-slate-200">Diễn giải</th>
+                    <th className="p-3.5 text-right border-b border-slate-200 whitespace-nowrap">Tiền ứng</th>
+                    <th className="p-3.5 text-right border-b border-slate-200 whitespace-nowrap">Tiền chi</th>
+                    <th className="p-3.5 text-center border-b border-slate-200 whitespace-nowrap">Trạng thái</th>
+                    <th className="p-3.5 text-center border-b border-slate-200 whitespace-nowrap w-28">Thao tác</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-xs">
                   {currentLedgerAdvances.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="p-8 text-center text-slate-400">
+                      <td colSpan={7} className="p-8 text-center text-slate-400">
                         Sổ chưa có khoản tạm ứng nào.
                       </td>
                     </tr>
                   ) : (
-                    currentLedgerAdvances.map(item => {
+                    currentLedgerAdvances.map((item, idx) => {
                       const isLocked = item.approved && !isAdminOrManager;
+                      const dateDisplay = formatDateVN(item.date || (item.createdAt ? item.createdAt.split('T')[0] : '')) || '—';
                       
                       return (
                         <tr key={item.id} className={`hover:bg-slate-50 transition ${item.approved ? 'bg-emerald-50/30' : ''}`}>
-                          <td className="p-4 font-bold text-slate-800">
+                          <td className="p-3.5 text-center font-bold text-slate-400">
+                            {idx + 1}
+                          </td>
+                          <td className="p-3.5 font-bold text-slate-800 whitespace-nowrap">
+                            <span className="px-2 py-1 bg-slate-100 rounded-lg text-slate-700 font-mono text-[11px]">
+                              {dateDisplay}
+                            </span>
+                          </td>
+                          <td className="p-3.5 font-semibold text-slate-800">
                             {item.description}
                           </td>
-                          <td className="p-4 text-right font-mono font-bold text-indigo-700">
+                          <td className="p-3.5 text-right font-mono font-bold text-indigo-700 whitespace-nowrap">
                             {formatCurrency(item.advance_amount)}
                           </td>
-                          <td className="p-4 text-right font-mono font-bold text-amber-700">
+                          <td className="p-3.5 text-right font-mono font-bold text-amber-700 whitespace-nowrap">
                             {formatCurrency(item.expense_amount)}
                           </td>
-                          <td className="p-4 text-center">
+                          <td className="p-3.5 text-center whitespace-nowrap">
                             <button
                               disabled={!isAdminOrManager}
                               onClick={() => isAdminOrManager && onToggleApproval(item.id, !!item.approved)}
@@ -344,7 +398,7 @@ export const EmployeeAdvanceManager: React.FC<EmployeeAdvanceManagerProps> = ({
                               )}
                             </button>
                           </td>
-                          <td className="p-4 text-center whitespace-nowrap space-x-1">
+                          <td className="p-3.5 text-center whitespace-nowrap space-x-1">
                             <button
                               type="button"
                               onClick={() => handleDuplicateAdvance(item)}
@@ -471,6 +525,20 @@ export const EmployeeAdvanceManager: React.FC<EmployeeAdvanceManagerProps> = ({
               </button>
             </div>
             <form onSubmit={handleSaveAdvance} className="p-5 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1">
+                  <Calendar className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>Ngày Tháng Phát Sinh / Tạm Ứng *</span>
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={formData.date}
+                  onChange={e => setFormData({ ...formData, date: e.target.value })}
+                  className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium text-slate-800"
+                />
+              </div>
+
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">Diễn Giải Khoản Ứng *</label>
                 <textarea

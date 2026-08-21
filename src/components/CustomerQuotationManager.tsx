@@ -9,9 +9,11 @@ import {
   Building2,
   DollarSign,
   Save,
-  X
+  X,
+  Calendar,
+  ArrowDownUp
 } from 'lucide-react';
-import { CustomerQuotation, CustomerItem, UserAccount } from '../types';
+import { CustomerQuotation, CustomerItem, UserAccount, formatDateVN } from '../types';
 
 interface CustomerQuotationManagerProps {
   quotations: CustomerQuotation[];
@@ -35,29 +37,41 @@ export const CustomerQuotationManager: React.FC<CustomerQuotationManagerProps> =
   const [editingId, setEditingId] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
+    date: new Date().toISOString().split('T')[0],
     customer_name: '',
     unit_price: 800000,
     notes: ''
   });
 
-  const filteredQuotations = quotations.filter(q => {
-    if (currentUser?.role === 'customer') {
-      if (currentUser.customer_name) {
-        if (q.customer_name !== currentUser.customer_name) return false;
-      } else if (currentUser.name) {
-        if (!q.customer_name || !q.customer_name.toLowerCase().includes(currentUser.name.toLowerCase())) return false;
+  const filteredQuotations = quotations
+    .filter(q => {
+      if (currentUser?.role === 'customer') {
+        if (currentUser.customer_name) {
+          if (q.customer_name !== currentUser.customer_name) return false;
+        } else if (currentUser.name) {
+          if (!q.customer_name || !q.customer_name.toLowerCase().includes(currentUser.name.toLowerCase())) return false;
+        }
       }
-    }
-    return (
-      (q.customer_name || '').toLowerCase().includes(searchTerm.toLowerCase().trim()) ||
-      (q.notes || '').toLowerCase().includes(searchTerm.toLowerCase().trim())
-    );
-  });
+      return (
+        (q.customer_name || '').toLowerCase().includes(searchTerm.toLowerCase().trim()) ||
+        (q.notes || '').toLowerCase().includes(searchTerm.toLowerCase().trim())
+      );
+    })
+    // Sort strictly by newest date from top to bottom (descending)
+    .sort((a, b) => {
+      const dateA = a.date || (a.updatedAt ? a.updatedAt.split('T')[0] : (a.createdAt ? a.createdAt.split('T')[0] : ''));
+      const dateB = b.date || (b.updatedAt ? b.updatedAt.split('T')[0] : (b.createdAt ? b.createdAt.split('T')[0] : ''));
+      if (dateA !== dateB) {
+        return dateB.localeCompare(dateA);
+      }
+      return (b.updatedAt || b.createdAt || '').localeCompare(a.updatedAt || a.createdAt || '');
+    });
 
   const handleOpenAddModal = () => {
     setModalMode('add');
     setEditingId(null);
     setFormData({
+      date: new Date().toISOString().split('T')[0],
       customer_name: customers[0]?.customer_name || '',
       unit_price: 800000,
       notes: ''
@@ -69,6 +83,7 @@ export const CustomerQuotationManager: React.FC<CustomerQuotationManagerProps> =
     setModalMode('edit');
     setEditingId(item.id);
     setFormData({
+      date: item.date || (item.updatedAt ? item.updatedAt.split('T')[0] : (item.createdAt ? item.createdAt.split('T')[0] : new Date().toISOString().split('T')[0])),
       customer_name: item.customer_name,
       unit_price: item.unit_price,
       notes: item.notes || ''
@@ -80,6 +95,7 @@ export const CustomerQuotationManager: React.FC<CustomerQuotationManagerProps> =
     setModalMode('duplicate');
     setEditingId(null);
     setFormData({
+      date: new Date().toISOString().split('T')[0],
       customer_name: item.customer_name ? `${item.customer_name} (Bản sao)` : '',
       unit_price: item.unit_price,
       notes: item.notes || ''
@@ -99,6 +115,7 @@ export const CustomerQuotationManager: React.FC<CustomerQuotationManagerProps> =
       customer_name: formData.customer_name.trim(),
       unit_price: Number(formData.unit_price) || 0,
       notes: formData.notes.trim(),
+      date: formData.date || new Date().toISOString().split('T')[0],
       updatedAt: new Date().toISOString()
     };
 
@@ -111,11 +128,17 @@ export const CustomerQuotationManager: React.FC<CustomerQuotationManagerProps> =
       {/* Top Banner & Action */}
       <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-            <Tag className="w-5 h-5 text-indigo-600" />
-            <span>Bảng Báo Giá Thủ Tục Hải Quan Cho Khách Hàng</span>
-          </h2>
-          <p className="text-xs text-slate-500">
+          <div className="flex items-center gap-2">
+            <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+              <Tag className="w-5 h-5 text-indigo-600" />
+              <span>Bảng Báo Giá Thủ Tục Hải Quan Cho Khách Hàng</span>
+            </h2>
+            <span className="bg-indigo-50 text-indigo-700 text-[11px] font-bold px-2 py-0.5 rounded-full border border-indigo-200/60 flex items-center gap-1">
+              <ArrowDownUp className="w-3 h-3 text-indigo-600" />
+              <span>Sắp xếp ngày gần nhất</span>
+            </span>
+          </div>
+          <p className="text-xs text-slate-500 mt-0.5">
             Quản lý bảng đơn giá dịch vụ thủ tục hải quan theo cont/lô quy định cho từng khách hàng
           </p>
         </div>
@@ -143,13 +166,19 @@ export const CustomerQuotationManager: React.FC<CustomerQuotationManagerProps> =
         </div>
       </div>
 
-      {/* Main Table (Requirement 6) */}
+      {/* Main Table */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-800 text-white text-[11px] font-bold uppercase tracking-wider">
                 <th className="p-3.5 text-center w-14 border-r border-slate-700">STT</th>
+                <th className="p-3.5 border-r border-slate-700 whitespace-nowrap">
+                  <div className="flex items-center gap-1 text-indigo-200">
+                    <Calendar className="w-3.5 h-3.5 text-indigo-400" />
+                    <span>Thời Gian Gần Nhất</span>
+                  </div>
+                </th>
                 <th className="p-3.5 border-r border-slate-700">Tên Khách Hàng</th>
                 <th className="p-3.5 text-right border-r border-slate-700 min-w-[200px]">Đơn giá thủ tục hải quan (cont/lô)</th>
                 <th className="p-3.5 border-r border-slate-700">Ghi chú</th>
@@ -159,54 +188,63 @@ export const CustomerQuotationManager: React.FC<CustomerQuotationManagerProps> =
             <tbody className="divide-y divide-slate-100 text-xs sm:text-sm">
               {filteredQuotations.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="p-8 text-center text-slate-400">
+                  <td colSpan={6} className="p-8 text-center text-slate-400">
                     Chưa có báo giá nào. Nhấn "Thêm Báo Giá Mới" để tạo báo giá cho khách hàng.
                   </td>
                 </tr>
               ) : (
-                filteredQuotations.map((item, index) => (
-                  <tr key={item.id} className="hover:bg-slate-50 transition">
-                    <td className="p-3.5 text-center font-bold text-slate-400 text-xs border-r border-slate-100">
-                      {index + 1}
-                    </td>
-                    <td className="p-3.5 font-bold text-slate-900 border-r border-slate-100">
-                      <div className="flex items-center gap-2">
-                        <Building2 className="w-4 h-4 text-indigo-600 shrink-0" />
-                        <span>{item.customer_name}</span>
-                      </div>
-                    </td>
-                    <td className="p-3.5 text-right font-mono font-extrabold text-emerald-700 text-sm border-r border-slate-100">
-                      {(item.unit_price || 0).toLocaleString('vi-VN')} đ
-                    </td>
-                    <td className="p-3.5 text-slate-600 text-xs border-r border-slate-100">
-                      {item.notes || '—'}
-                    </td>
-                    <td className="p-3.5 text-center space-x-1 whitespace-nowrap">
-                      <button
-                        type="button"
-                        onClick={() => handleDuplicateQuotation(item)}
-                        className="p-1.5 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition"
-                        title="Nhân bản báo giá (Tạo bản sao mới)"
-                      >
-                        <Copy className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleOpenEditModal(item)}
-                        className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
-                        title="Sửa báo giá"
-                      >
-                        <Edit2 className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => onDeleteQuotation(item.id, `Báo giá của ${item.customer_name}`)}
-                        className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
-                        title="Xóa báo giá"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </td>
-                  </tr>
-                ))
+                filteredQuotations.map((item, index) => {
+                  const dateDisplay = formatDateVN(item.date || (item.updatedAt ? item.updatedAt.split('T')[0] : (item.createdAt ? item.createdAt.split('T')[0] : ''))) || '—';
+                  
+                  return (
+                    <tr key={item.id} className="hover:bg-slate-50 transition">
+                      <td className="p-3.5 text-center font-bold text-slate-400 text-xs border-r border-slate-100">
+                        {index + 1}
+                      </td>
+                      <td className="p-3.5 font-bold text-slate-800 whitespace-nowrap border-r border-slate-100">
+                        <span className="px-2 py-1 bg-slate-100 rounded-lg text-slate-700 font-mono text-[11px]">
+                          {dateDisplay}
+                        </span>
+                      </td>
+                      <td className="p-3.5 font-bold text-slate-900 border-r border-slate-100">
+                        <div className="flex items-center gap-2">
+                          <Building2 className="w-4 h-4 text-indigo-600 shrink-0" />
+                          <span>{item.customer_name}</span>
+                        </div>
+                      </td>
+                      <td className="p-3.5 text-right font-mono font-extrabold text-emerald-700 text-sm border-r border-slate-100">
+                        {(item.unit_price || 0).toLocaleString('vi-VN')} đ
+                      </td>
+                      <td className="p-3.5 text-slate-600 text-xs border-r border-slate-100">
+                        {item.notes || '—'}
+                      </td>
+                      <td className="p-3.5 text-center space-x-1 whitespace-nowrap">
+                        <button
+                          type="button"
+                          onClick={() => handleDuplicateQuotation(item)}
+                          className="p-1.5 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition"
+                          title="Nhân bản báo giá (Tạo bản sao mới)"
+                        >
+                          <Copy className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleOpenEditModal(item)}
+                          className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
+                          title="Sửa báo giá"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => onDeleteQuotation(item.id, `Báo giá của ${item.customer_name}`)}
+                          className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                          title="Xóa báo giá"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -238,6 +276,20 @@ export const CustomerQuotationManager: React.FC<CustomerQuotationManagerProps> =
             </div>
 
             <form onSubmit={handleSubmit} className="p-5 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1">
+                  <Calendar className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>Ngày Áp Dụng Báo Giá *</span>
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={formData.date}
+                  onChange={e => setFormData({ ...formData, date: e.target.value })}
+                  className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium text-slate-800"
+                />
+              </div>
+
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">Tên Khách Hàng *</label>
                 <div className="space-y-2">
