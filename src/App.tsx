@@ -53,6 +53,7 @@ import { CustomsProcedureManager } from './components/CustomsProcedureManager';
 import { SeaFreightManager } from './components/SeaFreightManager';
 import { KPIManager } from './components/KPIManager';
 import { CustomsReport } from './components/CustomsReport';
+import { SeaFreightReport } from './components/SeaFreightReport';
 import { CustomerQuotationManager } from './components/CustomerQuotationManager';
 import { EmployeeAdvanceManager } from './components/EmployeeAdvanceManager';
 import { UtilitiesManager } from './components/UtilitiesManager';
@@ -1462,6 +1463,20 @@ export default function App() {
                 </button>
               )}
 
+              {(hasPermission(currentUser, 'finance_report', 'view') || hasPermission(currentUser, 'sea_freight', 'view')) && (
+                <button
+                  onClick={() => setFinanceSubTab('report_sea_freight')}
+                  className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-2 ${
+                    financeSubTab === 'report_sea_freight'
+                      ? 'bg-amber-600 text-white shadow-sm'
+                      : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  <Ship className="w-4 h-4" />
+                  <span>Báo cáo cước biển (USD)</span>
+                </button>
+              )}
+
               {hasPermission(currentUser, 'finance_kpi', 'view') && (
                 <button
                   onClick={() => setFinanceSubTab('kpi')}
@@ -1523,6 +1538,16 @@ export default function App() {
                 currentUser={currentUser}
                 paidAmounts={paidAmounts}
                 onUpdatePaidAmount={handleUpdatePaidAmount}
+              />
+            )}
+
+            {financeSubTab === 'report_sea_freight' && (
+              <SeaFreightReport
+                records={seaFreights}
+                customers={customers}
+                routes={routes}
+                transporters={transporters}
+                currentUser={currentUser}
               />
             )}
 

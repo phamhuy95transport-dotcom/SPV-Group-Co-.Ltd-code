@@ -294,7 +294,7 @@ export const canDeleteUser = (operator: UserAccount | null, targetUser: UserAcco
 export type ActiveTab = 'dashboard' | 'entry' | 'general_work' | 'category' | 'utilities' | 'finance' | 'users' | 'gdrive';
 export type WorkSubTab = 'customs' | 'sea_freight';
 export type CatalogSubTab = 'warehouse' | 'transporter' | 'customer' | 'route';
-export type FinanceSubTab = 'report_shipment' | 'report_customs' | 'kpi' | 'quotation' | 'advance';
+export type FinanceSubTab = 'report_shipment' | 'report_customs' | 'report_sea_freight' | 'kpi' | 'customer_quotation' | 'employee_advance' | 'quotation' | 'advance';
 
 export interface DashboardWidgetConfig {
   heroBanner: boolean;
@@ -384,9 +384,9 @@ export interface SeaFreightRecord {
   volume_info: string;        // Số cont/số Kg/số CBM (VD: 2x40HC, 5000 Kgs, 20 CBM)
   agent: string;              // Đại lý
   customer: string;           // Khách hàng
-  buy_price: number;          // Giá mua (VNĐ)
-  sell_price: number;         // Giá bán (VNĐ)
-  profit: number;             // Lợi nhuận (VNĐ) = Giá bán - Giá mua
+  buy_price: number;          // Giá mua (USD)
+  sell_price: number;         // Giá bán (USD)
+  profit: number;             // Lợi nhuận (USD) = Giá bán - Giá mua
   notes?: string;             // Ghi chú
   created_by?: CreatorInfo;   // Nhân viên nhập
   createdAt?: string;
@@ -492,3 +492,12 @@ export const formatMonthYearVN = (dateInput?: any): string => {
   }
   return clean;
 };
+
+export const formatUSD = (amount?: number): string => {
+  if (amount === undefined || amount === null || isNaN(amount)) return '$0';
+  return '$' + new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: Number.isInteger(amount) ? 0 : 2,
+    maximumFractionDigits: 2
+  }).format(amount);
+};
+
