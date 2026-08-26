@@ -37,7 +37,9 @@ import {
   CustomerItem,
   RouteItem,
   TransporterItem,
-  CatalogSubTab
+  CatalogSubTab,
+  formatUSD,
+  formatDateVN
 } from '../types';
 
 interface SeaFreightManagerProps {
@@ -242,8 +244,8 @@ export const SeaFreightManager: React.FC<SeaFreightManagerProps> = ({
   }, [filteredRecords]);
 
   // Format Currency
-  const formatVND = (num: number) => {
-    return new Intl.NumberFormat('vi-VN').format(Math.round(num || 0)) + ' đ';
+  const formatUSDAmount = (num: number) => {
+    return formatUSD(num);
   };
 
   // Format Date VN (DD/MM/YYYY)
@@ -402,9 +404,9 @@ export const SeaFreightManager: React.FC<SeaFreightManagerProps> = ({
         'Số cont/Kg/CBM': r.volume_info || '',
         'Đại lý / Hãng tàu': r.agent || '',
         'Khách hàng': r.customer || '',
-        'Giá mua (VNĐ)': buy,
-        'Giá bán (VNĐ)': sell,
-        'Lợi nhuận (VNĐ)': profit,
+        'Giá mua (USD)': buy,
+        'Giá bán (USD)': sell,
+        'Lợi nhuận (USD)': profit,
         'Nhân viên nhập': r.created_by?.name || '---',
         'Trạng thái duyệt': r.approved ? 'ĐÃ DUYỆT' : 'CHƯA DUYỆT',
         'Ngày duyệt': r.approved_date ? formatDateVN(r.approved_date) : '',
@@ -481,7 +483,7 @@ export const SeaFreightManager: React.FC<SeaFreightManagerProps> = ({
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
           <div className="space-y-1">
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Tổng Giá Bán (Doanh thu)</p>
-            <p className="text-lg font-black text-blue-600">{formatVND(metrics.totalSell)}</p>
+            <p className="text-lg font-black text-blue-600">{formatUSDAmount(metrics.totalSell)}</p>
             <p className="text-[11px] text-slate-400 font-medium">Thu từ khách hàng</p>
           </div>
           <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center">
@@ -493,7 +495,7 @@ export const SeaFreightManager: React.FC<SeaFreightManagerProps> = ({
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
           <div className="space-y-1">
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Tổng Giá Mua (Chi phí)</p>
-            <p className="text-lg font-black text-slate-700">{formatVND(metrics.totalBuy)}</p>
+            <p className="text-lg font-black text-slate-700">{formatUSDAmount(metrics.totalBuy)}</p>
             <p className="text-[11px] text-slate-400 font-medium">Trả đại lý/hãng tàu</p>
           </div>
           <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center">
@@ -510,9 +512,9 @@ export const SeaFreightManager: React.FC<SeaFreightManagerProps> = ({
                 Biên LN: {metrics.profitMargin.toFixed(1)}%
               </span>
             </div>
-            <p className="text-2xl font-black text-white">{formatVND(metrics.totalProfit)}</p>
+            <p className="text-2xl font-black text-white">{formatUSDAmount(metrics.totalProfit)}</p>
             <p className="text-[11px] text-emerald-100 font-medium">
-              = Tổng Giá Bán - Tổng Giá Mua (Tự động hạch toán)
+              = Tổng Giá Bán - Tổng Giá Mua (Đơn vị tính: USD $)
             </p>
           </div>
           <div className="w-12 h-12 rounded-2xl bg-white/20 text-white flex items-center justify-center shrink-0">
@@ -718,9 +720,9 @@ export const SeaFreightManager: React.FC<SeaFreightManagerProps> = ({
                 <th className="py-3 px-3 w-32">Số cont / Kg / CBM</th>
                 <th className="py-3 px-3 min-w-[140px]">Đại lý / Hãng tàu</th>
                 <th className="py-3 px-3 min-w-[150px]">Khách hàng</th>
-                <th className="py-3 px-3 text-right w-28">Giá mua</th>
-                <th className="py-3 px-3 text-right w-28">Giá bán</th>
-                <th className="py-3 px-3 text-right w-32">Lợi nhuận</th>
+                <th className="py-3 px-3 text-right w-28">Giá mua ($)</th>
+                <th className="py-3 px-3 text-right w-28">Giá bán ($)</th>
+                <th className="py-3 px-3 text-right w-32">Lợi nhuận ($)</th>
                 <th className="py-3 px-3 w-36">Nhân viên nhập</th>
                 <th className="py-3 px-3 text-center w-36">Duyệt</th>
                 <th className="py-3 px-3 min-w-[140px]">Ghi chú</th>
@@ -822,12 +824,12 @@ export const SeaFreightManager: React.FC<SeaFreightManagerProps> = ({
 
                       {/* Giá mua */}
                       <td className="py-3 px-3 text-right font-medium text-slate-600 whitespace-nowrap">
-                        {formatVND(buy)}
+                        {formatUSDAmount(buy)}
                       </td>
 
                       {/* Giá bán */}
                       <td className="py-3 px-3 text-right font-bold text-blue-600 whitespace-nowrap">
-                        {formatVND(sell)}
+                        {formatUSDAmount(sell)}
                       </td>
 
                       {/* Lợi nhuận */}
@@ -839,7 +841,7 @@ export const SeaFreightManager: React.FC<SeaFreightManagerProps> = ({
                               : 'bg-rose-50 text-rose-700 border-rose-200'
                           }`}
                         >
-                          {isPositive ? '+' : ''}{formatVND(profit)}
+                          {isPositive ? '+' : ''}{formatUSDAmount(profit)}
                         </span>
                       </td>
 
@@ -964,10 +966,10 @@ export const SeaFreightManager: React.FC<SeaFreightManagerProps> = ({
 
         {/* Table Footer */}
         <div className="p-3 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between text-xs text-slate-500 gap-2">
-          <span>Hiển thị <strong className="text-slate-800">{filteredRecords.length}</strong> / {records.length} đơn cước biển</span>
+          <span>Hiển thị <strong className="text-slate-800">{filteredRecords.length}</strong> / {records.length} đơn cước biển (Tiền tệ: USD $)</span>
           <div className="flex items-center gap-4">
-            <span>Tổng Giá bán: <strong className="text-blue-700">{formatVND(metrics.totalSell)}</strong></span>
-            <span>Tổng Lợi nhuận: <strong className="text-emerald-700">{formatVND(metrics.totalProfit)}</strong></span>
+            <span>Tổng Giá bán: <strong className="text-blue-700">{formatUSDAmount(metrics.totalSell)}</strong></span>
+            <span>Tổng Lợi nhuận: <strong className="text-emerald-700">{formatUSDAmount(metrics.totalProfit)}</strong></span>
           </div>
         </div>
       </div>
@@ -1141,45 +1143,47 @@ export const SeaFreightManager: React.FC<SeaFreightManagerProps> = ({
                 </div>
               </div>
 
-              {/* Row 4: Giá Mua, Giá Bán, Lợi Nhuận Tính Toán Tự Động */}
+              {/* Row 4: Giá Mua, Giá Bán, Lợi Nhuận Tính Toán Tự Động (USD) */}
               <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1">
-                      Giá mua (Chi phí trả đại lý) *
+                      Giá mua cước (USD $) - Trả hãng tàu/đại lý *
                     </label>
                     <div className="relative">
                       <input
                         type="number"
                         min="0"
-                        step="10000"
+                        step="0.01"
                         required
                         value={formData.buy_price}
                         onChange={e => setFormData({ ...formData, buy_price: Number(e.target.value) || 0 })}
-                        className="w-full pl-3 pr-8 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-800"
+                        className="w-full pl-3 pr-12 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-800"
+                        placeholder="VD: 1950"
                       />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-bold">VNĐ</span>
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-blue-600 font-black">USD</span>
                     </div>
-                    <p className="text-[10px] text-slate-400 mt-1">{formatVND(formData.buy_price)}</p>
+                    <p className="text-[10px] text-slate-400 mt-1">{formatUSDAmount(formData.buy_price)}</p>
                   </div>
 
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1">
-                      Giá bán (Doanh thu thu khách) *
+                      Giá bán cước (USD $) - Thu khách hàng *
                     </label>
                     <div className="relative">
                       <input
                         type="number"
                         min="0"
-                        step="10000"
+                        step="0.01"
                         required
                         value={formData.sell_price}
                         onChange={e => setFormData({ ...formData, sell_price: Number(e.target.value) || 0 })}
-                        className="w-full pl-3 pr-8 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold text-blue-700"
+                        className="w-full pl-3 pr-12 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold text-blue-700"
+                        placeholder="VD: 2300"
                       />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-bold">VNĐ</span>
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-blue-600 font-black">USD</span>
                     </div>
-                    <p className="text-[10px] text-slate-400 mt-1">{formatVND(formData.sell_price)}</p>
+                    <p className="text-[10px] text-slate-400 mt-1">{formatUSDAmount(formData.sell_price)}</p>
                   </div>
                 </div>
 
@@ -1195,7 +1199,7 @@ export const SeaFreightManager: React.FC<SeaFreightManagerProps> = ({
                       }`}
                     >
                       {(formData.sell_price - formData.buy_price) >= 0 ? '+' : ''}
-                      {formatVND(formData.sell_price - formData.buy_price)}
+                      {formatUSDAmount(formData.sell_price - formData.buy_price)}
                     </span>
                   </div>
                 </div>
