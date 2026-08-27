@@ -119,6 +119,53 @@ export const hasPermission = (user: any, module: keyof UserPermissions, action: 
   const userModulePerms = user.permissions?.[module];
   
   const val = userModulePerms?.[action] ?? defaultModulePerms[action];
+
+  // Specific role defaults: employee_accounting has full financial access by default
+  if (user.role === 'employee_accounting') {
+    if (
+      module === 'finance' ||
+      module === 'finance_report' ||
+      module === 'customs_report' ||
+      module === 'finance_kpi' ||
+      module === 'finance_advances' ||
+      module === 'finance_quotations' ||
+      module === 'finance_debt'
+    ) {
+      if (action === 'view') {
+        return userModulePerms?.view !== false;
+      }
+      if (action === 'edit') {
+        return userModulePerms?.edit !== false;
+      }
+    }
+  }
+
+  // Smart inheritance: If checking 'finance' view, allow if user has permission on any finance sub-module
+  if (module === 'finance' && action === 'view') {
+    if (val) return true;
+    const subModules: (keyof UserPermissions)[] = [
+      'finance_report',
+      'customs_report',
+      'finance_kpi',
+      'finance_advances',
+      'finance_quotations',
+      'finance_debt',
+      'sea_freight'
+    ];
+    for (const sm of subModules) {
+      const smPerm = user.permissions?.[sm]?.view ?? defaultPerms?.[sm]?.view;
+      if (smPerm) return true;
+    }
+  }
+
+  // If user has finance view, allow viewing shipment report unless explicitly turned off
+  if (module === 'finance_report' && action === 'view') {
+    const parentFinance = user.permissions?.finance?.view ?? defaultPerms?.finance?.view;
+    if (parentFinance && user.permissions?.finance_report?.view !== false) {
+      return true;
+    }
+  }
+
   return Boolean(val);
 };
 

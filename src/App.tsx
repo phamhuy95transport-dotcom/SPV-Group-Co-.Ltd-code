@@ -232,7 +232,13 @@ export default function App() {
           }
         });
       }
-      setUsers(Array.from(userMap.values()));
+      const userList = Array.from(userMap.values());
+      setUsers(userList);
+      setCurrentUser(curr => {
+        if (!curr) return null;
+        const matching = userList.find(u => u.id === curr.id || u.email.toLowerCase() === curr.email.toLowerCase());
+        return matching ? { ...curr, ...matching } : curr;
+      });
     });
 
     const unsubDashboardSettings = subscribeToCloudCollection('dashboard_settings', (data) => {
@@ -1335,37 +1341,41 @@ export default function App() {
         )}
 
         {/* Tab 2: Công Việc Chung */}
-        {activeTab === 'general_work' && (!currentUser || currentUser.role !== 'customer') && (
+        {activeTab === 'general_work' && (!currentUser || hasPermission(currentUser, 'customs', 'view') || hasPermission(currentUser, 'sea_freight', 'view')) && (
           <div className="space-y-5">
             {/* Sub-Navigation Bar for Công Việc Chung */}
             <div className="bg-white p-2 rounded-xl border border-slate-200 shadow-xs flex gap-2">
-              <button
-                onClick={() => setWorkSubTab('customs')}
-                className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-2 ${
-                  workSubTab === 'customs'
-                    ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                <FileSpreadsheet className="w-4 h-4" />
-                <span>Thủ tục hải quan</span>
-              </button>
+              {(!currentUser || hasPermission(currentUser, 'customs', 'view')) && (
+                <button
+                  onClick={() => setWorkSubTab('customs')}
+                  className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-2 ${
+                    workSubTab === 'customs'
+                      ? 'bg-indigo-600 text-white shadow-sm'
+                      : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  <FileSpreadsheet className="w-4 h-4" />
+                  <span>Thủ tục hải quan</span>
+                </button>
+              )}
 
-              <button
-                onClick={() => setWorkSubTab('sea_freight')}
-                className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-2 ${
-                  workSubTab === 'sea_freight'
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : 'text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                <Ship className="w-4 h-4" />
-                <span>Cước biển</span>
-              </button>
+              {(!currentUser || hasPermission(currentUser, 'sea_freight', 'view')) && (
+                <button
+                  onClick={() => setWorkSubTab('sea_freight')}
+                  className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-2 ${
+                    workSubTab === 'sea_freight'
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  <Ship className="w-4 h-4" />
+                  <span>Cước biển</span>
+                </button>
+              )}
             </div>
 
             {/* Subtab View: Thủ tục hải quan */}
-            {workSubTab === 'customs' && (
+            {(workSubTab === 'customs' && (!currentUser || hasPermission(currentUser, 'customs', 'view'))) && (
               <CustomsProcedureManager
                 declarations={declarations}
                 customers={customers}
@@ -1387,7 +1397,7 @@ export default function App() {
             )}
 
             {/* Subtab View: Cước biển */}
-            {workSubTab === 'sea_freight' && (
+            {(workSubTab === 'sea_freight' || (currentUser && !hasPermission(currentUser, 'customs', 'view') && hasPermission(currentUser, 'sea_freight', 'view'))) && (
               <SeaFreightManager
                 records={seaFreights}
                 customers={customers}
@@ -1408,8 +1418,8 @@ export default function App() {
           </div>
         )}
 
-        {/* Tab 3: Quản Lý Danh Mục Chuẩn (Hidden for Customer & Guest) */}
-        {activeTab === 'category' && currentUser && currentUser.role !== 'customer' && (
+        {/* Tab 3: Quản Lý Danh Mục Chuẩn */}
+        {activeTab === 'category' && currentUser && hasPermission(currentUser, 'catalog', 'view') && (
           <CatalogManager
             activeSubTab={activeSubTab}
             setActiveSubTab={setActiveSubTab}
@@ -1431,11 +1441,11 @@ export default function App() {
         )}
 
         {/* Tab 4: Tài Chính */}
-        {activeTab === 'finance' && currentUser && currentUser.role !== 'customer' && (
+        {activeTab === 'finance' && currentUser && hasPermission(currentUser, 'finance', 'view') && (
           <div className="space-y-5">
             {/* Sub-Navigation Bar for Tài Chính */}
             <div className="bg-white p-2 rounded-xl border border-slate-200 shadow-xs flex flex-wrap gap-2">
-              {hasPermission(currentUser, 'finance_report', 'view') && (
+              {(hasPermission(currentUser, 'finance_report', 'view') || hasPermission(currentUser, 'finance', 'view')) && (
                 <button
                   onClick={() => setFinanceSubTab('report_shipment')}
                   className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-2 ${
@@ -1449,7 +1459,7 @@ export default function App() {
                 </button>
               )}
 
-              {hasPermission(currentUser, 'customs_report', 'view') && (
+              {(hasPermission(currentUser, 'customs_report', 'view') || hasPermission(currentUser, 'finance', 'view')) && (
                 <button
                   onClick={() => setFinanceSubTab('report_customs')}
                   className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-2 ${
@@ -1463,7 +1473,7 @@ export default function App() {
                 </button>
               )}
 
-              {(hasPermission(currentUser, 'finance_report', 'view') || hasPermission(currentUser, 'sea_freight', 'view')) && (
+              {(hasPermission(currentUser, 'finance_report', 'view') || hasPermission(currentUser, 'sea_freight', 'view') || hasPermission(currentUser, 'finance', 'view')) && (
                 <button
                   onClick={() => setFinanceSubTab('report_sea_freight')}
                   className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-2 ${
