@@ -19,7 +19,7 @@ import {
   TrendingUp,
   Boxes
 } from 'lucide-react';
-import { KPIRateItem, UserAccount } from '../types';
+import { KPIRateItem, UserAccount, hasPermission } from '../types';
 
 interface KPIManagerProps {
   kpiRates: KPIRateItem[];
@@ -50,7 +50,7 @@ export const KPIManager: React.FC<KPIManagerProps> = ({
   currentUser,
   onUpdateKPIRates
 }) => {
-  const isAdmin = currentUser?.role === 'admin';
+  const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'manager' || hasPermission(currentUser, 'finance_kpi', 'edit');
   const [activeSubTab, setActiveSubTab] = useState<KPISubTab>('customs');
   
   // Custom declaration KPI state

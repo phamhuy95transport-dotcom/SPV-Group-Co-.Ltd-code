@@ -32,7 +32,7 @@ import {
   CartesianGrid
 } from 'recharts';
 import * as XLSX from 'xlsx';
-import { ShipmentRecord, UserAccount, formatDateVN, normalizeDateToISO } from '../types';
+import { ShipmentRecord, UserAccount, formatDateVN, normalizeDateToISO, hasPermission } from '../types';
 
 interface FinancialReportProps {
   records: ShipmentRecord[];
@@ -47,7 +47,12 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({
   onImportExcel,
   onShowToast,
 }) => {
-  const isAdminOrManager = currentUser?.role === 'admin' || currentUser?.role === 'manager';
+  const isAdminOrManager = 
+    currentUser?.role === 'admin' || 
+    currentUser?.role === 'manager' || 
+    currentUser?.role === 'employee_accounting' || 
+    hasPermission(currentUser, 'finance_report', 'view') || 
+    hasPermission(currentUser, 'finance', 'view');
   
   // Filter States with Autocomplete / Search Suggestions
   const [searchQuery, setSearchQuery] = useState('');
@@ -796,7 +801,7 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({
                   const base = (Number(record.base_price) || 0) * qty;
                   const sale = (Number(record.sale_price) || 0) * qty;
                   const itemProfit = sale - base;
-                  const isEmployeeHidden = currentUser?.role === 'employee' && record.admin_edited_price;
+                  const isEmployeeHidden = !isAdminOrManager && (currentUser?.role === 'employee' || currentUser?.role === 'employee_logistics') && record.admin_edited_price;
 
                   const hasInputInvoice = record.hd_dich_vu || record.hd_dau_vao;
                   const hasOutputInvoice = record.hd_dau_ra;

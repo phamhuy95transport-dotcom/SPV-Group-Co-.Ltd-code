@@ -72,7 +72,8 @@ export const UserManagementModal: React.FC<UserManagementProps> = ({
   const togglePermission = (userId: string, currentPerms: UserPermissions | undefined, userRole: UserRole, module: keyof UserPermissions, action: 'view' | 'edit') => {
     if (!onChangeUserPermissions) return;
     const defaultPerms = getDefaultPermissions(userRole);
-    const newPerms: UserPermissions = { ...defaultPerms, ...(currentPerms || {}) };
+    // Deep clone to prevent mutating default object
+    const newPerms: UserPermissions = JSON.parse(JSON.stringify({ ...defaultPerms, ...(currentPerms || {}) }));
     
     const defaultMod = defaultPerms[module] || { view: false, edit: false };
     const currentModulePerms = newPerms[module] || { ...defaultMod };
@@ -94,6 +95,119 @@ export const UserManagementModal: React.FC<UserManagementProps> = ({
     }
 
     newPerms[module] = updatedModulePerms;
+
+    // Auto-propagation rules:
+    // 1. If 'finance' view is turned ON: enable shipment report and standard sub-modules
+    if (module === 'finance' && updatedModulePerms.view) {
+      if (!newPerms.finance_report?.view) newPerms.finance_report = { view: true, edit: false };
+      if (!newPerms.customs_report?.view) newPerms.customs_report = { view: true, edit: false };
+      if (!newPerms.finance_kpi?.view) newPerms.finance_kpi = { view: true, edit: false };
+      if (!newPerms.finance_advances?.view) newPerms.finance_advances = { view: true, edit: false };
+      if (!newPerms.finance_quotations?.view) newPerms.finance_quotations = { view: true, edit: false };
+      if (!newPerms.finance_debt?.view) newPerms.finance_debt = { view: true, edit: false };
+    }
+
+    // 2. If any finance sub-module is turned ON: ensure parent 'finance' view is ON
+    const financeSubKeys: (keyof UserPermissions)[] = [
+      'finance_report',
+      'customs_report',
+      'finance_kpi',
+      'finance_advances',
+      'finance_quotations',
+      'finance_debt'
+    ];
+    if (financeSubKeys.includes(module) && updatedModulePerms.view) {
+      newPerms.finance = {
+        view: true,
+        edit: Boolean(newPerms.finance?.edit)
+      };
+    }
+
+    // 3. If 'customs_report' is enabled, ensure 'customs' view is enabled
+    if (module === 'customs_report' && updatedModulePerms.view) {
+      if (!newPerms.customs?.view) newPerms.customs = { view: true, edit: false };
+    }
+
+    // 4. If 'sea_freight' is enabled, ensure 'finance' view is enabled for the report
+    if (module === 'sea_freight' && updatedModulePerms.view) {
+      if (!newPerms.finance?.view) newPerms.finance = { view: true, edit: false };
+    }
+
+    onChangeUserPermissions(userId, newPerms);
+  };
+
+  const applyQuickPreset = (userId: string, presetType: 'accounting' | 'logistics' | 'manager' | 'view_all') => {
+    if (!onChangeUserPermissions) return;
+    let newPerms: UserPermissions;
+    if (presetType === 'accounting') {
+      newPerms = {
+        dashboard: { view: true, edit: false },
+        shipments: { view: true, edit: false },
+        customs: { view: true, edit: false },
+        sea_freight: { view: true, edit: false },
+        customs_report: { view: true, edit: true },
+        finance: { view: true, edit: true },
+        finance_report: { view: true, edit: true },
+        finance_kpi: { view: true, edit: true },
+        finance_advances: { view: true, edit: true },
+        finance_quotations: { view: true, edit: true },
+        finance_debt: { view: true, edit: true },
+        catalog: { view: true, edit: false },
+        utilities: { view: true, edit: true },
+        gdrive: { view: false, edit: false },
+      };
+    } else if (presetType === 'logistics') {
+      newPerms = {
+        dashboard: { view: true, edit: true },
+        shipments: { view: true, edit: true },
+        customs: { view: true, edit: true },
+        sea_freight: { view: true, edit: true },
+        customs_report: { view: true, edit: false },
+        finance: { view: false, edit: false },
+        finance_report: { view: false, edit: false },
+        finance_kpi: { view: false, edit: false },
+        finance_advances: { view: false, edit: false },
+        finance_quotations: { view: false, edit: false },
+        finance_debt: { view: false, edit: false },
+        catalog: { view: true, edit: false },
+        utilities: { view: true, edit: true },
+        gdrive: { view: false, edit: false },
+      };
+    } else if (presetType === 'manager') {
+      newPerms = {
+        dashboard: { view: true, edit: true },
+        shipments: { view: true, edit: true },
+        customs: { view: true, edit: true },
+        sea_freight: { view: true, edit: true },
+        customs_report: { view: true, edit: true },
+        finance: { view: true, edit: true },
+        finance_report: { view: true, edit: true },
+        finance_kpi: { view: true, edit: true },
+        finance_advances: { view: true, edit: true },
+        finance_quotations: { view: true, edit: true },
+        finance_debt: { view: true, edit: true },
+        catalog: { view: true, edit: true },
+        utilities: { view: true, edit: true },
+        gdrive: { view: true, edit: true },
+      };
+    } else {
+      newPerms = {
+        dashboard: { view: true, edit: false },
+        shipments: { view: true, edit: false },
+        customs: { view: true, edit: false },
+        sea_freight: { view: true, edit: false },
+        customs_report: { view: true, edit: false },
+        finance: { view: true, edit: false },
+        finance_report: { view: true, edit: false },
+        finance_kpi: { view: true, edit: false },
+        finance_advances: { view: true, edit: false },
+        finance_quotations: { view: true, edit: false },
+        finance_debt: { view: true, edit: false },
+        catalog: { view: true, edit: false },
+        utilities: { view: true, edit: false },
+        gdrive: { view: false, edit: false },
+      };
+    }
     onChangeUserPermissions(userId, newPerms);
   };
 
@@ -300,20 +414,49 @@ export const UserManagementModal: React.FC<UserManagementProps> = ({
                           </div>
                         )}
                         {user.role !== 'admin' && (
-                          <div className="mt-2 text-left space-y-1 border-t border-slate-200 pt-2">
-                            <div className="text-[10px] font-bold text-slate-500 mb-1 flex items-center gap-1">
-                              <Settings2 className="w-3 h-3" /> Phân quyền chi tiết
+                          <div className="mt-2 text-left space-y-1.5 border-t border-slate-200 pt-2">
+                            <div className="flex items-center justify-between">
+                              <div className="text-[10px] font-bold text-slate-500 flex items-center gap-1">
+                                <Settings2 className="w-3 h-3 text-indigo-500" /> Phân quyền chi tiết
+                              </div>
+                              <div className="flex items-center gap-1 text-[9px]">
+                                <button
+                                  type="button"
+                                  onClick={() => applyQuickPreset(user.id, 'accounting')}
+                                  className="px-1.5 py-0.5 bg-amber-50 hover:bg-amber-100 text-amber-800 rounded font-bold border border-amber-200 transition"
+                                  title="Gán quyền Kế toán (Full tài chính)"
+                                >
+                                  Kế toán
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => applyQuickPreset(user.id, 'logistics')}
+                                  className="px-1.5 py-0.5 bg-blue-50 hover:bg-blue-100 text-blue-800 rounded font-bold border border-blue-200 transition"
+                                  title="Gán quyền Logistics (Vận hành & Hải quan & Cước biển)"
+                                >
+                                  Logistics
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => applyQuickPreset(user.id, 'manager')}
+                                  className="px-1.5 py-0.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded font-bold border border-emerald-200 transition"
+                                  title="Gán quyền Quản lý (Full xem & sửa)"
+                                >
+                                  Quản lý
+                                </button>
+                              </div>
                             </div>
                             {[
                               { key: 'dashboard', label: 'Tổng quan (Dashboard)' },
                               { key: 'shipments', label: 'Quản lý vận chuyển' },
                               { key: 'customs', label: 'Thủ tục hải quan' },
-                              { key: 'customs_report', label: '├─ Báo cáo hải quan', indent: true },
+                              { key: 'sea_freight', label: 'Quản lý cước biển (USD)' },
                               { key: 'catalog', label: 'Danh mục chuẩn' },
                               { key: 'utilities', label: 'Tiện ích hỗ trợ' },
                               { key: 'finance', label: 'Tài chính (Chung)' },
-                              { key: 'finance_report', label: '├─ Báo cáo vận chuyển', indent: true },
-                              { key: 'finance_kpi', label: '├─ Quản lý KPI', indent: true },
+                              { key: 'finance_report', label: '├─ Báo cáo cước vận chuyển', indent: true },
+                              { key: 'customs_report', label: '├─ Báo cáo hải quan', indent: true },
+                              { key: 'finance_kpi', label: '├─ Quản lý KPI & Đơn giá', indent: true },
                               { key: 'finance_advances', label: '├─ Tạm ứng nhân viên', indent: true },
                               { key: 'finance_quotations', label: '├─ Báo giá khách hàng', indent: true },
                               { key: 'finance_debt', label: '└─ Công nợ khách hàng', indent: true },
@@ -327,15 +470,15 @@ export const UserManagementModal: React.FC<UserManagementProps> = ({
                                 edit: Boolean(userModPerms?.edit ?? defaultModPerms.edit),
                               };
                               return (
-                                <div key={mod.key} className={`flex items-center justify-between bg-slate-50 px-2 py-1 rounded border border-slate-100 ${mod.indent ? 'ml-4' : ''}`}>
-                                  <span className={`text-[10px] ${mod.indent ? 'text-slate-600' : 'font-semibold text-slate-700'}`}>{mod.label}</span>
+                                <div key={mod.key} className={`flex items-center justify-between bg-slate-50 px-2 py-1 rounded border border-slate-100 ${mod.indent ? 'ml-3 bg-amber-50/40 border-amber-100/60' : ''}`}>
+                                  <span className={`text-[10px] ${mod.indent ? 'text-amber-950 font-medium' : 'font-semibold text-slate-700'}`}>{mod.label}</span>
                                   <div className="flex items-center gap-2">
-                                    <label className="flex items-center gap-0.5 text-[9px] cursor-pointer">
-                                      <input type="checkbox" checked={perms.view} onChange={() => togglePermission(user.id, user.permissions, user.role, moduleKey, 'view')} className="w-2.5 h-2.5" />
+                                    <label className="flex items-center gap-0.5 text-[9px] cursor-pointer text-slate-700 font-medium">
+                                      <input type="checkbox" checked={perms.view} onChange={() => togglePermission(user.id, user.permissions, user.role, moduleKey, 'view')} className="w-2.5 h-2.5 accent-indigo-600 cursor-pointer" />
                                       Xem
                                     </label>
-                                    <label className="flex items-center gap-0.5 text-[9px] cursor-pointer text-amber-700">
-                                      <input type="checkbox" checked={perms.edit} onChange={() => togglePermission(user.id, user.permissions, user.role, moduleKey, 'edit')} className="w-2.5 h-2.5 accent-amber-600" />
+                                    <label className="flex items-center gap-0.5 text-[9px] cursor-pointer text-amber-700 font-medium">
+                                      <input type="checkbox" checked={perms.edit} onChange={() => togglePermission(user.id, user.permissions, user.role, moduleKey, 'edit')} className="w-2.5 h-2.5 accent-amber-600 cursor-pointer" />
                                       Sửa
                                     </label>
                                   </div>

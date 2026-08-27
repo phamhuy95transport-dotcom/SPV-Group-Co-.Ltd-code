@@ -24,7 +24,8 @@ import {
   UserAccount,
   CustomsDeclarationType,
   formatDateVN,
-  formatMonthYearVN
+  formatMonthYearVN,
+  hasPermission
 } from '../types';
 
 interface CustomsReportProps {
@@ -56,7 +57,7 @@ export const CustomsReport: React.FC<CustomsReportProps> = ({
 
   const isAdmin = currentUser?.role === 'admin';
 
-  // Base user declarations (Customer sees their customer data, Employee sees their own)
+  // Base user declarations (Customer sees their customer data, Authorized roles see all, standard staff sees own)
   const userDeclarations = useMemo(() => {
     if (currentUser?.role === 'customer') {
       if (currentUser.customer_name) {
@@ -66,7 +67,16 @@ export const CustomsReport: React.FC<CustomsReportProps> = ({
         return declarations.filter(item => (item.customer || '').toLowerCase().includes(custName));
       }
     }
-    if (!isAdmin && currentUser) {
+
+    const canViewAllCustomsReport = 
+      currentUser?.role === 'admin' || 
+      currentUser?.role === 'manager' || 
+      currentUser?.role === 'employee_accounting' || 
+      hasPermission(currentUser, 'customs_report', 'view') || 
+      hasPermission(currentUser, 'finance_report', 'view') || 
+      hasPermission(currentUser, 'finance', 'view');
+
+    if (!canViewAllCustomsReport && currentUser) {
       return declarations.filter(item => {
         const isCreator = item.created_by?.uid === currentUser.id || item.created_by?.email === currentUser.email;
         const isAssignedStaff = item.support_transfer?.staff_id === currentUser.id;
@@ -74,7 +84,7 @@ export const CustomsReport: React.FC<CustomsReportProps> = ({
       });
     }
     return declarations;
-  }, [declarations, isAdmin, currentUser]);
+  }, [declarations, currentUser]);
 
   // Unique Customer list for smart autocomplete
   const customerSuggestions = useMemo(() => {

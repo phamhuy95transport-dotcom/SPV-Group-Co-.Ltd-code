@@ -220,7 +220,7 @@ export const Header: React.FC<HeaderProps> = ({
           )}
 
           {/* Tab 1: Công việc chung */}
-          {(!currentUser || hasPermission(currentUser, 'customs', 'view')) && (
+          {(!currentUser || hasPermission(currentUser, 'customs', 'view') || hasPermission(currentUser, 'sea_freight', 'view')) && (
             <button
               onClick={() => switchTab('general_work')}
               className={`px-3.5 py-2 rounded-md text-xs font-medium transition-colors flex items-center gap-2 shrink-0 ${
