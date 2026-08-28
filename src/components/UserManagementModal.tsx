@@ -17,13 +17,18 @@ import {
   Check,
   X,
   KeyRound,
-  RotateCcw
+  RotateCcw,
+  SquareCheck,
+  SquareX,
+  Eraser,
+  Sparkles
 } from 'lucide-react';
-import { UserAccount, UserRole, UserStatus, CustomerItem, canDeleteUser, UserPermissions, getDefaultPermissions } from '../types';
+import { UserAccount, UserRole, UserStatus, CustomerItem, canDeleteUser, UserPermissions, getDefaultPermissions, getEmptyPermissions } from '../types';
 
 interface UserManagementProps {
-  isOpen: boolean;
-  onClose: () => void;
+  isOpen?: boolean;
+  embedded?: boolean;
+  onClose?: () => void;
   users: UserAccount[];
   customers?: CustomerItem[];
   currentUser: UserAccount | null;
@@ -34,11 +39,14 @@ interface UserManagementProps {
   onChangeUserPermissions?: (userId: string, permissions: UserPermissions) => void;
   onChangeUserName?: (userId: string, newName: string) => void;
   onResetUserPassword?: (userId: string) => void;
+  onResetAllPermissions?: () => void;
+  onResetAllToRoleDefaults?: () => void;
   onDeleteUser: (userId: string) => void;
 }
 
 export const UserManagementModal: React.FC<UserManagementProps> = ({
-  isOpen,
+  isOpen = true,
+  embedded = false,
   onClose,
   users,
   customers = [],
@@ -50,6 +58,8 @@ export const UserManagementModal: React.FC<UserManagementProps> = ({
   onChangeUserPermissions,
   onChangeUserName,
   onResetUserPassword,
+  onResetAllPermissions,
+  onResetAllToRoleDefaults,
   onDeleteUser
 }) => {
   const [filterTab, setFilterTab] = useState<'pending' | 'all' | 'employee' | 'customer' | 'manager'>('pending');
@@ -57,7 +67,7 @@ export const UserManagementModal: React.FC<UserManagementProps> = ({
   const [editingName, setEditingName] = useState<string>('');
   const [resetConfirmUser, setResetConfirmUser] = useState<UserAccount | null>(null);
 
-  if (!isOpen) return null;
+  if (!embedded && !isOpen) return null;
 
   const pendingUsers = users.filter(u => u.status === 'pending');
   
@@ -69,52 +79,60 @@ export const UserManagementModal: React.FC<UserManagementProps> = ({
     return true; // all
   });
 
-  const togglePermission = (userId: string, currentPerms: UserPermissions | undefined, userRole: UserRole, module: keyof UserPermissions, action: 'view' | 'edit') => {
+  const getAllPermissions = (): UserPermissions => ({
+    dashboard: { view: true, edit: true },
+    shipments: { view: true, edit: true },
+    customs: { view: true, edit: true },
+    sea_freight: { view: true, edit: true },
+    customs_report: { view: true, edit: true },
+    finance: { view: true, edit: true },
+    finance_report: { view: true, edit: true },
+    finance_kpi: { view: true, edit: true },
+    finance_advances: { view: true, edit: true },
+    finance_quotations: { view: true, edit: true },
+    finance_debt: { view: true, edit: true },
+    catalog: { view: true, edit: true },
+    utilities: { view: true, edit: true },
+    gdrive: { view: true, edit: true },
+  });
+
+  const togglePermission = (userId: string, currentPerms: UserPermissions | undefined, module: keyof UserPermissions, action: 'view' | 'edit') => {
     if (!onChangeUserPermissions) return;
-    const defaultPerms = getDefaultPermissions(userRole);
-    // Deep clone to prevent mutating default object
-    const newPerms: UserPermissions = JSON.parse(JSON.stringify({ ...defaultPerms, ...(currentPerms || {}) }));
+    // Start strictly from current explicit permissions or empty permissions
+    const basePerms: UserPermissions = currentPerms
+      ? JSON.parse(JSON.stringify(currentPerms))
+      : getEmptyPermissions();
     
-    const defaultMod = defaultPerms[module] || { view: false, edit: false };
-    const currentModulePerms = newPerms[module] || { ...defaultMod };
-    const isCurrentlyChecked = Boolean(currentModulePerms[action]);
-    
-    const updatedModulePerms = {
-      view: Boolean(currentModulePerms.view),
-      edit: Boolean(currentModulePerms.edit),
-      [action]: !isCurrentlyChecked
+    const currentModule = basePerms[module] || { view: false, edit: false };
+    const isCurrentlyChecked = Boolean(currentModule[action]);
+    const nextVal = !isCurrentlyChecked;
+
+    const updatedModule = {
+      view: Boolean(currentModule.view),
+      edit: Boolean(currentModule.edit),
+      [action]: nextVal
     };
-    
+
     // If edit is true, view must be true
-    if (action === 'edit' && updatedModulePerms.edit) {
-      updatedModulePerms.view = true;
+    if (action === 'edit' && nextVal) {
+      updatedModule.view = true;
     }
     // If view is false, edit must be false
-    if (action === 'view' && !updatedModulePerms.view) {
-      updatedModulePerms.edit = false;
+    if (action === 'view' && !nextVal) {
+      updatedModule.edit = false;
     }
 
-    newPerms[module] = updatedModulePerms;
+    basePerms[module] = updatedModule;
 
-    // Auto-propagation rules:
-    // 1. If 'finance' view is turned ON: enable shipment report and standard sub-modules
-    if (module === 'finance' && updatedModulePerms.view) {
-      if (!newPerms.finance_report?.view) newPerms.finance_report = { view: true, edit: false };
-      if (!newPerms.customs_report?.view) newPerms.customs_report = { view: true, edit: false };
-      if (!newPerms.finance_kpi?.view) newPerms.finance_kpi = { view: true, edit: false };
-      if (!newPerms.finance_advances?.view) newPerms.finance_advances = { view: true, edit: false };
-      if (!newPerms.finance_quotations?.view) newPerms.finance_quotations = { view: true, edit: false };
-      if (!newPerms.finance_debt?.view) newPerms.finance_debt = { view: true, edit: false };
-    }
-
-    // 1b. If 'finance' view is turned OFF: disable all finance sub-modules
-    if (module === 'finance' && !updatedModulePerms.view) {
-      newPerms.finance_report = { view: false, edit: false };
-      newPerms.customs_report = { view: false, edit: false };
-      newPerms.finance_kpi = { view: false, edit: false };
-      newPerms.finance_advances = { view: false, edit: false };
-      newPerms.finance_quotations = { view: false, edit: false };
-      newPerms.finance_debt = { view: false, edit: false };
+    // Auto-propagation rules for usability:
+    // 1. If 'finance' view is turned OFF: disable all finance sub-modules
+    if (module === 'finance' && !nextVal && action === 'view') {
+      basePerms.finance_report = { view: false, edit: false };
+      basePerms.customs_report = { view: false, edit: false };
+      basePerms.finance_kpi = { view: false, edit: false };
+      basePerms.finance_advances = { view: false, edit: false };
+      basePerms.finance_quotations = { view: false, edit: false };
+      basePerms.finance_debt = { view: false, edit: false };
     }
 
     // 2. If any finance sub-module is turned ON: ensure parent 'finance' view is ON
@@ -126,30 +144,24 @@ export const UserManagementModal: React.FC<UserManagementProps> = ({
       'finance_quotations',
       'finance_debt'
     ];
-    if (financeSubKeys.includes(module) && updatedModulePerms.view) {
-      newPerms.finance = {
+    if (financeSubKeys.includes(module) && nextVal && action === 'view') {
+      basePerms.finance = {
         view: true,
-        edit: Boolean(newPerms.finance?.edit)
+        edit: Boolean(basePerms.finance?.edit)
       };
     }
 
-    // 3. If 'customs_report' is enabled, ensure 'customs' view is enabled
-    if (module === 'customs_report' && updatedModulePerms.view) {
-      if (!newPerms.customs?.view) newPerms.customs = { view: true, edit: false };
-    }
-
-    // 4. If 'sea_freight' is enabled, ensure 'finance' view is enabled for the report
-    if (module === 'sea_freight' && updatedModulePerms.view) {
-      if (!newPerms.finance?.view) newPerms.finance = { view: true, edit: false };
-    }
-
-    onChangeUserPermissions(userId, newPerms);
+    onChangeUserPermissions(userId, basePerms);
   };
 
-  const applyQuickPreset = (userId: string, presetType: 'accounting' | 'logistics' | 'manager' | 'view_all') => {
+  const applyQuickPreset = (userId: string, presetType: 'accounting' | 'logistics' | 'manager' | 'customer' | 'clear' | 'all') => {
     if (!onChangeUserPermissions) return;
     let newPerms: UserPermissions;
-    if (presetType === 'accounting') {
+    if (presetType === 'clear') {
+      newPerms = getEmptyPermissions();
+    } else if (presetType === 'all') {
+      newPerms = getAllPermissions();
+    } else if (presetType === 'accounting') {
       newPerms = {
         dashboard: { view: true, edit: false },
         shipments: { view: true, edit: false },
@@ -205,43 +217,104 @@ export const UserManagementModal: React.FC<UserManagementProps> = ({
         dashboard: { view: true, edit: false },
         shipments: { view: true, edit: false },
         customs: { view: true, edit: false },
-        sea_freight: { view: true, edit: false },
-        customs_report: { view: true, edit: false },
+        sea_freight: { view: false, edit: false },
+        customs_report: { view: false, edit: false },
         finance: { view: true, edit: false },
-        finance_report: { view: true, edit: false },
-        finance_kpi: { view: true, edit: false },
-        finance_advances: { view: true, edit: false },
+        finance_report: { view: false, edit: false },
+        finance_kpi: { view: false, edit: false },
+        finance_advances: { view: false, edit: false },
         finance_quotations: { view: true, edit: false },
         finance_debt: { view: true, edit: false },
-        catalog: { view: true, edit: false },
-        utilities: { view: true, edit: false },
+        catalog: { view: false, edit: false },
+        utilities: { view: false, edit: false },
         gdrive: { view: false, edit: false },
       };
     }
     onChangeUserPermissions(userId, newPerms);
   };
 
-  return (
-    <div className="fixed inset-0 z-50 overflow-hidden bg-slate-900/70 backdrop-blur-md flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full flex flex-col max-h-[90vh] overflow-hidden border border-slate-200">
-        {/* Header */}
-        <div className="bg-slate-900 text-white px-6 py-4 flex justify-between items-center border-b border-slate-800 shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-amber-500/20 text-amber-400 rounded-xl border border-amber-400/30">
-              <UserCheck className="w-5 h-5" />
+  const modalContent = (
+    <div className={embedded ? "bg-white rounded-2xl w-full flex flex-col overflow-hidden" : "bg-white rounded-2xl shadow-2xl max-w-5xl w-full flex flex-col max-h-[90vh] overflow-hidden border border-slate-200"}>
+      {/* Header */}
+      <div className="bg-slate-900 text-white px-6 py-4 flex justify-between items-center border-b border-slate-800 shrink-0">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-amber-500/20 text-amber-400 rounded-xl border border-amber-400/30">
+            <UserCheck className="w-5 h-5" />
+          </div>
+          <div>
+            <h3 className="font-extrabold text-base">Bảng Quản Lý Tài Khoản & Phân Quyền Nhân Viên</h3>
+            <p className="text-xs text-slate-400">Duyệt tài khoản nhân viên mới & Cấu hình chi tiết quyền hệ thống</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          {embedded ? (
+            <div className="flex items-center gap-2">
+              <span className="px-3 py-1 bg-slate-800 text-slate-300 rounded-xl border border-slate-700 text-xs font-bold">
+                Tổng: {users.length} tài khoản
+              </span>
+              {pendingUsers.length > 0 && (
+                <span className="px-3 py-1 bg-amber-500 text-slate-950 font-black rounded-xl text-xs flex items-center gap-1.5 animate-pulse">
+                  <Clock className="w-3.5 h-3.5" />
+                  <span>{pendingUsers.length} Chờ duyệt</span>
+                </span>
+              )}
             </div>
-            <div>
-              <h3 className="font-extrabold text-base">Quản Lý Tài Khoản Nhân Viên</h3>
-              <p className="text-xs text-slate-400">Duyệt tài khoản nhân viên & Phân quyền hệ thống</p>
+          ) : (
+            onClose && (
+              <button onClick={onClose} className="text-slate-400 hover:text-white transition text-sm font-bold bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-700">
+                Đóng
+              </button>
+            )
+          )}
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className={`p-6 space-y-4 ${embedded ? '' : 'overflow-y-auto max-h-[calc(90vh-80px)]'} flex-1`}>
+          {/* Global Reset Banner for Permissions */}
+          <div className="bg-slate-900 text-slate-200 rounded-xl p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border border-slate-800 shadow-xs">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 bg-indigo-500/20 text-indigo-400 rounded-lg shrink-0">
+                <Settings2 className="w-4 h-4" />
+              </div>
+              <div>
+                <h4 className="text-xs font-bold text-white">Quản trị Phân quyền Tài khoản Chi tiết</h4>
+                <p className="text-[11px] text-slate-400">Tích chọn quyền Xem/Sửa cho từng nhân viên, hoặc xóa trắng để phân quyền lại từ đầu bằng việc tích.</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap shrink-0">
+              {onResetAllPermissions && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (window.confirm('Bạn có chắc chắn muốn XÓA TOÀN BỘ phân quyền của tất cả tài khoản về trạng thái Trống (chưa tích) để thiết lập lại từng tài khoản từ đầu?')) {
+                      onResetAllPermissions();
+                    }
+                  }}
+                  className="px-2.5 py-1.5 bg-rose-950/80 hover:bg-rose-900 text-rose-200 border border-rose-700/80 rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-xs"
+                  title="Bỏ tích toàn bộ quyền của tất cả tài khoản"
+                >
+                  <Eraser className="w-3.5 h-3.5 text-rose-400" />
+                  <span>Xóa trắng tất cả quyền</span>
+                </button>
+              )}
+              {onResetAllToRoleDefaults && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (window.confirm('Bạn có chắc chắn muốn đặt lại phân quyền mặc định theo vai trò cho toàn bộ tài khoản?')) {
+                      onResetAllToRoleDefaults();
+                    }
+                  }}
+                  className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-bold transition flex items-center gap-1.5"
+                >
+                  <RotateCcw className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Mặc định vai trò</span>
+                </button>
+              )}
             </div>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-white transition text-sm font-bold bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-700">
-            Đóng
-          </button>
-        </div>
 
-        {/* Content */}
-        <div className="p-6 space-y-4 overflow-y-auto flex-1">
           {/* Sub-tabs */}
           <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 pb-3">
             <button
@@ -425,11 +498,51 @@ export const UserManagementModal: React.FC<UserManagementProps> = ({
                         )}
                         {user.role !== 'admin' && (
                           <div className="mt-2 text-left space-y-1.5 border-t border-slate-200 pt-2">
-                            <div className="flex items-center justify-between">
-                              <div className="text-[10px] font-bold text-slate-500 flex items-center gap-1">
-                                <Settings2 className="w-3 h-3 text-indigo-500" /> Phân quyền chi tiết
+                            <div className="flex items-center justify-between flex-wrap gap-1">
+                              <div className="text-[10px] font-bold text-slate-700 flex items-center gap-1">
+                                <Settings2 className="w-3.5 h-3.5 text-indigo-600" />
+                                <span>Phân quyền chi tiết</span>
+                                {user.permissions ? (
+                                  (() => {
+                                    const permsList = Object.values(user.permissions) as Array<{ view?: boolean; edit?: boolean } | undefined>;
+                                    const totalActive = permsList.reduce(
+                                      (acc: number, p) => acc + (p?.view ? 1 : 0) + (p?.edit ? 1 : 0),
+                                      0
+                                    );
+                                    return totalActive > 0 ? (
+                                      <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-emerald-100 text-emerald-800 font-extrabold border border-emerald-300">
+                                        Đã cấp {totalActive} quyền
+                                      </span>
+                                    ) : (
+                                      <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-slate-100 text-slate-500 font-semibold border border-slate-200">
+                                        Trống (Chưa tích)
+                                      </span>
+                                    );
+                                  })()
+                                ) : (
+                                  <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-slate-100 text-slate-500 font-semibold border border-slate-200">
+                                    Chưa thiết lập
+                                  </span>
+                                )}
                               </div>
-                              <div className="flex items-center gap-1 text-[9px]">
+
+                              <div className="flex items-center gap-1 flex-wrap text-[9px]">
+                                <button
+                                  type="button"
+                                  onClick={() => applyQuickPreset(user.id, 'clear')}
+                                  className="px-1.5 py-0.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded font-bold border border-rose-200 transition"
+                                  title="Xóa trắng toàn bộ quyền của tài khoản này (Bỏ tích tất cả)"
+                                >
+                                  Bỏ tích hết
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => applyQuickPreset(user.id, 'all')}
+                                  className="px-1.5 py-0.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded font-bold border border-indigo-200 transition"
+                                  title="Tích chọn tất cả các quyền Xem & Sửa"
+                                >
+                                  Tích tất cả
+                                </button>
                                 <button
                                   type="button"
                                   onClick={() => applyQuickPreset(user.id, 'accounting')}
@@ -456,45 +569,66 @@ export const UserManagementModal: React.FC<UserManagementProps> = ({
                                 </button>
                               </div>
                             </div>
-                            {[
-                              { key: 'dashboard', label: 'Tổng quan (Dashboard)' },
-                              { key: 'shipments', label: 'Quản lý vận chuyển' },
-                              { key: 'customs', label: 'Thủ tục hải quan' },
-                              { key: 'sea_freight', label: 'Quản lý cước biển (USD)' },
-                              { key: 'catalog', label: 'Danh mục chuẩn' },
-                              { key: 'utilities', label: 'Tiện ích hỗ trợ' },
-                              { key: 'finance', label: 'Tài chính (Chung)' },
-                              { key: 'finance_report', label: '├─ Báo cáo cước vận chuyển', indent: true },
-                              { key: 'customs_report', label: '├─ Báo cáo hải quan', indent: true },
-                              { key: 'finance_kpi', label: '├─ Quản lý KPI & Đơn giá', indent: true },
-                              { key: 'finance_advances', label: '├─ Tạm ứng nhân viên', indent: true },
-                              { key: 'finance_quotations', label: '├─ Báo giá khách hàng', indent: true },
-                              { key: 'finance_debt', label: '└─ Công nợ khách hàng', indent: true },
-                              { key: 'gdrive', label: 'Lưu trữ & Sao lưu Google Drive' }
-                            ].map((mod) => {
-                              const moduleKey = mod.key as keyof UserPermissions;
-                              const defaultModPerms = getDefaultPermissions(user.role)?.[moduleKey] || { view: false, edit: false };
-                              const userModPerms = user.permissions?.[moduleKey];
-                              const perms = {
-                                view: Boolean(userModPerms?.view ?? defaultModPerms.view),
-                                edit: Boolean(userModPerms?.edit ?? defaultModPerms.edit),
-                              };
-                              return (
-                                <div key={mod.key} className={`flex items-center justify-between bg-slate-50 px-2 py-1 rounded border border-slate-100 ${mod.indent ? 'ml-3 bg-amber-50/40 border-amber-100/60' : ''}`}>
-                                  <span className={`text-[10px] ${mod.indent ? 'text-amber-950 font-medium' : 'font-semibold text-slate-700'}`}>{mod.label}</span>
-                                  <div className="flex items-center gap-2">
-                                    <label className="flex items-center gap-0.5 text-[9px] cursor-pointer text-slate-700 font-medium">
-                                      <input type="checkbox" checked={perms.view} onChange={() => togglePermission(user.id, user.permissions, user.role, moduleKey, 'view')} className="w-2.5 h-2.5 accent-indigo-600 cursor-pointer" />
-                                      Xem
-                                    </label>
-                                    <label className="flex items-center gap-0.5 text-[9px] cursor-pointer text-amber-700 font-medium">
-                                      <input type="checkbox" checked={perms.edit} onChange={() => togglePermission(user.id, user.permissions, user.role, moduleKey, 'edit')} className="w-2.5 h-2.5 accent-amber-600 cursor-pointer" />
-                                      Sửa
-                                    </label>
+
+                            <div className="space-y-1 max-h-[300px] overflow-y-auto pr-1">
+                              {[
+                                { key: 'dashboard', label: 'Tổng quan (Dashboard)' },
+                                { key: 'shipments', label: 'Quản lý vận chuyển' },
+                                { key: 'customs', label: 'Thủ tục hải quan' },
+                                { key: 'sea_freight', label: 'Quản lý cước biển (USD)' },
+                                { key: 'catalog', label: 'Danh mục chuẩn' },
+                                { key: 'utilities', label: 'Tiện ích hỗ trợ' },
+                                { key: 'finance', label: 'Tài chính (Chung)' },
+                                { key: 'finance_report', label: '├─ Báo cáo cước vận chuyển', indent: true },
+                                { key: 'customs_report', label: '├─ Báo cáo hải quan', indent: true },
+                                { key: 'finance_kpi', label: '├─ Quản lý KPI & Đơn giá', indent: true },
+                                { key: 'finance_advances', label: '├─ Tạm ứng nhân viên', indent: true },
+                                { key: 'finance_quotations', label: '├─ Báo giá khách hàng', indent: true },
+                                { key: 'finance_debt', label: '└─ Công nợ khách hàng', indent: true },
+                                { key: 'gdrive', label: 'Lưu trữ & Sao lưu Google Drive' }
+                              ].map((mod) => {
+                                const moduleKey = mod.key as keyof UserPermissions;
+                                const userModPerms = user.permissions?.[moduleKey];
+                                const perms = {
+                                  view: Boolean(userModPerms?.view),
+                                  edit: Boolean(userModPerms?.edit),
+                                };
+                                return (
+                                  <div
+                                    key={mod.key}
+                                    className={`flex items-center justify-between px-2 py-1 rounded border transition ${
+                                      perms.view || perms.edit
+                                        ? 'bg-indigo-50/40 border-indigo-200/60'
+                                        : 'bg-slate-50 border-slate-100 opacity-85'
+                                    } ${mod.indent ? 'ml-3 bg-amber-50/30 border-amber-100/60' : ''}`}
+                                  >
+                                    <span className={`text-[10px] ${mod.indent ? 'text-amber-950 font-medium' : 'font-semibold text-slate-800'}`}>
+                                      {mod.label}
+                                    </span>
+                                    <div className="flex items-center gap-2">
+                                      <label className="flex items-center gap-1 text-[9px] cursor-pointer text-slate-700 font-semibold hover:text-indigo-600">
+                                        <input
+                                          type="checkbox"
+                                          checked={perms.view}
+                                          onChange={() => togglePermission(user.id, user.permissions, moduleKey, 'view')}
+                                          className="w-3 h-3 accent-indigo-600 cursor-pointer rounded"
+                                        />
+                                        Xem
+                                      </label>
+                                      <label className="flex items-center gap-1 text-[9px] cursor-pointer text-amber-800 font-semibold hover:text-amber-600">
+                                        <input
+                                          type="checkbox"
+                                          checked={perms.edit}
+                                          onChange={() => togglePermission(user.id, user.permissions, moduleKey, 'edit')}
+                                          className="w-3 h-3 accent-amber-600 cursor-pointer rounded"
+                                        />
+                                        Sửa
+                                      </label>
+                                    </div>
                                   </div>
-                                </div>
-                              );
-                            })}
+                                );
+                              })}
+                            </div>
                           </div>
                         )}
                       </td>
@@ -636,6 +770,15 @@ export const UserManagementModal: React.FC<UserManagementProps> = ({
           </div>
         )}
       </div>
+  );
+
+  if (embedded) {
+    return <div className="w-full">{modalContent}</div>;
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 overflow-hidden bg-slate-900/70 backdrop-blur-md flex items-center justify-center p-4">
+      {modalContent}
     </div>
   );
 };
