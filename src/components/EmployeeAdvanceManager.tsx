@@ -16,7 +16,7 @@ import {
   Calendar,
   ArrowDownUp
 } from 'lucide-react';
-import { EmployeeAdvanceItem, UserAccount, formatDateVN } from '../types';
+import { EmployeeAdvanceItem, UserAccount, formatDateVN, hasPermission } from '../types';
 
 interface EmployeeAdvanceManagerProps {
   advances: EmployeeAdvanceItem[];
@@ -35,7 +35,21 @@ export const EmployeeAdvanceManager: React.FC<EmployeeAdvanceManagerProps> = ({
   onDeleteAdvance,
   onToggleApproval
 }) => {
-  const isAdminOrManager = currentUser?.role === 'admin' || currentUser?.role === 'manager';
+  const canManageAllAdvances = 
+    currentUser?.role === 'admin' || 
+    currentUser?.role === 'manager' || 
+    currentUser?.role === 'employee_accounting' || 
+    hasPermission(currentUser, 'finance_advances', 'view') || 
+    hasPermission(currentUser, 'finance', 'view');
+
+  const canEditAdvances = 
+    currentUser?.role === 'admin' || 
+    currentUser?.role === 'manager' || 
+    currentUser?.role === 'employee_accounting' || 
+    hasPermission(currentUser, 'finance_advances', 'edit') || 
+    hasPermission(currentUser, 'finance', 'edit');
+
+  const isAdminOrManager = canManageAllAdvances;
   
   // State for explicit ledgers added in current session
   const [explicitLedgers, setExplicitLedgers] = useState<string[]>([]);

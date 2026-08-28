@@ -107,6 +107,16 @@ export const UserManagementModal: React.FC<UserManagementProps> = ({
       if (!newPerms.finance_debt?.view) newPerms.finance_debt = { view: true, edit: false };
     }
 
+    // 1b. If 'finance' view is turned OFF: disable all finance sub-modules
+    if (module === 'finance' && !updatedModulePerms.view) {
+      newPerms.finance_report = { view: false, edit: false };
+      newPerms.customs_report = { view: false, edit: false };
+      newPerms.finance_kpi = { view: false, edit: false };
+      newPerms.finance_advances = { view: false, edit: false };
+      newPerms.finance_quotations = { view: false, edit: false };
+      newPerms.finance_debt = { view: false, edit: false };
+    }
+
     // 2. If any finance sub-module is turned ON: ensure parent 'finance' view is ON
     const financeSubKeys: (keyof UserPermissions)[] = [
       'finance_report',

@@ -13,7 +13,7 @@ import {
   Calendar,
   ArrowDownUp
 } from 'lucide-react';
-import { CustomerQuotation, CustomerItem, UserAccount, formatDateVN } from '../types';
+import { CustomerQuotation, CustomerItem, UserAccount, formatDateVN, hasPermission } from '../types';
 
 interface CustomerQuotationManagerProps {
   quotations: CustomerQuotation[];
@@ -30,6 +30,12 @@ export const CustomerQuotationManager: React.FC<CustomerQuotationManagerProps> =
   onSaveQuotation,
   onDeleteQuotation
 }) => {
+  const canEdit = 
+    currentUser?.role === 'admin' || 
+    currentUser?.role === 'manager' || 
+    currentUser?.role === 'employee_accounting' || 
+    hasPermission(currentUser, 'finance_quotations', 'edit') || 
+    hasPermission(currentUser, 'finance', 'edit');
   const isAdmin = currentUser?.role === 'admin';
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -143,13 +149,15 @@ export const CustomerQuotationManager: React.FC<CustomerQuotationManagerProps> =
           </p>
         </div>
 
-        <button
-          onClick={handleOpenAddModal}
-          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-xs transition flex items-center gap-1.5"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Thêm Báo Giá Mới</span>
-        </button>
+        {canEdit && (
+          <button
+            onClick={handleOpenAddModal}
+            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-xs transition flex items-center gap-1.5"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Thêm Báo Giá Mới</span>
+          </button>
+        )}
       </div>
 
       {/* Search Bar */}
@@ -182,14 +190,14 @@ export const CustomerQuotationManager: React.FC<CustomerQuotationManagerProps> =
                 <th className="p-3.5 border-r border-slate-700">Tên Khách Hàng</th>
                 <th className="p-3.5 text-right border-r border-slate-700 min-w-[200px]">Đơn giá thủ tục hải quan (cont/lô)</th>
                 <th className="p-3.5 border-r border-slate-700">Ghi chú</th>
-                <th className="p-3.5 text-center w-28">Thao tác</th>
+                {canEdit && <th className="p-3.5 text-center w-28">Thao tác</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-xs sm:text-sm">
               {filteredQuotations.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="p-8 text-center text-slate-400">
-                    Chưa có báo giá nào. Nhấn "Thêm Báo Giá Mới" để tạo báo giá cho khách hàng.
+                  <td colSpan={canEdit ? 6 : 5} className="p-8 text-center text-slate-400">
+                    Chưa có báo giá nào. {canEdit ? 'Nhấn "Thêm Báo Giá Mới" để tạo báo giá cho khách hàng.' : ''}
                   </td>
                 </tr>
               ) : (
@@ -218,30 +226,32 @@ export const CustomerQuotationManager: React.FC<CustomerQuotationManagerProps> =
                       <td className="p-3.5 text-slate-600 text-xs border-r border-slate-100">
                         {item.notes || '—'}
                       </td>
-                      <td className="p-3.5 text-center space-x-1 whitespace-nowrap">
-                        <button
-                          type="button"
-                          onClick={() => handleDuplicateQuotation(item)}
-                          className="p-1.5 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition"
-                          title="Nhân bản báo giá (Tạo bản sao mới)"
-                        >
-                          <Copy className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleOpenEditModal(item)}
-                          className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
-                          title="Sửa báo giá"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => onDeleteQuotation(item.id, `Báo giá của ${item.customer_name}`)}
-                          className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
-                          title="Xóa báo giá"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </td>
+                      {canEdit && (
+                        <td className="p-3.5 text-center space-x-1 whitespace-nowrap">
+                          <button
+                            type="button"
+                            onClick={() => handleDuplicateQuotation(item)}
+                            className="p-1.5 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition"
+                            title="Nhân bản báo giá (Tạo bản sao mới)"
+                          >
+                            <Copy className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleOpenEditModal(item)}
+                            className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
+                            title="Sửa báo giá"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => onDeleteQuotation(item.id, `Báo giá của ${item.customer_name}`)}
+                            className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                            title="Xóa báo giá"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </td>
+                      )}
                     </tr>
                   );
                 })
