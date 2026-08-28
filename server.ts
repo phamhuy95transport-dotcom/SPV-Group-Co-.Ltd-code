@@ -27,10 +27,31 @@ const DEFAULT_SERVICE_ACCOUNT_KEY = {
   universe_domain: "googleapis.com"
 };
 
-// Dynamic in-memory configuration (allows user to switch API key and target folder)
+// Dynamic in-memory configuration (allows user to switch API key, OAuth2 refresh token and target folders)
+interface OAuth2DriveConfig {
+  clientId?: string;
+  clientSecret?: string;
+  refreshToken: string;
+}
+
+let activeAuthMode: "service_account" | "oauth2" = process.env.GOOGLE_DRIVE_REFRESH_TOKEN ? "oauth2" : "service_account";
+let activeOAuth2Config: OAuth2DriveConfig | null = process.env.GOOGLE_DRIVE_REFRESH_TOKEN
+  ? {
+      refreshToken: process.env.GOOGLE_DRIVE_REFRESH_TOKEN,
+      clientId: process.env.GOOGLE_DRIVE_CLIENT_ID || undefined,
+      clientSecret: process.env.GOOGLE_DRIVE_CLIENT_SECRET || undefined,
+    }
+  : null;
+
 let activeCustomServiceAccount: any = null;
+
+// Backup database folder
 let activeTargetFolderName: string = "SPV_DATABASE_BACKUPS";
 let activeTargetFolderId: string | null = null;
+
+// Media & Document upload storage folder
+let activeMediaFolderName: string = "SPV_UPLOADS_MEDIA";
+let activeMediaFolderId: string | null = null;
 
 function parseServiceAccount(raw: any) {
   if (!raw) return null;
@@ -66,8 +87,45 @@ function getServiceAccount(customSa?: any) {
 
 const SCOPES = ["https://www.googleapis.com/auth/drive"];
 
-function getDriveClient(customSa?: any) {
-  const sa = getServiceAccount(customSa);
+function getDriveClient(customConfig?: any) {
+  // 1. If explicit custom OAuth2 config passed
+  if (customConfig?.type === "oauth2" || (customConfig?.refreshToken && !customConfig?.client_email)) {
+    const oauth2Client = new google.auth.OAuth2(
+      customConfig.clientId || process.env.GOOGLE_DRIVE_CLIENT_ID || "407408718192.apps.googleusercontent.com",
+      customConfig.clientSecret || process.env.GOOGLE_DRIVE_CLIENT_SECRET || undefined,
+      "https://developers.google.com/oauthplayground"
+    );
+    oauth2Client.setCredentials({ refresh_token: customConfig.refreshToken });
+    return google.drive({ version: "v3", auth: oauth2Client });
+  }
+
+  // 2. If explicit custom Service Account passed
+  if (customConfig?.type === "service_account" || customConfig?.client_email) {
+    const sa = parseServiceAccount(customConfig);
+    if (!sa || !sa.client_email || !sa.private_key) {
+      throw new Error("Thông tin Service Account không hợp lệ! Thiếu client_email hoặc private_key.");
+    }
+    const auth = new google.auth.JWT({
+      email: sa.client_email,
+      key: sa.private_key.replace(/\\n/g, "\n"),
+      scopes: SCOPES,
+    });
+    return google.drive({ version: "v3", auth });
+  }
+
+  // 3. Use active auth mode
+  if (activeAuthMode === "oauth2" && activeOAuth2Config?.refreshToken) {
+    const oauth2Client = new google.auth.OAuth2(
+      activeOAuth2Config.clientId || process.env.GOOGLE_DRIVE_CLIENT_ID || "407408718192.apps.googleusercontent.com",
+      activeOAuth2Config.clientSecret || process.env.GOOGLE_DRIVE_CLIENT_SECRET || undefined,
+      "https://developers.google.com/oauthplayground"
+    );
+    oauth2Client.setCredentials({ refresh_token: activeOAuth2Config.refreshToken });
+    return google.drive({ version: "v3", auth: oauth2Client });
+  }
+
+  // 4. Default: Service Account JWT
+  const sa = getServiceAccount();
   if (!sa || !sa.client_email || !sa.private_key) {
     throw new Error("Thông tin Service Account không hợp lệ! Thiếu client_email hoặc private_key.");
   }
@@ -79,12 +137,14 @@ function getDriveClient(customSa?: any) {
   return google.drive({ version: "v3", auth });
 }
 
-// Find or create backup folder on Google Drive
-async function resolveBackupFolder(
+// Find or create any folder on Google Drive
+async function resolveFolder(
   drive: ReturnType<typeof google.drive>,
-  customFolderNameOrId?: string
+  customFolderNameOrId?: string,
+  defaultName: string = "SPV_DATABASE_BACKUPS",
+  defaultDescription: string = "Thư mục lưu trữ hệ thống SPV Logistics"
 ): Promise<{ folderId: string; folderName: string }> {
-  const target = (customFolderNameOrId || activeTargetFolderId || activeTargetFolderName || "SPV_DATABASE_BACKUPS").trim();
+  const target = (customFolderNameOrId || defaultName).trim();
 
   // 1. If target looks like a direct Google Drive folder ID (alphanumeric, underscores/hyphens, length > 20)
   if (target.length >= 20 && !target.includes(" ") && !target.includes("/")) {
@@ -102,7 +162,7 @@ async function resolveBackupFolder(
   }
 
   // 2. Search by folder name
-  const folderName = target.length >= 20 && !target.includes(" ") ? activeTargetFolderName || "SPV_DATABASE_BACKUPS" : target;
+  const folderName = target.length >= 20 && !target.includes(" ") ? defaultName : target;
   try {
     const res = await drive.files.list({
       q: `name='${folderName.replace(/'/g, "\\'")}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
@@ -119,7 +179,7 @@ async function resolveBackupFolder(
       requestBody: {
         name: folderName,
         mimeType: "application/vnd.google-apps.folder",
-        description: "Thư mục lưu trữ sao lưu dữ liệu hệ thống SPV Logistics & Hải quan",
+        description: defaultDescription,
       },
       fields: "id, name",
     });
@@ -129,6 +189,32 @@ async function resolveBackupFolder(
     console.error("Lỗi khi tìm/tạo thư mục Google Drive:", error);
     throw error;
   }
+}
+
+// Find or create backup folder on Google Drive
+async function resolveBackupFolder(
+  drive: ReturnType<typeof google.drive>,
+  customFolderNameOrId?: string
+): Promise<{ folderId: string; folderName: string }> {
+  return resolveFolder(
+    drive,
+    customFolderNameOrId || activeTargetFolderId || activeTargetFolderName,
+    activeTargetFolderName || "SPV_DATABASE_BACKUPS",
+    "Thư mục lưu trữ sao lưu cơ sở dữ liệu hệ thống SPV Logistics & Hải quan"
+  );
+}
+
+// Find or create media/upload folder on Google Drive
+async function resolveMediaFolder(
+  drive: ReturnType<typeof google.drive>,
+  customFolderNameOrId?: string
+): Promise<{ folderId: string; folderName: string }> {
+  return resolveFolder(
+    drive,
+    customFolderNameOrId || activeMediaFolderId || activeMediaFolderName,
+    activeMediaFolderName || "SPV_UPLOADS_MEDIA",
+    "Thư mục lưu trữ tệp, hình ảnh, chứng từ, hóa đơn tải lên từ hệ thống SPV Logistics"
+  );
 }
 
 // 1. Health & Connection Status
@@ -229,36 +315,86 @@ app.get("/api/tax-lookup/:taxCode", async (req, res) => {
 // 1. Health & Connection Status
 app.get("/api/gdrive/status", async (req, res) => {
   try {
-    const sa = getServiceAccount();
     const drive = getDriveClient();
     
-    // Check drive connection and folder
-    const folderInfo = await resolveBackupFolder(drive);
+    // Check drive connection and folders
+    const backupFolder = await resolveBackupFolder(drive);
+    const mediaFolder = await resolveMediaFolder(drive);
     
-    // Count files in folder
-    const listRes = await drive.files.list({
-      q: `'${folderInfo.folderId}' in parents and trashed=false`,
+    // Count backup files
+    const backupListRes = await drive.files.list({
+      q: `'${backupFolder.folderId}' in parents and trashed=false`,
       fields: "files(id, name, size, createdTime, modifiedTime)",
       orderBy: "createdTime desc",
-      pageSize: 10,
+      pageSize: 20,
     });
+
+    // Count media files
+    const mediaListRes = await drive.files.list({
+      q: `'${mediaFolder.folderId}' in parents and trashed=false`,
+      fields: "files(id, name, size, mimeType, createdTime, modifiedTime)",
+      orderBy: "createdTime desc",
+      pageSize: 20,
+    });
+
+    // Try to get user details & storage quota from Google Drive
+    let accountInfo: any = null;
+    try {
+      const aboutRes = await drive.about.get({
+        fields: "user(displayName, emailAddress, photoLink), storageQuota(limit, usage, usageInDrive)",
+      });
+      if (aboutRes.data.user) {
+        const quota = aboutRes.data.storageQuota;
+        const formatGb = (bytes?: string | null) => {
+          if (!bytes) return "0 GB";
+          const b = parseInt(bytes, 10);
+          return (b / (1024 * 1024 * 1024)).toFixed(2) + " GB";
+        };
+        accountInfo = {
+          name: aboutRes.data.user.displayName,
+          email: aboutRes.data.user.emailAddress,
+          photoLink: aboutRes.data.user.photoLink,
+          storageUsage: formatGb(quota?.usage),
+          storageLimit: quota?.limit ? formatGb(quota.limit) : "Không giới hạn",
+          storagePercent: quota?.limit && quota?.usage ? Math.min(100, Math.round((parseInt(quota.usage, 10) / parseInt(quota.limit, 10)) * 100)) : null,
+        };
+      }
+    } catch {
+      // Fallback
+    }
+
+    const sa = getServiceAccount();
 
     res.json({
       success: true,
       connected: true,
-      isCustomKey: !!activeCustomServiceAccount,
+      authMode: activeAuthMode,
+      isCustomKey: activeAuthMode === "oauth2" ? true : !!activeCustomServiceAccount,
+      accountInfo: accountInfo || {
+        name: activeAuthMode === "oauth2" ? "Tài khoản Google Drive Cá nhân" : "Service Account SPV",
+        email: activeAuthMode === "oauth2" ? (accountInfo?.email || "OAuth 2.0 Account") : sa.client_email,
+        storageUsage: accountInfo?.storageUsage || "N/A",
+        storageLimit: accountInfo?.storageLimit || "N/A",
+      },
       serviceAccount: {
         email: sa.client_email,
         projectId: sa.project_id,
         clientId: sa.client_id,
       },
-      folderId: folderInfo.folderId,
-      folderName: folderInfo.folderName,
-      activeTargetFolderName,
-      activeTargetFolderId,
-      fileCount: listRes.data.files?.length || 0,
-      recentFiles: listRes.data.files || [],
-      message: "Kết nối thành công với Google Drive API",
+      oauth2Config: activeOAuth2Config
+        ? {
+            hasRefreshToken: !!activeOAuth2Config.refreshToken,
+            clientId: activeOAuth2Config.clientId || "Mặc định (Google Playground)",
+          }
+        : null,
+      folderId: backupFolder.folderId,
+      folderName: backupFolder.folderName,
+      backupFolder,
+      mediaFolder,
+      fileCount: backupListRes.data.files?.length || 0,
+      mediaFileCount: mediaListRes.data.files?.length || 0,
+      recentFiles: backupListRes.data.files || [],
+      message: `Kết nối thành công với Google Drive (${activeAuthMode === "oauth2" ? "Tài khoản cá nhân qua Refresh Token" : "Service Account"})`,
     });
   } catch (error: any) {
     console.error("Lỗi Google Drive API status:", error);
@@ -266,7 +402,8 @@ app.get("/api/gdrive/status", async (req, res) => {
     res.status(500).json({
       success: false,
       connected: false,
-      isCustomKey: !!activeCustomServiceAccount,
+      authMode: activeAuthMode,
+      isCustomKey: activeAuthMode === "oauth2" ? true : !!activeCustomServiceAccount,
       serviceAccount: {
         email: sa?.client_email || "Chưa thiết lập",
         projectId: sa?.project_id || "N/A",
@@ -276,7 +413,109 @@ app.get("/api/gdrive/status", async (req, res) => {
   }
 });
 
-// 2. Test a custom Service Account connection
+// 2. Test OAuth2 Refresh Token connection
+app.post("/api/gdrive/test-oauth2", async (req, res) => {
+  try {
+    const { refreshToken, clientId, clientSecret } = req.body;
+    if (!refreshToken || !refreshToken.trim()) {
+      return res.status(400).json({ success: false, error: "Vui lòng nhập Refresh Token tài khoản Google Drive của bạn!" });
+    }
+
+    const drive = getDriveClient({
+      type: "oauth2",
+      refreshToken: refreshToken.trim(),
+      clientId: clientId?.trim() || undefined,
+      clientSecret: clientSecret?.trim() || undefined,
+    });
+
+    // Test calling about.get
+    const aboutRes = await drive.about.get({
+      fields: "user(displayName, emailAddress, photoLink), storageQuota(limit, usage)",
+    });
+
+    const formatGb = (bytes?: string | null) => {
+      if (!bytes) return "0 GB";
+      const b = parseInt(bytes, 10);
+      return (b / (1024 * 1024 * 1024)).toFixed(2) + " GB";
+    };
+
+    const quota = aboutRes.data.storageQuota;
+    const user = aboutRes.data.user;
+
+    res.json({
+      success: true,
+      message: `Xác thực Refresh Token thành công! Chủ sở hữu: ${user?.displayName || "Google User"} (${user?.emailAddress})`,
+      user: {
+        displayName: user?.displayName || "Google User",
+        emailAddress: user?.emailAddress || "N/A",
+        photoLink: user?.photoLink || null,
+        storageUsage: formatGb(quota?.usage),
+        storageLimit: quota?.limit ? formatGb(quota.limit) : "Không giới hạn",
+      },
+    });
+  } catch (error: any) {
+    console.error("Lỗi kiểm tra OAuth2 Refresh Token:", error);
+    res.status(400).json({
+      success: false,
+      error: error?.message || "Xác thực Refresh Token thất bại. Vui lòng kiểm tra lại token hoặc Client ID / Secret.",
+    });
+  }
+});
+
+// 3. Save and activate OAuth2 Refresh Token Configuration
+app.post("/api/gdrive/config/oauth2", async (req, res) => {
+  try {
+    const { refreshToken, clientId, clientSecret, resetToServiceAccount } = req.body;
+
+    if (resetToServiceAccount) {
+      activeAuthMode = "service_account";
+      activeOAuth2Config = null;
+      return res.json({
+        success: true,
+        authMode: "service_account",
+        message: "Đã chuyển đổi về chế độ Google Service Account mặc định!",
+      });
+    }
+
+    if (!refreshToken || !refreshToken.trim()) {
+      return res.status(400).json({ success: false, error: "Refresh Token không được để trống!" });
+    }
+
+    // Verify first
+    const drive = getDriveClient({
+      type: "oauth2",
+      refreshToken: refreshToken.trim(),
+      clientId: clientId?.trim() || undefined,
+      clientSecret: clientSecret?.trim() || undefined,
+    });
+
+    const aboutRes = await drive.about.get({
+      fields: "user(displayName, emailAddress, photoLink)",
+    });
+
+    activeOAuth2Config = {
+      refreshToken: refreshToken.trim(),
+      clientId: clientId?.trim() || undefined,
+      clientSecret: clientSecret?.trim() || undefined,
+    };
+    activeAuthMode = "oauth2";
+
+    res.json({
+      success: true,
+      authMode: "oauth2",
+      message: `Đã kích hoạt lưu trữ đám mây qua tài khoản cá nhân: ${aboutRes.data.user?.emailAddress || "Google Drive"}`,
+      user: aboutRes.data.user,
+    });
+  } catch (error: any) {
+    console.error("Lỗi kích hoạt OAuth2 Refresh Token:", error);
+    res.status(400).json({
+      success: false,
+      error: error?.message || "Lỗi khi kích hoạt kết nối OAuth2 Refresh Token",
+    });
+  }
+});
+
+// 4. Test a custom Service Account connection
 app.post("/api/gdrive/test-connection", async (req, res) => {
   try {
     const { serviceAccountKey } = req.body;
@@ -293,7 +532,6 @@ app.post("/api/gdrive/test-connection", async (req, res) => {
     }
 
     const drive = getDriveClient(sa);
-    // Test listing root files
     const testRes = await drive.files.list({
       pageSize: 3,
       fields: "files(id, name)",
@@ -301,7 +539,7 @@ app.post("/api/gdrive/test-connection", async (req, res) => {
 
     res.json({
       success: true,
-      message: "Kiểm tra kết nối thành công!",
+      message: "Kiểm tra kết nối Service Account thành công!",
       serviceAccount: {
         email: sa.client_email,
         projectId: sa.project_id,
@@ -313,22 +551,24 @@ app.post("/api/gdrive/test-connection", async (req, res) => {
     console.error("Lỗi kiểm tra Service Account:", error);
     res.status(400).json({
       success: false,
-      error: error?.message || "Xác thực thất bại với Google Drive API. Hãy kiểm tra lại Private Key hoặc quyền chia sẻ.",
+      error: error?.message || "Xác thực thất bại với Google Drive API.",
     });
   }
 });
 
-// 3. Update or reset active Service Account Credentials
+// 5. Update or reset active Service Account Credentials
 app.post("/api/gdrive/config/credentials", async (req, res) => {
   try {
     const { serviceAccountKey, resetToDefault } = req.body;
 
     if (resetToDefault) {
       activeCustomServiceAccount = null;
+      activeAuthMode = "service_account";
       return res.json({
         success: true,
         isCustomKey: false,
-        message: "Đã khôi phục về khóa Service Account mặc định (spv-management-contract) thành công!",
+        authMode: "service_account",
+        message: "Đã khôi phục về khóa Service Account mặc định thành công!",
         serviceAccount: {
           email: DEFAULT_SERVICE_ACCOUNT_KEY.client_email,
           projectId: DEFAULT_SERVICE_ACCOUNT_KEY.project_id,
@@ -348,16 +588,16 @@ app.post("/api/gdrive/config/credentials", async (req, res) => {
       });
     }
 
-    // Verify key before applying
     const drive = getDriveClient(sa);
     await drive.files.list({ pageSize: 1, fields: "files(id)" });
 
-    // Store as active
     activeCustomServiceAccount = sa;
+    activeAuthMode = "service_account";
 
     res.json({
       success: true,
       isCustomKey: true,
+      authMode: "service_account",
       message: `Đã kết nối thành công với tài khoản: ${sa.client_email}`,
       serviceAccount: {
         email: sa.client_email,
@@ -374,7 +614,7 @@ app.post("/api/gdrive/config/credentials", async (req, res) => {
   }
 });
 
-// 4. Update Target Folder Configuration
+// 6. Update Target Backup Folder Configuration
 app.post("/api/gdrive/config/folder", async (req, res) => {
   try {
     const { folderName, folderId } = req.body;
@@ -391,7 +631,7 @@ app.post("/api/gdrive/config/folder", async (req, res) => {
 
     res.json({
       success: true,
-      message: `Đã cập nhật thư mục lưu trữ: ${resolved.folderName} (ID: ${resolved.folderId})`,
+      message: `Đã cập nhật thư mục lưu trữ sao lưu: ${resolved.folderName} (ID: ${resolved.folderId})`,
       folderId: resolved.folderId,
       folderName: resolved.folderName,
       activeTargetFolderName,
@@ -402,6 +642,175 @@ app.post("/api/gdrive/config/folder", async (req, res) => {
     res.status(400).json({
       success: false,
       error: error?.message || "Lỗi cấu hình thư mục Google Drive",
+    });
+  }
+});
+
+// 7. Update Media & Documents Folder Configuration
+app.post("/api/gdrive/config/media-folder", async (req, res) => {
+  try {
+    const { folderName, folderId } = req.body;
+
+    if (folderName && folderName.trim()) {
+      activeMediaFolderName = folderName.trim();
+    }
+    if (folderId !== undefined) {
+      activeMediaFolderId = folderId ? folderId.trim() : null;
+    }
+
+    const drive = getDriveClient();
+    const resolved = await resolveMediaFolder(drive, activeMediaFolderId || activeMediaFolderName);
+
+    res.json({
+      success: true,
+      message: `Đã cập nhật thư mục lưu trữ tài liệu & hình ảnh: ${resolved.folderName} (ID: ${resolved.folderId})`,
+      folderId: resolved.folderId,
+      folderName: resolved.folderName,
+      activeMediaFolderName,
+      activeMediaFolderId,
+    });
+  } catch (error: any) {
+    console.error("Lỗi cấu hình thư mục media:", error);
+    res.status(400).json({
+      success: false,
+      error: error?.message || "Lỗi cấu hình thư mục tài liệu & hình ảnh Google Drive",
+    });
+  }
+});
+
+// 8. Upload any file, photo, image, or document directly to Google Drive
+app.post("/api/gdrive/upload-file", async (req, res) => {
+  try {
+    const {
+      fileName,
+      fileData, // base64 string or data URL
+      mimeType,
+      category, // 'images' | 'documents' | 'delivery_receipt' | 'customs_doc' | 'general'
+      description,
+      uploadedBy,
+      targetFolderId,
+      targetFolderName,
+      makePublic,
+    } = req.body;
+
+    if (!fileData) {
+      return res.status(400).json({ success: false, error: "Dữ liệu tệp không được để trống!" });
+    }
+
+    if (!fileName) {
+      return res.status(400).json({ success: false, error: "Tên tệp không được để trống!" });
+    }
+
+    const drive = getDriveClient();
+    const resolved = await resolveMediaFolder(drive, targetFolderId || targetFolderName);
+
+    // Extract base64 payload
+    let base64Clean = fileData;
+    let detectedMime = mimeType || "application/octet-stream";
+    if (fileData.includes("data:") && fileData.includes(";base64,")) {
+      const parts = fileData.split(";base64,");
+      detectedMime = parts[0].replace("data:", "");
+      base64Clean = parts[1];
+    }
+
+    const fileBuffer = Buffer.from(base64Clean, "base64");
+    const stream = new Readable();
+    stream.push(fileBuffer);
+    stream.push(null);
+
+    const now = new Date();
+    const pad = (n: number) => n.toString().padStart(2, "0");
+    const dateFormatted = `${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear()} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+
+    const fileMeta: any = {
+      name: fileName,
+      parents: [resolved.folderId],
+      description: description || `Tải lên từ SPV System (${category || "Tài liệu"}) lúc ${dateFormatted} bởi ${uploadedBy || "Người dùng"}`,
+      mimeType: detectedMime,
+      properties: {
+        category: category || "general",
+        uploadedBy: uploadedBy || "User",
+        system: "SPV_LOGISTICS",
+      },
+    };
+
+    const uploadRes = await drive.files.create({
+      requestBody: fileMeta,
+      media: {
+        mimeType: detectedMime,
+        body: stream,
+      },
+      fields: "id, name, size, mimeType, createdTime, modifiedTime, webViewLink, webContentLink, thumbnailLink",
+    });
+
+    const fileId = uploadRes.data.id!;
+
+    // Optional: make file viewable by anyone with link if requested or if it's an image
+    if (makePublic) {
+      try {
+        await drive.permissions.create({
+          fileId,
+          requestBody: {
+            role: "reader",
+            type: "anyone",
+          },
+        });
+      } catch (permErr) {
+        console.warn("Không thể gán quyền công khai cho file:", permErr);
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `Tải tệp [${fileName}] lên Google Drive thành công tại thư mục [${resolved.folderName}]!`,
+      file: uploadRes.data,
+      folder: resolved,
+      fileUrl: uploadRes.data.webViewLink,
+      downloadUrl: uploadRes.data.webContentLink,
+      thumbnailUrl: uploadRes.data.thumbnailLink,
+      fileId: uploadRes.data.id,
+      size: uploadRes.data.size,
+      mimeType: uploadRes.data.mimeType,
+    });
+  } catch (error: any) {
+    console.error("Lỗi khi tải tệp lên Google Drive:", error);
+    res.status(500).json({
+      success: false,
+      error: error?.message || "Lỗi máy chủ khi tải tệp lên Google Drive",
+    });
+  }
+});
+
+// 9. List media & document files in Google Drive
+app.get("/api/gdrive/media-files", async (req, res) => {
+  try {
+    const { folderId, category, search } = req.query;
+    const drive = getDriveClient();
+    const resolved = await resolveMediaFolder(drive, folderId as string);
+
+    let query = `'${resolved.folderId}' in parents and trashed=false`;
+    if (search && typeof search === "string" && search.trim()) {
+      query += ` and name contains '${search.trim().replace(/'/g, "\\'")}'`;
+    }
+
+    const listRes = await drive.files.list({
+      q: query,
+      fields: "files(id, name, size, mimeType, createdTime, modifiedTime, webViewLink, webContentLink, thumbnailLink, description, properties)",
+      orderBy: "createdTime desc",
+      pageSize: 100,
+    });
+
+    res.json({
+      success: true,
+      folderId: resolved.folderId,
+      folderName: resolved.folderName,
+      files: listRes.data.files || [],
+    });
+  } catch (error: any) {
+    console.error("Lỗi lấy danh sách media Google Drive:", error);
+    res.status(500).json({
+      success: false,
+      error: error?.message || "Lỗi khi lấy danh sách tệp & hình ảnh từ Google Drive",
     });
   }
 });
