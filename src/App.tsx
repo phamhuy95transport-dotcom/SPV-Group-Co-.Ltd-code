@@ -271,6 +271,45 @@ export default function App() {
     };
   }, []);
 
+  // Auto-switch subtabs if current subtab is not permitted for the user
+  useEffect(() => {
+    if (activeTab === 'finance' && currentUser) {
+      const allowedFinanceSubTabs: FinanceSubTab[] = [];
+      if (hasPermission(currentUser, 'finance_report', 'view') || hasPermission(currentUser, 'finance', 'view')) {
+        allowedFinanceSubTabs.push('report_shipment');
+      }
+      if (hasPermission(currentUser, 'customs_report', 'view') || hasPermission(currentUser, 'finance', 'view')) {
+        allowedFinanceSubTabs.push('report_customs');
+      }
+      if (hasPermission(currentUser, 'finance_report', 'view') || hasPermission(currentUser, 'sea_freight', 'view') || hasPermission(currentUser, 'finance', 'view')) {
+        allowedFinanceSubTabs.push('report_sea_freight');
+      }
+      if (hasPermission(currentUser, 'finance_kpi', 'view')) {
+        allowedFinanceSubTabs.push('kpi');
+      }
+      if (hasPermission(currentUser, 'finance_quotations', 'view')) {
+        allowedFinanceSubTabs.push('customer_quotation');
+      }
+      if (hasPermission(currentUser, 'finance_advances', 'view')) {
+        allowedFinanceSubTabs.push('employee_advance');
+      }
+
+      if (allowedFinanceSubTabs.length > 0 && !allowedFinanceSubTabs.includes(financeSubTab)) {
+        setFinanceSubTab(allowedFinanceSubTabs[0]);
+      }
+    }
+
+    if (activeTab === 'general_work' && currentUser) {
+      const canCustoms = hasPermission(currentUser, 'customs', 'view');
+      const canSeaFreight = hasPermission(currentUser, 'sea_freight', 'view');
+      if (workSubTab === 'customs' && !canCustoms && canSeaFreight) {
+        setWorkSubTab('sea_freight');
+      } else if (workSubTab === 'sea_freight' && !canSeaFreight && canCustoms) {
+        setWorkSubTab('customs');
+      }
+    }
+  }, [activeTab, currentUser, financeSubTab, workSubTab]);
+
   const handleUpdateDashboardSettings = async (newSettings: DashboardCustomSettings) => {
     setDashboardSettings(newSettings);
     localStorage.setItem(`${LOCAL_STORAGE_KEY}_dashboard_settings`, JSON.stringify(newSettings));
