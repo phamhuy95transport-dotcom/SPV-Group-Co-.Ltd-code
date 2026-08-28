@@ -21,7 +21,8 @@ import {
   canDeleteUser,
   hasPermission,
   UserPermissions,
-  getDefaultPermissions
+  getDefaultPermissions,
+  getEmptyPermissions
 } from './types';
 import {
   DEFAULT_USERS,
@@ -538,6 +539,56 @@ export default function App() {
       }
       showToast(`Đã cập nhật phân quyền quản lý cho tài khoản.`);
     }
+  };
+
+  const handleResetAllPermissions = async () => {
+    if (currentUser?.role !== 'admin' && currentUser?.role !== 'manager') {
+      showToast('Chỉ Quản trị viên hoặc Quản lý mới có quyền xóa/đặt lại phân quyền.', 'error');
+      return;
+    }
+    const emptyPerms = getEmptyPermissions();
+    const updatedUsers: UserAccount[] = users.map(u => {
+      if (u.role === 'admin') return u; // Admin retains full privileges
+      return { ...u, permissions: emptyPerms };
+    });
+
+    setUsers(updatedUsers);
+    if (currentUser && currentUser.role !== 'admin') {
+      setCurrentUser(prev => prev ? { ...prev, permissions: emptyPerms } : null);
+    }
+
+    // Save all to cloud
+    for (const u of updatedUsers) {
+      if (u.role !== 'admin') {
+        await saveRecordToCloud('users', u.id, u);
+      }
+    }
+
+    showToast('Đã xóa toàn bộ phân quyền của tất cả tài khoản về Trống (chưa tích). Bạn có thể tích chọn chi tiết từng quyền.');
+  };
+
+  const handleResetAllToRoleDefaults = async () => {
+    if (currentUser?.role !== 'admin' && currentUser?.role !== 'manager') {
+      showToast('Chỉ Quản trị viên hoặc Quản lý mới có quyền đặt lại phân quyền mặc định.', 'error');
+      return;
+    }
+    const updatedUsers: UserAccount[] = users.map(u => {
+      if (u.role === 'admin') return u;
+      return { ...u, permissions: getDefaultPermissions(u.role) };
+    });
+
+    setUsers(updatedUsers);
+    if (currentUser && currentUser.role !== 'admin') {
+      setCurrentUser(prev => prev ? { ...prev, permissions: getDefaultPermissions(prev.role) } : null);
+    }
+
+    for (const u of updatedUsers) {
+      if (u.role !== 'admin') {
+        await saveRecordToCloud('users', u.id, u);
+      }
+    }
+
+    showToast('Đã gán lại phân quyền mặc định theo vai trò cho toàn bộ tài khoản.');
   };
 
   const handleChangeUserName = async (userId: string, newName: string) => {
@@ -1631,18 +1682,24 @@ export default function App() {
           </div>
         )}
 
-        {/* Tab 5: Admin & Manager User Management Panel */}
+        {/* Tab 5: Admin & Manager User Management Panel (Embedded Table) */}
         {activeTab === 'users' && (currentUser?.role === 'admin' || currentUser?.role === 'manager') && (
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs">
-            <h3 className="text-lg font-bold text-slate-900 mb-4">Quản Lý Nhân Viên & Phân Quyền</h3>
-            <p className="text-xs text-slate-500 mb-4">Duyệt tài khoản nhân viên mới đăng ký và quản lý vai trò trong hệ thống.</p>
-            <button
-              onClick={() => setIsUserMgmtOpen(true)}
-              className="px-5 py-2.5 bg-indigo-600 text-white font-bold text-xs rounded-xl hover:bg-indigo-700 transition"
-            >
-              Mở Bảng Duyệt Tài Khoản Nhân Viên
-            </button>
-          </div>
+          <UserManagementModal
+            embedded={true}
+            users={users}
+            customers={customers}
+            currentUser={currentUser}
+            onApproveUser={handleApproveUser}
+            onRejectUser={handleRejectUser}
+            onChangeUserRole={handleChangeUserRole}
+            onChangeCustomerName={handleChangeUserCustomerName}
+            onChangeUserPermissions={handleChangeUserPermissions}
+            onResetAllPermissions={handleResetAllPermissions}
+            onResetAllToRoleDefaults={handleResetAllToRoleDefaults}
+            onChangeUserName={handleChangeUserName}
+            onResetUserPassword={handleResetUserPassword}
+            onDeleteUser={handleDeleteUser}
+          />
         )}
 
         {/* Tab 6: Google Drive Cloud Storage & Backup Manager */}
@@ -1701,6 +1758,8 @@ export default function App() {
         onChangeUserRole={handleChangeUserRole}
         onChangeCustomerName={handleChangeUserCustomerName}
         onChangeUserPermissions={handleChangeUserPermissions}
+        onResetAllPermissions={handleResetAllPermissions}
+        onResetAllToRoleDefaults={handleResetAllToRoleDefaults}
         onChangeUserName={handleChangeUserName}
         onResetUserPassword={handleResetUserPassword}
         onDeleteUser={handleDeleteUser}

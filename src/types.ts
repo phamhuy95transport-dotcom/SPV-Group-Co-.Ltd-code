@@ -110,43 +110,62 @@ export const getDefaultPermissions = (role: UserRole): UserPermissions => {
   }
 };
 
+export const getEmptyPermissions = (): UserPermissions => ({
+  dashboard: { view: false, edit: false },
+  shipments: { view: false, edit: false },
+  customs: { view: false, edit: false },
+  sea_freight: { view: false, edit: false },
+  customs_report: { view: false, edit: false },
+  finance: { view: false, edit: false },
+  finance_report: { view: false, edit: false },
+  finance_kpi: { view: false, edit: false },
+  finance_advances: { view: false, edit: false },
+  finance_quotations: { view: false, edit: false },
+  finance_debt: { view: false, edit: false },
+  catalog: { view: false, edit: false },
+  utilities: { view: false, edit: false },
+  gdrive: { view: false, edit: false },
+});
+
 export const hasPermission = (user: any, module: keyof UserPermissions, action: 'view' | 'edit'): boolean => {
   if (!user) return false;
+  // Admin role retains full access
   if (user.role === 'admin') return true;
   
+  // If user has custom permissions object configured
+  if (user.permissions) {
+    const userMod = user.permissions[module];
+    if (userMod && userMod[action] !== undefined) {
+      return Boolean(userMod[action]);
+    }
+
+    // If checking finance view tab, allow if any finance sub-item is ticked
+    if (module === 'finance' && action === 'view') {
+      if (user.permissions.finance?.view) return true;
+      const subModules: (keyof UserPermissions)[] = [
+        'finance_report',
+        'customs_report',
+        'finance_kpi',
+        'finance_advances',
+        'finance_quotations',
+        'finance_debt',
+        'sea_freight'
+      ];
+      for (const sm of subModules) {
+        if (user.permissions[sm]?.view) return true;
+      }
+      return false;
+    }
+
+    return Boolean(userMod?.[action]);
+  }
+
+  // If no custom permissions object yet, fallback to default permissions for role
   const defaultPerms = getDefaultPermissions(user.role as UserRole);
   const defaultModulePerms = defaultPerms?.[module] || { view: false, edit: false };
-  const userModulePerms = user.permissions?.[module];
-  
-  // 1. If explicitly defined on user's custom permissions for this specific module
-  if (userModulePerms && userModulePerms[action] !== undefined) {
-    return Boolean(userModulePerms[action]);
-  }
 
-  // 2. Specific role defaults: employee_accounting has full financial access by default
-  if (user.role === 'employee_accounting') {
-    if (
-      module === 'finance' ||
-      module === 'finance_report' ||
-      module === 'customs_report' ||
-      module === 'finance_kpi' ||
-      module === 'finance_advances' ||
-      module === 'finance_quotations' ||
-      module === 'finance_debt'
-    ) {
-      if (action === 'view') {
-        return userModulePerms?.view !== false;
-      }
-      if (action === 'edit') {
-        return userModulePerms?.edit !== false;
-      }
-    }
-  }
-
-  // 3. Smart inheritance: If checking 'finance' view, allow if user has permission on any finance sub-module or parent
   if (module === 'finance' && action === 'view') {
-    const parentVal = user.permissions?.finance?.view ?? defaultPerms?.finance?.view;
-    if (parentVal) return true;
+    if (defaultModulePerms.view) return true;
     const subModules: (keyof UserPermissions)[] = [
       'finance_report',
       'customs_report',
@@ -157,30 +176,11 @@ export const hasPermission = (user: any, module: keyof UserPermissions, action: 
       'sea_freight'
     ];
     for (const sm of subModules) {
-      const smPerm = user.permissions?.[sm]?.view ?? defaultPerms?.[sm]?.view;
-      if (smPerm) return true;
+      if (defaultPerms?.[sm]?.view) return true;
     }
   }
 
-  // 4. Sub-module inheritance from parent 'finance' permission
-  const financeSubKeys: (keyof UserPermissions)[] = [
-    'finance_report',
-    'customs_report',
-    'finance_kpi',
-    'finance_advances',
-    'finance_quotations',
-    'finance_debt'
-  ];
-  if (financeSubKeys.includes(module)) {
-    const parentPerm = user.permissions?.finance?.[action] ?? defaultPerms?.finance?.[action];
-    if (parentPerm && userModulePerms?.[action] !== false) {
-      return true;
-    }
-  }
-
-  // Fallback to role's default module permission
-  const val = userModulePerms?.[action] ?? defaultModulePerms[action];
-  return Boolean(val);
+  return Boolean(defaultModulePerms[action]);
 };
 
 export interface UserAccount {
