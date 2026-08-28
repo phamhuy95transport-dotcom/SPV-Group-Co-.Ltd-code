@@ -80,7 +80,7 @@ export const Header: React.FC<HeaderProps> = ({
                 </span>
               </div>
               <p className="text-[11px] text-slate-400 font-medium hidden sm:block">
-                Hệ thống quản lý & Chuỗi cung ứng
+                Hệ thống vận hành
               </p>
             </div>
           </div>

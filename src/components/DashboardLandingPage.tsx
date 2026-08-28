@@ -819,11 +819,11 @@ export const DashboardLandingPage: React.FC<DashboardLandingPageProps> = ({
             <div className="space-y-2 pt-2 border-t border-white/10 text-xs">
               <div className="flex items-center gap-2">
                 <PhoneCall className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span className="font-mono font-bold text-white">Hotline: 0988.xxx.xxx / 0912.xxx.xxx</span>
+                <span className="font-mono font-bold text-white">Hotline: 0922012395 / 0772215199</span>
               </div>
               <div className="flex items-center gap-2 text-slate-300">
                 <Mail className="w-4 h-4 text-blue-400 shrink-0" />
-                <span>ops@spv.biz.vn / logistics@spv.biz.vn</span>
+                <span>giupnhau@spv.biz.vn / giupnhau2022@gmail.com</span>
               </div>
               <div className="flex items-center gap-2 text-slate-300">
                 <Building2 className="w-4 h-4 text-amber-400 shrink-0" />
