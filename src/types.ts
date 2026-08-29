@@ -456,21 +456,27 @@ export function calculateCustomsKPI(
   const rateObj = kpiRates?.find(r => r.type_name === type);
   const baseReward = rateObj ? rateObj.reward_amount : (type === 'Xuất khẩu' || type === 'Nhập khẩu' ? 30000 : 25000);
   
-  let ratio = typeof record.support_transfer?.ratio === 'number' ? record.support_transfer.ratio : 1;
+  let ratio = 0;
+  if (typeof record.support_transfer?.ratio === 'number') {
+    ratio = record.support_transfer.ratio;
+  }
   if (record.support_transfer?.ratio_label) {
-    const lbl = record.support_transfer.ratio_label.trim();
+    const lbl = String(record.support_transfer.ratio_label).trim();
     if (lbl === '2/3') ratio = 2 / 3;
     else if (lbl === '1/2') ratio = 0.5;
     else if (lbl === '1/3') ratio = 1 / 3;
-    else if (lbl === '0') ratio = 0;
-    else if (lbl === '1') ratio = 1;
+    else if (lbl === '0' || lbl === '0%') ratio = 0;
+    else if (lbl === '1' || lbl === '100%') ratio = 1;
     else if (!isNaN(Number(lbl))) ratio = Number(lbl);
   }
   
   const qty = (record.cont_quantity && record.cont_quantity > 0) ? record.cont_quantity : 1;
   const extra = Number(record.extra_bonus) || 0;
   
-  const total = Math.round(baseReward * qty * ratio) + extra;
+  // Công thức: Thành tiền KPI = (Số lượng x mức thưởng KPI) - (Số lượng x tỷ lệ x mức thưởng KPI) + Thưởng khác
+  const baseTotal = qty * baseReward;
+  const deduction = qty * ratio * baseReward;
+  const total = Math.round(baseTotal - deduction) + extra;
   return Math.max(0, total);
 }
 

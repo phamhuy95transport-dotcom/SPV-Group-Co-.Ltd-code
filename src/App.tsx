@@ -90,7 +90,15 @@ export default function App() {
   const [routes, setRoutes] = useState<RouteItem[]>(DEFAULT_ROUTES);
   const [declarations, setDeclarations] = useState<CustomsDeclarationRecord[]>(DEFAULT_CUSTOMS_DECLARATIONS);
   const [kpiRates, setKpiRates] = useState<KPIRateItem[]>(DEFAULT_KPI_RATES);
-  const [paidAmounts, setPaidAmounts] = useState<Record<string, number>>({});
+  const [paidAmounts, setPaidAmounts] = useState<Record<string, number>>(() => {
+    try {
+      const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY}_customs_paid`);
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.warn('Lỗi đọc dữ liệu đã thanh toán KPI:', e);
+    }
+    return {};
+  });
   const [quotations, setQuotations] = useState<CustomerQuotation[]>(DEFAULT_CUSTOMER_QUOTATIONS);
   const [advances, setAdvances] = useState<EmployeeAdvanceItem[]>(DEFAULT_EMPLOYEE_ADVANCES);
   const [seaFreights, setSeaFreights] = useState<SeaFreightRecord[]>(DEFAULT_SEA_FREIGHTS);
@@ -325,7 +333,15 @@ export default function App() {
   };
 
   const handleUpdatePaidAmount = async (key: string, amount: number) => {
-    setPaidAmounts(prev => ({ ...prev, [key]: amount }));
+    setPaidAmounts(prev => {
+      const next = { ...prev, [key]: amount };
+      try {
+        localStorage.setItem(`${LOCAL_STORAGE_KEY}_customs_paid`, JSON.stringify(next));
+      } catch (e) {
+        console.warn('Lỗi lưu paidAmounts vào localStorage:', e);
+      }
+      return next;
+    });
     await saveRecordToCloud('customs_paid', key, { id: key, amount });
   };
 
