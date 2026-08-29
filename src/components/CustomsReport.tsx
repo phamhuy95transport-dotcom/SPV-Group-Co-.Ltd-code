@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   FileSpreadsheet,
   Calendar,
@@ -29,6 +29,89 @@ import {
   KPIRateItem,
   calculateCustomsKPI
 } from '../types';
+
+interface PaidAmountCellProps {
+  itemKey: string;
+  initialAmount: number | undefined;
+  onSave?: (key: string, amount: number) => void;
+  canEdit?: boolean;
+}
+
+const PaidAmountCell: React.FC<PaidAmountCellProps> = ({
+  itemKey,
+  initialAmount,
+  onSave,
+  canEdit = true
+}) => {
+  const [localVal, setLocalVal] = useState<string>(() => {
+    if (typeof initialAmount === 'number' && initialAmount > 0) {
+      return initialAmount.toLocaleString('vi-VN');
+    }
+    return '';
+  });
+  const [isFocused, setIsFocused] = useState(false);
+
+  useEffect(() => {
+    if (!isFocused) {
+      if (typeof initialAmount === 'number' && initialAmount > 0) {
+        setLocalVal(initialAmount.toLocaleString('vi-VN'));
+      } else {
+        setLocalVal('');
+      }
+    }
+  }, [initialAmount, isFocused]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value;
+    const digits = raw.replace(/[^0-9]/g, '');
+    if (digits === '') {
+      setLocalVal('');
+      if (onSave) onSave(itemKey, 0);
+    } else {
+      const num = parseInt(digits, 10);
+      setLocalVal(num.toLocaleString('vi-VN'));
+      if (onSave) onSave(itemKey, num);
+    }
+  };
+
+  const handleBlur = () => {
+    setIsFocused(false);
+    const digits = localVal.replace(/[^0-9]/g, '');
+    const num = digits === '' ? 0 : parseInt(digits, 10);
+    if (onSave) onSave(itemKey, num);
+  };
+
+  if (!canEdit) {
+    return (
+      <div className="flex items-center justify-end gap-1 font-mono font-bold text-slate-700">
+        <span>{(initialAmount || 0).toLocaleString('vi-VN')}</span>
+        <span className="text-[11px] font-semibold text-slate-400">đ</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center justify-end gap-1">
+      <input
+        type="text"
+        inputMode="numeric"
+        placeholder="0"
+        value={localVal}
+        onFocus={() => setIsFocused(true)}
+        onBlur={handleBlur}
+        onChange={handleChange}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            (e.target as HTMLInputElement).blur();
+          }
+        }}
+        className="w-32 px-2.5 py-1 text-right font-mono font-bold text-indigo-900 bg-white border border-slate-300 rounded-lg hover:border-indigo-400 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-200 focus:outline-none transition shadow-xs"
+        title="Nhập số tiền thưởng KPI đã thanh toán cho tháng (hỗ trợ định dạng số tự động)"
+      />
+      <span className="text-[11px] font-bold text-slate-500">đ</span>
+    </div>
+  );
+};
 
 interface CustomsReportProps {
   declarations: CustomsDeclarationRecord[];
@@ -654,22 +737,12 @@ export const CustomsReport: React.FC<CustomsReportProps> = ({
                       {item.kpiApprovedTotal.toLocaleString('vi-VN')} đ
                     </td>
                     <td className="p-2 text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <input
-                          type="number"
-                          min={0}
-                          placeholder="0"
-                          value={paidAmounts[item.key] ?? ''}
-                          onChange={e => {
-                            const val = e.target.value === '' ? 0 : Math.max(0, parseInt(e.target.value) || 0);
-                            if (onUpdatePaidAmount) {
-                              onUpdatePaidAmount(item.key, val);
-                            }
-                          }}
-                          className="w-28 px-2 py-1 text-right font-mono font-bold text-indigo-900 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                        />
-                        <span className="text-[11px] font-semibold text-slate-400">đ</span>
-                      </div>
+                      <PaidAmountCell
+                        itemKey={item.key}
+                        initialAmount={paidAmounts[item.key]}
+                        onSave={onUpdatePaidAmount}
+                        canEdit={true}
+                      />
                     </td>
                   </tr>
                 ))

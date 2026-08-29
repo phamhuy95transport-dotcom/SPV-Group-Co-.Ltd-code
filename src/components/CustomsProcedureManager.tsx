@@ -64,11 +64,11 @@ const DECLARATION_TYPES: CustomsDeclarationType[] = [
 ];
 
 const RATIO_OPTIONS = [
-  { label: '1 (100%)', value: 1, text: '1' },
-  { label: '2/3 (66.7%)', value: 2 / 3, text: '2/3' },
-  { label: '1/2 (50%)', value: 0.5, text: '1/2' },
-  { label: '1/3 (33.3%)', value: 1 / 3, text: '1/3' },
-  { label: '0 (0%)', value: 0, text: '0' }
+  { label: '0 (Không chuyển hỗ trợ - Hưởng 100%)', value: 0, text: '0' },
+  { label: '1/3 (Chuyển hỗ trợ 1/3)', value: 1 / 3, text: '1/3' },
+  { label: '1/2 (Chuyển hỗ trợ 1/2)', value: 0.5, text: '1/2' },
+  { label: '2/3 (Chuyển hỗ trợ 2/3)', value: 2 / 3, text: '2/3' },
+  { label: '1 (Chuyển hỗ trợ 100%)', value: 1, text: '1' }
 ];
 
 export const CustomsProcedureManager: React.FC<CustomsProcedureManagerProps> = ({
@@ -171,7 +171,7 @@ export const CustomsProcedureManager: React.FC<CustomsProcedureManagerProps> = (
     type: 'Xuất khẩu',
     customer: '',
     cont_quantity: 1,
-    ratio_label: '1',
+    ratio_label: '0',
     staff_id: currentUser?.id || '',
     completed: true,
     extra_bonus: 0,
@@ -216,7 +216,7 @@ export const CustomsProcedureManager: React.FC<CustomsProcedureManagerProps> = (
       type: 'Xuất khẩu',
       customer: customers[0]?.customer_name || '',
       cont_quantity: 1,
-      ratio_label: '1',
+      ratio_label: '0',
       staff_id: currentUser?.id || users[0]?.id || '',
       completed: true,
       extra_bonus: 0,
@@ -1554,10 +1554,10 @@ export const CustomsProcedureManager: React.FC<CustomsProcedureManagerProps> = (
                 </span>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {/* Tỷ lệ nhận thưởng */}
+                  {/* Tỷ lệ chuyển hỗ trợ */}
                   <div className="space-y-1.5">
                     <label className="block text-[11px] font-bold text-slate-600">
-                      Tỷ lệ nhận thưởng
+                      Tỷ lệ chuyển hỗ trợ (tỷ lệ khấu trừ)
                     </label>
                     <div className="relative">
                       <input
@@ -1565,7 +1565,7 @@ export const CustomsProcedureManager: React.FC<CustomsProcedureManagerProps> = (
                         list="customs-modal-ratio-list"
                         value={formData.ratio_label}
                         onChange={e => setFormData({ ...formData, ratio_label: e.target.value })}
-                        placeholder="VD: 1, 2/3, 1/2, 1/3, 0"
+                        placeholder="VD: 0, 1/3, 1/2, 2/3, 1"
                         className="w-full px-3 py-1.5 text-xs bg-white border border-indigo-200 rounded-xl focus:outline-none font-bold text-indigo-800"
                       />
                     </div>

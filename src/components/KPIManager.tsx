@@ -341,7 +341,7 @@ export const KPIManager: React.FC<KPIManagerProps> = ({
                   <span>Khi Admin Duyệt = "Có", toàn bộ thông tin KPI tờ khai sẽ được khóa bảo mật.</span>
                 </div>
                 <div className="font-mono text-emerald-300 font-bold bg-slate-900 px-3 py-1 rounded-lg border border-emerald-500/30">
-                  KPI = Mức Thưởng × Số lượng cont/lô × Tỷ Lệ Chuyển Hỗ Trợ
+                  KPI = (Số lượng × Mức thưởng) - (Số lượng × Tỷ lệ × Mức thưởng)
                 </div>
               </div>
             </div>
