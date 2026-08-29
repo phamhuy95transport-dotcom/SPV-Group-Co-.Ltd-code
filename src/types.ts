@@ -436,6 +436,44 @@ export interface CustomsDeclarationRecord {
   createdAt?: string;
 }
 
+export function calculateCustomsKPI(
+  record: {
+    type?: CustomsDeclarationType;
+    cont_quantity?: number;
+    support_transfer?: { ratio?: number; ratio_label?: string };
+    completed?: boolean;
+    approved?: boolean;
+    extra_bonus?: number;
+    kpi_amount?: number;
+  },
+  kpiRates?: KPIRateItem[]
+): number {
+  // If not completed AND not approved, KPI reward is 0
+  const isEligible = Boolean(record.completed || record.approved);
+  if (!isEligible) return 0;
+  
+  const type = record.type || 'Xuất khẩu';
+  const rateObj = kpiRates?.find(r => r.type_name === type);
+  const baseReward = rateObj ? rateObj.reward_amount : (type === 'Xuất khẩu' || type === 'Nhập khẩu' ? 30000 : 25000);
+  
+  let ratio = typeof record.support_transfer?.ratio === 'number' ? record.support_transfer.ratio : 1;
+  if (record.support_transfer?.ratio_label) {
+    const lbl = record.support_transfer.ratio_label.trim();
+    if (lbl === '2/3') ratio = 2 / 3;
+    else if (lbl === '1/2') ratio = 0.5;
+    else if (lbl === '1/3') ratio = 1 / 3;
+    else if (lbl === '0') ratio = 0;
+    else if (lbl === '1') ratio = 1;
+    else if (!isNaN(Number(lbl))) ratio = Number(lbl);
+  }
+  
+  const qty = (record.cont_quantity && record.cont_quantity > 0) ? record.cont_quantity : 1;
+  const extra = Number(record.extra_bonus) || 0;
+  
+  const total = Math.round(baseReward * qty * ratio) + extra;
+  return Math.max(0, total);
+}
+
 export interface SeaFreightRecord {
   id: string;
   stt?: number;

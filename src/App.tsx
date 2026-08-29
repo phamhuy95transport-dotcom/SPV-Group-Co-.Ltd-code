@@ -22,7 +22,8 @@ import {
   hasPermission,
   UserPermissions,
   getDefaultPermissions,
-  getEmptyPermissions
+  getEmptyPermissions,
+  calculateCustomsKPI
 } from './types';
 import {
   DEFAULT_USERS,
@@ -723,7 +724,8 @@ export default function App() {
         if (d.id === id) {
           const nextApproved = !currentApproved;
           const nextApprovedDate = nextApproved ? (d.approved_date || d.completed_date || d.execution_date || todayStr) : undefined;
-          updated = { ...d, approved: nextApproved, approved_date: nextApprovedDate };
+          const newKpi = calculateCustomsKPI({ ...d, approved: nextApproved }, kpiRates);
+          updated = { ...d, approved: nextApproved, approved_date: nextApprovedDate, kpi_amount: newKpi };
           return updated;
         }
         return d;
@@ -745,13 +747,7 @@ export default function App() {
       prev.map(d => {
         if (d.id === id) {
           const nextCompleted = !currentCompleted;
-          const rateObj = kpiRates.find(r => r.type_name === d.type);
-          const baseReward = rateObj ? rateObj.reward_amount : (d.type === 'Xuất khẩu' || d.type === 'Nhập khẩu' ? 30000 : 25000);
-          const ratioNum = d.support_transfer?.ratio || 1;
-          const qty = (d.cont_quantity && d.cont_quantity > 0) ? d.cont_quantity : 1;
-          const roundedRatio = Math.round(ratioNum * 1000) / 1000;
-          const extraBonus = d.extra_bonus || 0;
-          const newKpi = nextCompleted ? Math.max(0, Math.round((baseReward * qty) - (baseReward * roundedRatio) + Number(extraBonus))) : 0;
+          const newKpi = calculateCustomsKPI({ ...d, completed: nextCompleted }, kpiRates);
           const todayStr = new Date().toISOString().split('T')[0];
           const nextCompletedDate = nextCompleted ? (d.completed_date || d.execution_date || todayStr) : undefined;
 
@@ -1638,6 +1634,7 @@ export default function App() {
                 currentUser={currentUser}
                 paidAmounts={paidAmounts}
                 onUpdatePaidAmount={handleUpdatePaidAmount}
+                kpiRates={kpiRates}
               />
             )}
 
