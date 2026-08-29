@@ -83,10 +83,10 @@ export const ShipmentTable: React.FC<ShipmentTableProps> = ({
   const [filterDateTo, setFilterDateTo] = useState('');
   const [filterHdDauVao, setFilterHdDauVao] = useState<'all' | 'yes' | 'no'>('all');
   const [filterHdDauRa, setFilterHdDauRa] = useState<'all' | 'yes' | 'no'>('all');
-  const [sortColumn, setSortColumn] = useState<keyof ShipmentRecord>('date_announced');
+  const [sortColumn, setSortColumn] = useState<keyof ShipmentRecord>('delivery_date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const itemsPerPage = 20;
 
   // Filter Unique Customer & Transporter lists
   const uniqueCustomers = Array.from(new Set(records.map(r => r.customer).filter(Boolean)));
@@ -125,11 +125,11 @@ export const ShipmentTable: React.FC<ShipmentTableProps> = ({
   }
 
   if (filterDateFrom) {
-    filtered = filtered.filter(r => (r.date_announced || r.delivery_date) >= filterDateFrom);
+    filtered = filtered.filter(r => (r.delivery_date || r.date_announced || '') >= filterDateFrom);
   }
 
   if (filterDateTo) {
-    filtered = filtered.filter(r => (r.date_announced || r.delivery_date) <= filterDateTo);
+    filtered = filtered.filter(r => (r.delivery_date || r.date_announced || '') <= filterDateTo);
   }
 
   if (filterHdDauVao !== 'all') {
@@ -146,10 +146,24 @@ export const ShipmentTable: React.FC<ShipmentTableProps> = ({
     });
   }
 
-  // Sorting
+  // Sorting (Requirement 3: Sắp xếp dữ liệu theo thứ tự ngày giao hàng gần nhất)
   filtered.sort((a, b) => {
     let valA: any = a[sortColumn] ?? '';
     let valB: any = b[sortColumn] ?? '';
+
+    // If sorting by delivery_date, if one record is missing delivery_date fallback to date_announced
+    if (sortColumn === 'delivery_date') {
+      const dateA = a.delivery_date || a.date_announced || '';
+      const dateB = b.delivery_date || b.date_announced || '';
+      if (dateA !== dateB) {
+        return sortOrder === 'asc' ? dateA.localeCompare(dateB) : dateB.localeCompare(dateA);
+      }
+      const timeA = new Date(a.createdAt || 0).getTime();
+      const timeB = new Date(b.createdAt || 0).getTime();
+      if (timeA !== timeB) {
+        return sortOrder === 'asc' ? timeA - timeB : timeB - timeA;
+      }
+    }
 
     if (typeof valA === 'number' && typeof valB === 'number') {
       return sortOrder === 'asc' ? valA - valB : valB - valA;
@@ -477,35 +491,37 @@ export const ShipmentTable: React.FC<ShipmentTableProps> = ({
             />
           </div>
 
-          <div>
-            <select
+          <div className="relative">
+            <input
+              type="text"
+              list="shipment-customer-list"
               value={filterCustomer}
               onChange={e => setFilterCustomer(e.target.value)}
-              className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500"
-            >
-              <option value="">Tất cả Khách Hàng</option>
+              placeholder="Tìm khách hàng..."
+              className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:border-indigo-500 font-medium"
+            />
+            <datalist id="shipment-customer-list">
               {uniqueCustomers.map(c => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
+                <option key={c} value={c} />
               ))}
-            </select>
+            </datalist>
           </div>
 
           {!isCustomer && (
-            <div>
-              <select
+            <div className="relative">
+              <input
+                type="text"
+                list="shipment-transporter-list"
                 value={filterTransporter}
                 onChange={e => setFilterTransporter(e.target.value)}
-                className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500"
-              >
-                <option value="">Tất cả Nhà Xe</option>
+                placeholder="Tìm nhà xe / ĐVVC..."
+                className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:border-indigo-500 font-medium"
+              />
+              <datalist id="shipment-transporter-list">
                 {uniqueTransporters.map(t => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
+                  <option key={t} value={t} />
                 ))}
-              </select>
+              </datalist>
             </div>
           )}
 
@@ -599,10 +615,10 @@ export const ShipmentTable: React.FC<ShipmentTableProps> = ({
 
       {/* Main Table */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto max-h-[640px] overflow-y-auto">
           <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-slate-100/90 border-b border-slate-200 text-slate-600 text-[11px] font-bold uppercase tracking-wider">
+            <thead className="sticky top-0 z-10 shadow-xs">
+              <tr className="bg-slate-100 border-b border-slate-200 text-slate-600 text-[11px] font-bold uppercase tracking-wider">
                 <th className="p-3.5 w-10 text-center whitespace-nowrap">
                   <input
                     type="checkbox"

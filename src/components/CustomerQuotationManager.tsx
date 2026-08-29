@@ -176,9 +176,9 @@ export const CustomerQuotationManager: React.FC<CustomerQuotationManagerProps> =
 
       {/* Main Table */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto max-h-[640px] overflow-y-auto">
           <table className="w-full text-left border-collapse">
-            <thead>
+            <thead className="sticky top-0 z-10 shadow-xs">
               <tr className="bg-slate-800 text-white text-[11px] font-bold uppercase tracking-wider">
                 <th className="p-3.5 text-center w-14 border-r border-slate-700">STT</th>
                 <th className="p-3.5 border-r border-slate-700 whitespace-nowrap">

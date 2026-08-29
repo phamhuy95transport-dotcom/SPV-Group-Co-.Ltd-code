@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Ship,
   Plus,
@@ -192,6 +192,20 @@ export const SeaFreightManager: React.FC<SeaFreightManagerProps> = ({
       return true;
     }).sort((a, b) => (b.booking_date || '').localeCompare(a.booking_date || ''));
   }, [records, searchTerm, selectedCustomer, selectedRoute, selectedAgent, approvalFilter, fromDate, toDate]);
+
+  // Pagination state (20 rows per page)
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 20;
+  const totalPages = Math.ceil(filteredRecords.length / pageSize) || 1;
+  const paginatedRecords = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredRecords.slice(start, start + pageSize);
+  }, [filteredRecords, currentPage, pageSize]);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, selectedCustomer, selectedRoute, selectedAgent, approvalFilter, fromDate, toDate]);
 
   const isFiltering = Boolean(
     searchTerm ||
@@ -739,7 +753,8 @@ export const SeaFreightManager: React.FC<SeaFreightManagerProps> = ({
                   </td>
                 </tr>
               ) : (
-                filteredRecords.map((item, index) => {
+                paginatedRecords.map((item, index) => {
+                  const rowSTT = (currentPage - 1) * pageSize + index + 1;
                   const buy = Number(item.buy_price) || 0;
                   const sell = Number(item.sell_price) || 0;
                   const profit = typeof item.profit === 'number' ? item.profit : (sell - buy);
@@ -752,7 +767,7 @@ export const SeaFreightManager: React.FC<SeaFreightManagerProps> = ({
                     >
                       {/* STT */}
                       <td className="py-3 px-3 text-center font-bold text-slate-400">
-                        {index + 1}
+                        {rowSTT}
                       </td>
 
                       {/* Ngày đặt */}
@@ -965,11 +980,38 @@ export const SeaFreightManager: React.FC<SeaFreightManagerProps> = ({
         </div>
 
         {/* Table Footer */}
-        <div className="p-3 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between text-xs text-slate-500 gap-2">
-          <span>Hiển thị <strong className="text-slate-800">{filteredRecords.length}</strong> / {records.length} đơn cước biển (Tiền tệ: USD $)</span>
+        <div className="p-3 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between text-xs text-slate-500 gap-3">
+          <div className="flex items-center gap-2">
+            <span>Hiển thị <strong className="text-slate-800">{paginatedRecords.length}</strong> / {filteredRecords.length} đơn cước biển (Tiền tệ: USD $)</span>
+            {totalPages > 1 && (
+              <span className="text-slate-400 font-medium">| Trang {currentPage}/{totalPages}</span>
+            )}
+          </div>
+
           <div className="flex items-center gap-4">
             <span>Tổng Giá bán: <strong className="text-blue-700">{formatUSDAmount(metrics.totalSell)}</strong></span>
             <span>Tổng Lợi nhuận: <strong className="text-emerald-700">{formatUSDAmount(metrics.totalProfit)}</strong></span>
+            
+            {totalPages > 1 && (
+              <div className="flex items-center gap-1 pl-2 border-l border-slate-200">
+                <button
+                  type="button"
+                  disabled={currentPage <= 1}
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  className="px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-slate-700 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed font-semibold transition"
+                >
+                  Trước
+                </button>
+                <button
+                  type="button"
+                  disabled={currentPage >= totalPages}
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  className="px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-slate-700 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed font-semibold transition"
+                >
+                  Sau
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>

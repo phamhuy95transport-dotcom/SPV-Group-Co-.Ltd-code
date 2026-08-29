@@ -959,9 +959,9 @@ export const SeaFreightReport: React.FC<SeaFreightReportProps> = ({
             </div>
           </div>
 
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto max-h-[640px] overflow-y-auto scrollbar-thin">
             <table className="w-full text-left border-collapse text-xs">
-              <thead className="bg-slate-50 border-b border-slate-200 text-slate-700 font-bold">
+              <thead className="bg-slate-50/95 sticky top-0 z-10 border-b border-slate-200 text-slate-700 font-bold shadow-xs">
                 <tr>
                   <th className="py-3 px-3 text-center w-12">Hạng</th>
                   <th className="py-3 px-3 min-w-[200px]">Khách hàng</th>
@@ -1038,9 +1038,9 @@ export const SeaFreightReport: React.FC<SeaFreightReportProps> = ({
             </div>
           </div>
 
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto max-h-[640px] overflow-y-auto scrollbar-thin">
             <table className="w-full text-left border-collapse text-xs">
-              <thead className="bg-slate-50 border-b border-slate-200 text-slate-700 font-bold">
+              <thead className="bg-slate-50/95 sticky top-0 z-10 border-b border-slate-200 text-slate-700 font-bold shadow-xs">
                 <tr>
                   <th className="py-3 px-3 text-center w-12">STT</th>
                   <th className="py-3 px-3 min-w-[220px]">Tuyến đường cảng biển</th>
@@ -1097,9 +1097,9 @@ export const SeaFreightReport: React.FC<SeaFreightReportProps> = ({
             </div>
           </div>
 
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto max-h-[640px] overflow-y-auto scrollbar-thin">
             <table className="w-full text-left border-collapse text-xs">
-              <thead className="bg-slate-50 border-b border-slate-200 text-slate-700 font-bold">
+              <thead className="bg-slate-50/95 sticky top-0 z-10 border-b border-slate-200 text-slate-700 font-bold shadow-xs">
                 <tr>
                   <th className="py-3 px-3 text-center w-12">STT</th>
                   <th className="py-3 px-3 min-w-[200px]">Hãng tàu / Đại lý</th>

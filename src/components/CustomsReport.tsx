@@ -25,7 +25,9 @@ import {
   CustomsDeclarationType,
   formatDateVN,
   formatMonthYearVN,
-  hasPermission
+  hasPermission,
+  KPIRateItem,
+  calculateCustomsKPI
 } from '../types';
 
 interface CustomsReportProps {
@@ -35,6 +37,7 @@ interface CustomsReportProps {
   currentUser?: UserAccount | null;
   paidAmounts?: Record<string, number>;
   onUpdatePaidAmount?: (key: string, amount: number) => void;
+  kpiRates?: KPIRateItem[];
 }
 
 export const CustomsReport: React.FC<CustomsReportProps> = ({
@@ -43,7 +46,8 @@ export const CustomsReport: React.FC<CustomsReportProps> = ({
   users,
   currentUser,
   paidAmounts = {},
-  onUpdatePaidAmount
+  onUpdatePaidAmount,
+  kpiRates
 }) => {
   const isAdminOrManager = currentUser?.role === 'admin' || currentUser?.role === 'manager';
 
@@ -178,10 +182,10 @@ export const CustomsReport: React.FC<CustomsReportProps> = ({
   const totalCount = filteredDeclarations.length;
   const completedCount = filteredDeclarations.filter(d => d.completed).length;
   const approvedCount = filteredDeclarations.filter(d => d.approved).length;
-  // Requirement 2: Thành Tiền KPI đã duyệt = sum of KPI for items where approved is true
+  // Requirement 4: Parity in KPI calculation - sum of KPI for items where approved is true
   const totalKpiBonus = filteredDeclarations
     .filter(d => d.approved)
-    .reduce((sum, d) => sum + (d.kpi_amount || 0), 0);
+    .reduce((sum, d) => sum + calculateCustomsKPI(d, kpiRates), 0);
 
   // Requirement 5: Total KPI Paid Amount sum across all months/staff
   const totalPaidAmountSum = Object.values(paidAmounts || {}).reduce<number>((sum, val) => sum + (Number(val) || 0), 0);
@@ -230,8 +234,8 @@ export const CustomsReport: React.FC<CustomsReportProps> = ({
       }
       if (item.approved) {
         entry.approved += 1;
-        // Requirement 2: Calculate approved KPI
-        entry.kpiApprovedTotal += (item.kpi_amount || 0);
+        // Requirement 4: Calculate approved KPI consistently
+        entry.kpiApprovedTotal += calculateCustomsKPI(item, kpiRates);
       }
     });
 
@@ -240,17 +244,17 @@ export const CustomsReport: React.FC<CustomsReportProps> = ({
       return result.filter(r => r.staff_id === currentUser?.id);
     }
     return result;
-  }, [filteredDeclarations, isAdminOrManager, currentUser?.id]);
+  }, [filteredDeclarations, isAdminOrManager, currentUser?.id, kpiRates]);
 
   // Group by Customer
   const customerBreakdown = useMemo(() => {
-    const map = new Map<string, { customer_name: string; total: number; totalConts: number; completed: number; kpiTotal: number }>();
+    const map = new Map<string, { customer_name: string; total: number; totalConts: number; completed: number; approved: number; kpiApprovedTotal: number }>();
 
     filteredDeclarations.forEach(item => {
       const cust = item.customer || 'Khác / Chưa gán';
 
       if (!map.has(cust)) {
-        map.set(cust, { customer_name: cust, total: 0, totalConts: 0, completed: 0, kpiTotal: 0 });
+        map.set(cust, { customer_name: cust, total: 0, totalConts: 0, completed: 0, approved: 0, kpiApprovedTotal: 0 });
       }
 
       const entry = map.get(cust)!;
@@ -258,12 +262,15 @@ export const CustomsReport: React.FC<CustomsReportProps> = ({
       entry.totalConts += (item.cont_quantity || 1);
       if (item.completed) {
         entry.completed += 1;
-        entry.kpiTotal += item.kpi_amount || 0;
+      }
+      if (item.approved) {
+        entry.approved += 1;
+        entry.kpiApprovedTotal += calculateCustomsKPI(item, kpiRates);
       }
     });
 
     return Array.from(map.values()).sort((a, b) => b.total - a.total);
-  }, [filteredDeclarations]);
+  }, [filteredDeclarations, kpiRates]);
 
   // Group by Declaration Type
   const typeBreakdown = useMemo(() => {
@@ -271,17 +278,19 @@ export const CustomsReport: React.FC<CustomsReportProps> = ({
     return types.map(t => {
       const list = filteredDeclarations.filter(d => d.type === t);
       const completed = list.filter(d => d.completed).length;
+      const approved = list.filter(d => d.approved).length;
       const totalConts = list.reduce((sum, d) => sum + (d.cont_quantity || 1), 0);
-      const totalKpi = list.filter(d => d.completed).reduce((sum, d) => sum + (d.kpi_amount || 0), 0);
+      const totalKpiApproved = list.filter(d => d.approved).reduce((sum, d) => sum + calculateCustomsKPI(d, kpiRates), 0);
       return {
         type_name: t,
         total: list.length,
         totalConts,
         completed,
-        kpiTotal: totalKpi
+        approved,
+        kpiApprovedTotal: totalKpiApproved
       };
     });
-  }, [filteredDeclarations]);
+  }, [filteredDeclarations, kpiRates]);
 
   const handlePrint = () => {
     window.print();
@@ -609,9 +618,9 @@ export const CustomsReport: React.FC<CustomsReportProps> = ({
           </span>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto max-h-[640px] overflow-y-auto">
           <table className="w-full text-left border-collapse">
-            <thead>
+            <thead className="sticky top-0 z-10 shadow-xs">
               <tr className="bg-slate-100 text-slate-700 text-[11px] font-bold uppercase">
                 <th className="p-3 text-center w-12 border-r border-slate-200">STT</th>
                 <th className="p-3 border-r border-slate-200">Họ và Tên Nhân Viên</th>
@@ -680,9 +689,9 @@ export const CustomsReport: React.FC<CustomsReportProps> = ({
             <h3 className="text-xs font-bold uppercase tracking-wider">2. Thống Kê Theo Khách Hàng</h3>
           </div>
 
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
             <table className="w-full text-left border-collapse">
-              <thead>
+              <thead className="sticky top-0 z-10 shadow-xs">
                 <tr className="bg-slate-100 text-slate-700 text-[11px] font-bold uppercase">
                   <th className="p-3 border-r border-slate-200">Khách Hàng</th>
                   <th className="p-3 text-center border-r border-slate-200">Số Tờ Khai</th>
@@ -696,7 +705,7 @@ export const CustomsReport: React.FC<CustomsReportProps> = ({
                     <td className="p-3 font-bold text-slate-800 border-r border-slate-100">{c.customer_name}</td>
                     <td className="p-3 text-center font-semibold text-slate-700 border-r border-slate-100">{c.total}</td>
                     <td className="p-3 text-center font-mono font-bold text-slate-800 border-r border-slate-100">{c.totalConts}</td>
-                    <td className="p-3 text-right font-mono font-bold text-emerald-700">{c.kpiTotal.toLocaleString('vi-VN')} đ</td>
+                    <td className="p-3 text-right font-mono font-bold text-emerald-700">{c.kpiApprovedTotal.toLocaleString('vi-VN')} đ</td>
                   </tr>
                 ))}
               </tbody>
@@ -711,9 +720,9 @@ export const CustomsReport: React.FC<CustomsReportProps> = ({
             <h3 className="text-xs font-bold uppercase tracking-wider">3. Thống Kê Theo Loại Tờ Khai</h3>
           </div>
 
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
             <table className="w-full text-left border-collapse">
-              <thead>
+              <thead className="sticky top-0 z-10 shadow-xs">
                 <tr className="bg-slate-100 text-slate-700 text-[11px] font-bold uppercase">
                   <th className="p-3 border-r border-slate-200">Loại Tờ Khai</th>
                   <th className="p-3 text-center border-r border-slate-200">Số Lượng</th>
@@ -731,7 +740,7 @@ export const CustomsReport: React.FC<CustomsReportProps> = ({
                     </td>
                     <td className="p-3 text-center font-semibold text-slate-700 border-r border-slate-100">{t.total}</td>
                     <td className="p-3 text-center font-mono font-bold text-slate-800 border-r border-slate-100">{t.totalConts}</td>
-                    <td className="p-3 text-right font-mono font-bold text-emerald-700">{t.kpiTotal.toLocaleString('vi-VN')} đ</td>
+                    <td className="p-3 text-right font-mono font-bold text-emerald-700">{t.kpiApprovedTotal.toLocaleString('vi-VN')} đ</td>
                   </tr>
                 ))}
               </tbody>

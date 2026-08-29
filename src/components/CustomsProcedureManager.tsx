@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Plus,
   Search,
@@ -22,7 +22,11 @@ import {
   LogIn,
   RefreshCw,
   Tag,
-  UserCheck
+  UserCheck,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight
 } from 'lucide-react';
 import {
   CustomsDeclarationRecord,
@@ -31,7 +35,8 @@ import {
   KPIRateItem,
   CustomsDeclarationType,
   formatDateVN,
-  CatalogSubTab
+  CatalogSubTab,
+  calculateCustomsKPI
 } from '../types';
 
 interface CustomsProcedureManagerProps {
@@ -175,7 +180,11 @@ export const CustomsProcedureManager: React.FC<CustomsProcedureManagerProps> = (
     notes: ''
   });
 
-  // Calculate KPI Amount helper (Requirement 4: (Định mức * số lượng) - (Định mức * tỷ lệ [làm tròn 3 chữ số]) + thưởng khác nếu hoàn thành, chưa hoàn thành = 0)
+  // State for pagination (Requirement 2: show 20 rows by default with scrolling)
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(20);
+
+  // Calculate KPI Amount helper
   const calculateKpiAmount = (
     type: CustomsDeclarationType,
     ratioLabel: string,
@@ -183,19 +192,16 @@ export const CustomsProcedureManager: React.FC<CustomsProcedureManagerProps> = (
     isCompleted: boolean,
     extraBonus: number = 0
   ): number => {
-    if (!isCompleted) return 0;
-    const rateItem = kpiRates.find(r => r.type_name === type);
-    const baseReward = rateItem ? rateItem.reward_amount : (type === 'Xuất khẩu' || type === 'Nhập khẩu' ? 30000 : 25000);
-    const ratioObj = RATIO_OPTIONS.find(r => r.text === ratioLabel);
-    const numericRatio = ratioObj ? ratioObj.value : 1;
-    const qty = contQuantity > 0 ? contQuantity : 1;
-
-    // Formula: (Định mức * số lượng) - (Định mức * tỷ lệ [làm tròn 3 chữ số]) + thưởng khác
-    const roundedRatio = Math.round(numericRatio * 1000) / 1000;
-    const fullAmount = baseReward * qty;
-    const supportDeduction = baseReward * roundedRatio;
-    const total = fullAmount - supportDeduction + (Number(extraBonus) || 0);
-    return Math.max(0, Math.round(total));
+    return calculateCustomsKPI(
+      {
+        type,
+        support_transfer: { ratio_label: ratioLabel },
+        cont_quantity: contQuantity,
+        completed: isCompleted,
+        extra_bonus: extraBonus
+      },
+      kpiRates
+    );
   };
 
   const handleOpenAddModal = () => {
@@ -360,7 +366,7 @@ export const CustomsProcedureManager: React.FC<CustomsProcedureManagerProps> = (
 
   // Filtered Declarations
   const filteredDeclarations = useMemo(() => {
-    return userDeclarations.filter(item => {
+    const result = userDeclarations.filter(item => {
       // Search term
       if (searchTerm.trim()) {
         const term = searchTerm.toLowerCase().trim();
@@ -404,7 +410,23 @@ export const CustomsProcedureManager: React.FC<CustomsProcedureManagerProps> = (
 
       return true;
     });
+
+    // Requirement 2: Sắp xếp theo thứ tự ngày gần nhất (execution_date DESC, createdAt DESC)
+    return result.sort((a, b) => {
+      const dateA = a.execution_date || '';
+      const dateB = b.execution_date || '';
+      if (dateB !== dateA) return dateB.localeCompare(dateA);
+      const timeA = new Date(a.createdAt || 0).getTime();
+      const timeB = new Date(b.createdAt || 0).getTime();
+      if (timeB !== timeA) return timeB - timeA;
+      return (b.id || '').localeCompare(a.id || '');
+    });
   }, [userDeclarations, searchTerm, selectedCustomer, selectedType, completedFilter, approvedFilter, damageFilter, fromDate, toDate]);
+
+  // Reset to first page whenever search/filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, selectedCustomer, selectedType, completedFilter, approvedFilter, damageFilter, fromDate, toDate]);
 
   const isFiltering = Boolean(
     searchTerm ||
@@ -428,33 +450,32 @@ export const CustomsProcedureManager: React.FC<CustomsProcedureManagerProps> = (
     setToDate('');
   };
 
-  // Helper to calculate raw/potential KPI for a declaration (= Rate * Quantity * Ratio)
-  const getRawKpiAmount = (d: CustomsDeclarationRecord) => {
-    const rateItem = kpiRates.find(r => r.type_name === d.type);
-    const baseReward = rateItem ? rateItem.reward_amount : (d.type === 'Xuất khẩu' || d.type === 'Nhập khẩu' ? 30000 : 25000);
-    const ratioObj = RATIO_OPTIONS.find(r => r.text === (d.support_transfer?.ratio_label || '1'));
-    const numericRatio = ratioObj ? ratioObj.value : 1;
-    const qty = (d.cont_quantity && d.cont_quantity > 0) ? d.cont_quantity : 1;
-    return Math.round(baseReward * qty * numericRatio);
-  };
-
   // Total Summary
   const totalCount = filteredDeclarations.length;
   const completedCount = filteredDeclarations.filter(d => d.completed).length;
   const approvedCount = filteredDeclarations.filter(d => d.approved).length;
 
+  // Requirement 4: Parity in KPI calculation
   // Tổng thưởng KPI đã được duyệt (Approved = true)
   const approvedKpiAmount = filteredDeclarations
     .filter(d => d.approved)
-    .reduce((sum, d) => sum + (d.kpi_amount || getRawKpiAmount(d)), 0);
+    .reduce((sum, d) => sum + calculateCustomsKPI(d, kpiRates), 0);
 
-  // Tổng thưởng KPI chưa được duyệt (Hoàn thành "chưa" hoặc chưa được duyệt = Định mức KPI * tỷ lệ)
+  // Tổng thưởng KPI chưa được duyệt (Hoàn thành "chưa" hoặc chưa được duyệt)
   const unapprovedKpiAmount = filteredDeclarations
     .filter(d => !d.approved)
-    .reduce((sum, d) => sum + getRawKpiAmount(d), 0);
+    .reduce((sum, d) => sum + calculateCustomsKPI({ ...d, completed: true }, kpiRates), 0);
 
   // Formatted preview KPI
   const formKpiPreview = calculateKpiAmount(formData.type, formData.ratio_label, formData.cont_quantity, formData.completed);
+
+  // Requirement 2: Pagination & 20 rows limit
+  const totalPages = pageSize === -1 ? 1 : Math.ceil(totalCount / pageSize) || 1;
+  const paginatedDeclarations = useMemo(() => {
+    if (pageSize === -1) return filteredDeclarations;
+    const startIndex = (currentPage - 1) * pageSize;
+    return filteredDeclarations.slice(startIndex, startIndex + pageSize);
+  }, [filteredDeclarations, currentPage, pageSize]);
 
   return (
     <div className="space-y-5">
@@ -717,12 +738,12 @@ export const CustomsProcedureManager: React.FC<CustomsProcedureManagerProps> = (
             )}
           </div>
 
-      {/* Main Table */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-slate-800 text-white text-[11px] font-bold uppercase tracking-wider">
+      {/* Main Table with 20-row scrolling & sticky header */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+        <div className="overflow-x-auto overflow-y-auto max-h-[750px] relative custom-scrollbar">
+          <table className="w-full text-left border-collapse min-w-[1200px]">
+            <thead className="sticky top-0 z-10 bg-slate-800 text-white shadow-xs">
+              <tr className="text-[11px] font-bold uppercase tracking-wider">
                 <th className="p-3 text-center w-12 border-r border-slate-700">STT</th>
                 <th className="p-3 border-r border-slate-700">Ngày thực hiện</th>
                 <th className="p-3 border-r border-slate-700">Số tờ khai</th>
@@ -743,13 +764,14 @@ export const CustomsProcedureManager: React.FC<CustomsProcedureManagerProps> = (
             <tbody className="divide-y divide-slate-100 text-xs">
               {filteredDeclarations.length === 0 ? (
                 <tr>
-                  <td colSpan={14} className="p-8 text-center text-slate-400">
+                  <td colSpan={15} className="p-8 text-center text-slate-400">
                     Chưa có tờ khai hải quan nào khớp với bộ lọc.
                   </td>
                 </tr>
               ) : (
-                filteredDeclarations.map((item, index) => {
+                paginatedDeclarations.map((item, index) => {
                   const isRowLockedForUser = item.approved && !isAdmin;
+                  const rowSTT = pageSize === -1 ? index + 1 : (currentPage - 1) * pageSize + index + 1;
 
                   return (
                     <tr
@@ -760,7 +782,7 @@ export const CustomsProcedureManager: React.FC<CustomsProcedureManagerProps> = (
                     >
                       {/* STT */}
                       <td className="p-3 text-center font-bold text-slate-500 border-r border-slate-100">
-                        {index + 1}
+                        {rowSTT}
                       </td>
 
                       {/* Ngày thực hiện (Requirement 2: Formatted dd/mm/yyyy) */}
@@ -927,13 +949,17 @@ export const CustomsProcedureManager: React.FC<CustomsProcedureManagerProps> = (
 
                       {/* Thành tiền KPI */}
                       <td className="p-3 text-right font-mono font-bold text-slate-900 border-r border-slate-100 whitespace-nowrap">
-                        {item.completed ? (
-                          <span className="text-emerald-700">
-                            {(item.kpi_amount || 0).toLocaleString('vi-VN')} đ
-                          </span>
-                        ) : (
-                          <span className="text-slate-400 font-normal">0 đ</span>
-                        )}
+                        {(() => {
+                          const kpiVal = calculateCustomsKPI(item, kpiRates);
+                          if (item.completed || item.approved) {
+                            return (
+                              <span className="text-emerald-700 font-bold">
+                                {kpiVal.toLocaleString('vi-VN')} đ
+                              </span>
+                            );
+                          }
+                          return <span className="text-slate-400 font-normal">0 đ</span>;
+                        })()}
                       </td>
 
                       {/* Phát sinh gây thiệt hại (Admin toggle) */}
@@ -1054,10 +1080,12 @@ export const CustomsProcedureManager: React.FC<CustomsProcedureManagerProps> = (
                               }
                               const newApproved = !item.approved;
                               const today = new Date().toISOString().split('T')[0];
+                              const newKpi = calculateCustomsKPI({ ...item, approved: newApproved }, kpiRates);
                               onSaveDeclaration({
                                 ...item,
                                 approved: newApproved,
-                                approved_date: newApproved ? (item.approved_date || today) : undefined
+                                approved_date: newApproved ? (item.approved_date || today) : undefined,
+                                kpi_amount: newKpi
                               });
                             }}
                             className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold transition ${
@@ -1178,6 +1206,110 @@ export const CustomsProcedureManager: React.FC<CustomsProcedureManagerProps> = (
             </tbody>
           </table>
         </div>
+
+        {/* Pagination Footer (Requirement 2: Show 20 rows by default, scrollable with pagination) */}
+        {totalCount > 0 && (
+          <div className="p-3.5 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600">
+            <div className="flex items-center gap-3">
+              <span>
+                Hiển thị{' '}
+                <strong className="text-slate-900 font-bold">
+                  {pageSize === -1 ? 1 : Math.min((currentPage - 1) * pageSize + 1, totalCount)}
+                </strong>{' '}
+                -{' '}
+                <strong className="text-slate-900 font-bold">
+                  {pageSize === -1 ? totalCount : Math.min(currentPage * pageSize, totalCount)}
+                </strong>{' '}
+                trên tổng số <strong className="text-indigo-600 font-bold">{totalCount}</strong> tờ khai
+              </span>
+
+              <div className="flex items-center gap-1.5 pl-3 border-l border-slate-200">
+                <span className="text-[11px] text-slate-500 font-medium">Số dòng:</span>
+                <select
+                  value={pageSize}
+                  onChange={e => {
+                    const newSize = Number(e.target.value);
+                    setPageSize(newSize);
+                    setCurrentPage(1);
+                  }}
+                  className="px-2 py-1 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                >
+                  <option value={20}>20 dòng</option>
+                  <option value={50}>50 dòng</option>
+                  <option value={100}>100 dòng</option>
+                  <option value={-1}>Tất cả ({totalCount})</option>
+                </select>
+              </div>
+            </div>
+
+            {pageSize !== -1 && totalPages > 1 && (
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage(1)}
+                  className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                  title="Trang đầu"
+                >
+                  <ChevronsLeft className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                  title="Trang trước"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                </button>
+
+                <div className="flex items-center gap-1 px-1">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1)
+                    .filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
+                    .map((page, idx, arr) => {
+                      const prevPage = arr[idx - 1];
+                      const showEllipsis = prevPage && page - prevPage > 1;
+                      return (
+                        <React.Fragment key={page}>
+                          {showEllipsis && <span className="px-1 text-slate-400">...</span>}
+                          <button
+                            type="button"
+                            onClick={() => setCurrentPage(page)}
+                            className={`min-w-[28px] h-7 px-2 rounded-lg text-xs font-bold transition ${
+                              currentPage === page
+                                ? 'bg-indigo-600 text-white shadow-xs'
+                                : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
+                            }`}
+                          >
+                            {page}
+                          </button>
+                        </React.Fragment>
+                      );
+                    })}
+                </div>
+
+                <button
+                  type="button"
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                  className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                  title="Trang sau"
+                >
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage(totalPages)}
+                  className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                  title="Trang cuối"
+                >
+                  <ChevronsRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
         </>
       ) : (
