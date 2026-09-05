@@ -83,6 +83,7 @@ export const UserManagementModal: React.FC<UserManagementProps> = ({
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState<string>('');
   const [resetConfirmUser, setResetConfirmUser] = useState<UserAccount | null>(null);
+  const [bulkActionConfirm, setBulkActionConfirm] = useState<'clear_all' | 'defaults_all' | null>(null);
   const [showHierarchyGuide, setShowHierarchyGuide] = useState<boolean>(true);
 
   if (!embedded && !isOpen) return null;
@@ -377,11 +378,7 @@ export const UserManagementModal: React.FC<UserManagementProps> = ({
               {onResetAllPermissions && (
                 <button
                   type="button"
-                  onClick={() => {
-                    if (window.confirm('Bạn có chắc chắn muốn XÓA TOÀN BỘ phân quyền của tất cả tài khoản về trạng thái Trống (chưa tích) để thiết lập lại từng tài khoản từ đầu?')) {
-                      onResetAllPermissions();
-                    }
-                  }}
+                  onClick={() => setBulkActionConfirm('clear_all')}
                   className="px-2.5 py-1.5 bg-rose-950/80 hover:bg-rose-900 text-rose-200 border border-rose-700/80 rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-xs"
                   title="Bỏ tích toàn bộ quyền của tất cả tài khoản"
                 >
@@ -392,11 +389,7 @@ export const UserManagementModal: React.FC<UserManagementProps> = ({
               {onResetAllToRoleDefaults && (
                 <button
                   type="button"
-                  onClick={() => {
-                    if (window.confirm('Bạn có chắc chắn muốn đặt lại phân quyền mặc định theo chuẩn 5 cấp vai trò cho toàn bộ tài khoản?')) {
-                      onResetAllToRoleDefaults();
-                    }
-                  }}
+                  onClick={() => setBulkActionConfirm('defaults_all')}
                   className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-bold transition flex items-center gap-1.5"
                 >
                   <RotateCcw className="w-3.5 h-3.5 text-amber-400" />
@@ -900,6 +893,54 @@ export const UserManagementModal: React.FC<UserManagementProps> = ({
                   className="w-1/2 py-2 text-xs font-bold text-slate-950 bg-amber-500 hover:bg-amber-600 rounded-xl shadow-sm transition"
                 >
                   Reset Ngay
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Bulk Action Confirmation Modal */}
+        {bulkActionConfirm && (
+          <div className="fixed inset-0 z-[70] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 text-center space-y-4 border border-slate-200 animate-in fade-in zoom-in duration-150">
+              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mx-auto text-xl ${
+                bulkActionConfirm === 'clear_all' ? 'bg-rose-100 text-rose-600' : 'bg-indigo-100 text-indigo-600'
+              }`}>
+                {bulkActionConfirm === 'clear_all' ? <Eraser className="w-6 h-6" /> : <RotateCcw className="w-6 h-6" />}
+              </div>
+              <div>
+                <h4 className="font-extrabold text-slate-900 text-base">
+                  {bulkActionConfirm === 'clear_all' ? 'Xác Nhận Xóa Trắng Phân Quyền' : 'Xác Nhận Đặt Lại Chuẩn 5 Cấp'}
+                </h4>
+                <p className="text-xs text-slate-600 mt-1">
+                  {bulkActionConfirm === 'clear_all'
+                    ? 'Bạn có chắc muốn xóa toàn bộ phân quyền của tất cả tài khoản về Trống (chưa tích) để cấu hình lại từng tài khoản từ đầu?'
+                    : 'Bạn có chắc muốn áp dụng lại bộ phân quyền mặc định chuẩn 5 cấp (Admin, Quản lý, Kế toán, Logistics, Khách hàng) cho tất cả tài khoản?'}
+                </p>
+              </div>
+              <div className="flex gap-2.5 pt-1">
+                <button
+                  onClick={() => setBulkActionConfirm(null)}
+                  className="w-1/2 py-2 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition"
+                >
+                  Hủy bỏ
+                </button>
+                <button
+                  onClick={() => {
+                    if (bulkActionConfirm === 'clear_all' && onResetAllPermissions) {
+                      onResetAllPermissions();
+                    } else if (bulkActionConfirm === 'defaults_all' && onResetAllToRoleDefaults) {
+                      onResetAllToRoleDefaults();
+                    }
+                    setBulkActionConfirm(null);
+                  }}
+                  className={`w-1/2 py-2 text-xs font-bold rounded-xl shadow-sm transition text-white ${
+                    bulkActionConfirm === 'clear_all'
+                      ? 'bg-rose-600 hover:bg-rose-700'
+                      : 'bg-indigo-600 hover:bg-indigo-700'
+                  }`}
+                >
+                  Xác Nhận
                 </button>
               </div>
             </div>
