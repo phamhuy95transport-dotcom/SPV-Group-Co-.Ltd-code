@@ -1,6 +1,6 @@
 {
-  "name": "Remix Remix Hệ Thống Quản Lý SPV",
-  "description": "Hệ thống quản lý đơn vận chuyển, danh mục kho, báo cáo tài chính, phân quyền 3 cấp với 2FA và lưu trữ sao lưu đồng bộ Google Drive API.",
+  "name": "Remix Hệ Thống Quản Lý SPV",
+  "description": "Hệ thống quản lý vận hành Logistics, thủ tục hải quan và hồ sơ năng lực SPV Group phân cấp 5 bậc",
   "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
