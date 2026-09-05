@@ -32,19 +32,64 @@ export const cloudAppId = '/dataspv';
 
 export const LOCAL_STORAGE_KEY = 'spv-logistics-v4-data';
 
-// Initial pre-configured seed users (Only Admin default account)
+// Pre-configured users representing the 5-Tier Account Hierarchy (Cấp 1 - Cấp 5)
 export const DEFAULT_USERS: (UserAccount & { password?: string })[] = [
   {
     id: 'u_admin_1',
     email: 'admin@spv.biz.vn',
     password: 'admin123',
-    name: "SPV's Boss",
+    name: "SPV's Boss (Admin)",
     phone: '0922012395',
     role: 'admin',
     status: 'active',
     createdAt: '2026-08-01T08:00:00Z',
     totpEnabled: false,
-    totpSecret: 'JBSWY3DPEHPK3PXP' // Demo TOTP secret available for optional 2FA setup
+    totpSecret: 'JBSWY3DPEHPK3PXP'
+  },
+  {
+    id: 'u_manager_1',
+    email: 'quanly@spv.biz.vn',
+    password: '123456',
+    name: 'Trần Minh (Quản Lý)',
+    phone: '0772215199',
+    role: 'manager',
+    status: 'active',
+    createdAt: '2026-08-02T08:00:00Z',
+    totpEnabled: false
+  },
+  {
+    id: 'u_accounting_1',
+    email: 'ketoan@spv.biz.vn',
+    password: '123456',
+    name: 'Lê Thu (Kế Toán)',
+    phone: '0912345678',
+    role: 'employee_accounting',
+    status: 'active',
+    createdAt: '2026-08-03T08:00:00Z',
+    totpEnabled: false
+  },
+  {
+    id: 'u_logistics_1',
+    email: 'logistics@spv.biz.vn',
+    password: '123456',
+    name: 'Phạm Huy (Logistics)',
+    phone: '0987654321',
+    role: 'employee_logistics',
+    status: 'active',
+    createdAt: '2026-08-04T08:00:00Z',
+    totpEnabled: false
+  },
+  {
+    id: 'u_customer_1',
+    email: 'khachhang@spv.biz.vn',
+    password: '123456',
+    name: 'Samsung Electronics (KH)',
+    phone: '0901234567',
+    role: 'customer',
+    customer_name: 'Samsung Electronics',
+    status: 'active',
+    createdAt: '2026-08-05T08:00:00Z',
+    totpEnabled: false
   }
 ];
 
