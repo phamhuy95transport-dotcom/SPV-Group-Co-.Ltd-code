@@ -1,4 +1,97 @@
-export type UserRole = 'admin' | 'manager' | 'employee_logistics' | 'employee_accounting' | 'customer';
+export type UserRole = 
+  | 'admin'                // Cấp 1: Quản trị viên (Admin tối cao)
+  | 'manager'              // Cấp 2: Cấp Quản lý (Manager)
+  | 'employee_accounting' // Cấp 3: Nhân viên Kế toán (Accountant)
+  | 'employee_logistics'  // Cấp 4: Nhân viên Logistics
+  | 'customer';           // Cấp 5: Khách hàng (Customer)
+
+export interface RoleHierarchyItem {
+  level: number;
+  role: UserRole;
+  levelBadge: string;
+  name: string;
+  title: string;
+  shortLabel: string;
+  badgeClass: string;
+  description: string;
+  scope: string;
+}
+
+export const USER_ROLES_HIERARCHY: Record<UserRole, RoleHierarchyItem> = {
+  admin: {
+    level: 1,
+    role: 'admin',
+    levelBadge: 'Cấp 1',
+    name: 'Quản trị viên (Admin)',
+    title: 'Cấp 1: Quản Trị Viên (Admin Tối Cao)',
+    shortLabel: 'Admin Tối Cao',
+    badgeClass: 'bg-orange-600 text-white border-orange-700',
+    description: 'Toàn quyền điều hành, phân quyền nhân sự, duyệt tài khoản và quản trị toàn bộ hệ thống SPV Group.',
+    scope: 'Toàn quyền (Full Access) — Dành riêng cho tài khoản Admin'
+  },
+  manager: {
+    level: 2,
+    role: 'manager',
+    levelBadge: 'Cấp 2',
+    name: 'Quản lý (Manager)',
+    title: 'Cấp 2: Cấp Quản Lý (Manager)',
+    shortLabel: 'Quản Lý',
+    badgeClass: 'bg-purple-600 text-white border-purple-700',
+    description: 'Giám sát điều hành logistics & tài chính, duyệt cước biển, duyệt tạm ứng nhân sự, cấu hình quyền nhân viên.',
+    scope: 'Quản lý điều hành & Giám sát tổng thể'
+  },
+  employee_accounting: {
+    level: 3,
+    role: 'employee_accounting',
+    levelBadge: 'Cấp 3',
+    name: 'Nhân viên Kế toán',
+    title: 'Cấp 3: Nhân Viên Kế Toán (Accountant)',
+    shortLabel: 'Kế Toán',
+    badgeClass: 'bg-emerald-600 text-white border-emerald-700',
+    description: 'Chuyên trách Báo cáo tài chính, Báo giá khách hàng, Công nợ khách hàng, Tạm ứng chi phí, Doanh số & KPI.',
+    scope: 'Tài chính, Báo giá, Tạm ứng, Công nợ & Báo cáo'
+  },
+  employee_logistics: {
+    level: 4,
+    role: 'employee_logistics',
+    levelBadge: 'Cấp 4',
+    name: 'Nhân viên Logistics',
+    title: 'Cấp 4: Nhân Viên Logistics',
+    shortLabel: 'Logistics',
+    badgeClass: 'bg-blue-600 text-white border-blue-700',
+    description: 'Chuyên trách Quản lý chuyến xe chạy hàng ngày, Mở tờ khai hải quan, Báo giá & Điều hành cước biển, Tra cứu cảng/hãng tàu.',
+    scope: 'Vận chuyển hàng ngày, Hải quan & Cước biển'
+  },
+  customer: {
+    level: 5,
+    role: 'customer',
+    levelBadge: 'Cấp 5',
+    name: 'Khách hàng (Customer)',
+    title: 'Cấp 5: Cấp Khách Hàng (Customer)',
+    shortLabel: 'Khách Hàng',
+    badgeClass: 'bg-slate-700 text-white border-slate-800',
+    description: 'Tra cứu tiến độ chuyến xe vận chuyển, kiểm tra tình trạng tờ khai hải quan, xem bảng giá và công nợ của riêng mình.',
+    scope: 'Tra cứu & Theo dõi lô hàng của riêng khách hàng'
+  }
+};
+
+export const ROLE_HIERARCHY_ORDER: UserRole[] = [
+  'admin',
+  'manager',
+  'employee_accounting',
+  'employee_logistics',
+  'customer'
+];
+
+export const getRoleInfo = (role?: string): RoleHierarchyItem => {
+  if (role === 'employee' || role === 'employee_logistics') {
+    return USER_ROLES_HIERARCHY['employee_logistics'];
+  }
+  if (role && role in USER_ROLES_HIERARCHY) {
+    return USER_ROLES_HIERARCHY[role as UserRole];
+  }
+  return USER_ROLES_HIERARCHY['customer'];
+};
 
 export type UserStatus = 'active' | 'pending' | 'rejected';
 
