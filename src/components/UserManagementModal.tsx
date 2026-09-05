@@ -21,9 +21,26 @@ import {
   SquareCheck,
   SquareX,
   Eraser,
-  Sparkles
+  Sparkles,
+  Crown,
+  Calculator,
+  Truck,
+  Building2,
+  SlidersHorizontal
 } from 'lucide-react';
-import { UserAccount, UserRole, UserStatus, CustomerItem, canDeleteUser, UserPermissions, getDefaultPermissions, getEmptyPermissions } from '../types';
+import { 
+  UserAccount, 
+  UserRole, 
+  UserStatus, 
+  CustomerItem, 
+  canDeleteUser, 
+  UserPermissions, 
+  getDefaultPermissions, 
+  getEmptyPermissions,
+  getRoleInfo,
+  USER_ROLES_HIERARCHY,
+  ROLE_HIERARCHY_ORDER
+} from '../types';
 
 interface UserManagementProps {
   isOpen?: boolean;
@@ -62,19 +79,27 @@ export const UserManagementModal: React.FC<UserManagementProps> = ({
   onResetAllToRoleDefaults,
   onDeleteUser
 }) => {
-  const [filterTab, setFilterTab] = useState<'pending' | 'all' | 'employee' | 'customer' | 'manager'>('pending');
+  const [filterTab, setFilterTab] = useState<'all' | 'admin' | 'manager' | 'employee_accounting' | 'employee_logistics' | 'customer' | 'pending'>('all');
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState<string>('');
   const [resetConfirmUser, setResetConfirmUser] = useState<UserAccount | null>(null);
+  const [showHierarchyGuide, setShowHierarchyGuide] = useState<boolean>(true);
 
   if (!embedded && !isOpen) return null;
 
   const pendingUsers = users.filter(u => u.status === 'pending');
+  const adminUsers = users.filter(u => u.role === 'admin' && u.status !== 'pending');
+  const managerUsers = users.filter(u => u.role === 'manager' && u.status !== 'pending');
+  const accountingUsers = users.filter(u => u.role === 'employee_accounting' && u.status !== 'pending');
+  const logisticsUsers = users.filter(u => (u.role === 'employee_logistics' || (u.role as any) === 'employee') && u.status !== 'pending');
+  const customerUsers = users.filter(u => u.role === 'customer' && u.status !== 'pending');
   
   const displayedUsers = users.filter(u => {
     if (filterTab === 'pending') return u.status === 'pending';
-    if (filterTab === 'employee') return (u.role === 'employee_logistics' || u.role === 'employee_accounting' || (u.role as any) === 'employee') && u.status !== 'pending';
+    if (filterTab === 'admin') return u.role === 'admin' && u.status !== 'pending';
     if (filterTab === 'manager') return u.role === 'manager' && u.status !== 'pending';
+    if (filterTab === 'employee_accounting') return u.role === 'employee_accounting' && u.status !== 'pending';
+    if (filterTab === 'employee_logistics') return (u.role === 'employee_logistics' || (u.role as any) === 'employee') && u.status !== 'pending';
     if (filterTab === 'customer') return u.role === 'customer' && u.status !== 'pending';
     return true; // all
   });
@@ -271,6 +296,72 @@ export const UserManagementModal: React.FC<UserManagementProps> = ({
 
       {/* Content */}
       <div className={`p-6 space-y-4 ${embedded ? '' : 'overflow-y-auto max-h-[calc(90vh-80px)]'} flex-1`}>
+          {/* 5-Tier Architecture Guide */}
+          <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 text-slate-200 rounded-2xl p-4 border border-slate-700 shadow-md">
+            <div className="flex items-center justify-between gap-3 pb-3 border-b border-slate-700/60">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-indigo-500/20 text-indigo-400 rounded-xl border border-indigo-500/30">
+                  <SlidersHorizontal className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-black uppercase tracking-wide text-white flex items-center gap-2">
+                    <span>Hệ Thống Phân Cấp 5 Cấp Tài Khoản SPV Group</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold lowercase">
+                      đang áp dụng
+                    </span>
+                  </h4>
+                  <p className="text-[11px] text-slate-400">
+                    Phân chia rành mạch 5 quyền hạn: Admin tối cao, Quản lý điều hành, Kế toán tài chính, Logistics vận hành & Khách hàng.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowHierarchyGuide(!showHierarchyGuide)}
+                className="text-[11px] px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg border border-slate-700 transition"
+              >
+                {showHierarchyGuide ? 'Thu gọn sơ đồ' : 'Xem sơ đồ 5 cấp'}
+              </button>
+            </div>
+
+            {showHierarchyGuide && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5 pt-3">
+                {ROLE_HIERARCHY_ORDER.map(r => {
+                  const info = USER_ROLES_HIERARCHY[r];
+                  return (
+                    <div 
+                      key={r}
+                      onClick={() => setFilterTab(r)}
+                      className={`cursor-pointer p-2.5 rounded-xl border transition group ${
+                        filterTab === r 
+                          ? 'bg-white/10 border-indigo-400 ring-1 ring-indigo-400' 
+                          : 'bg-slate-800/60 hover:bg-slate-800 border-slate-700/80'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-1 mb-1">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${info.badgeClass}`}>
+                          {info.levelBadge}
+                        </span>
+                        <span className="text-[11px] font-bold text-slate-300 group-hover:text-white">
+                          {info.shortLabel}
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-slate-400 line-clamp-2 leading-relaxed">
+                        {info.description}
+                      </p>
+                      <div className="mt-2 pt-1.5 border-t border-white/5 flex items-center justify-between text-[9px] text-slate-400">
+                        <span>Số tài khoản:</span>
+                        <span className="font-extrabold text-white">
+                          {users.filter(u => u.role === r && u.status !== 'pending').length}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
           {/* Global Reset Banner for Permissions */}
           <div className="bg-slate-900 text-slate-200 rounded-xl p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border border-slate-800 shadow-xs">
             <div className="flex items-center gap-2.5">
@@ -278,8 +369,8 @@ export const UserManagementModal: React.FC<UserManagementProps> = ({
                 <Settings2 className="w-4 h-4" />
               </div>
               <div>
-                <h4 className="text-xs font-bold text-white">Quản trị Phân quyền Tài khoản Chi tiết</h4>
-                <p className="text-[11px] text-slate-400">Tích chọn quyền Xem/Sửa cho từng nhân viên, hoặc xóa trắng để phân quyền lại từ đầu bằng việc tích.</p>
+                <h4 className="text-xs font-bold text-white">Cấu hình & Phân quyền Chi tiết (Granular Permissions)</h4>
+                <p className="text-[11px] text-slate-400">Tùy biến quyền Xem/Sửa cho từng nhân viên, hoặc khôi phục mặc định theo chuẩn 5 cấp.</p>
               </div>
             </div>
             <div className="flex items-center gap-2 flex-wrap shrink-0">
@@ -302,83 +393,107 @@ export const UserManagementModal: React.FC<UserManagementProps> = ({
                 <button
                   type="button"
                   onClick={() => {
-                    if (window.confirm('Bạn có chắc chắn muốn đặt lại phân quyền mặc định theo vai trò cho toàn bộ tài khoản?')) {
+                    if (window.confirm('Bạn có chắc chắn muốn đặt lại phân quyền mặc định theo chuẩn 5 cấp vai trò cho toàn bộ tài khoản?')) {
                       onResetAllToRoleDefaults();
                     }
                   }}
                   className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-bold transition flex items-center gap-1.5"
                 >
                   <RotateCcw className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Mặc định vai trò</span>
+                  <span>Mặc định 5 cấp</span>
                 </button>
               )}
             </div>
           </div>
 
-          {/* Sub-tabs */}
-          <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 pb-3">
+          {/* Sub-tabs: 5 Tiers + All + Pending */}
+          <div className="flex flex-wrap items-center gap-1.5 border-b border-slate-200 pb-3">
             <button
-              onClick={() => setFilterTab('pending')}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
-                filterTab === 'pending'
-                  ? 'bg-amber-500 text-slate-950 shadow-sm'
+              onClick={() => setFilterTab('all')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
+                filterTab === 'all'
+                  ? 'bg-slate-900 text-white shadow-sm'
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
             >
+              Tất Cả ({users.length})
+            </button>
+
+            <button
+              onClick={() => setFilterTab('admin')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+                filterTab === 'admin'
+                  ? 'bg-orange-600 text-white shadow-sm'
+                  : 'bg-orange-50 text-orange-800 hover:bg-orange-100 border border-orange-200/60'
+              }`}
+            >
+              <Crown className="w-3.5 h-3.5" />
+              <span>Cấp 1: Admin ({adminUsers.length})</span>
+            </button>
+
+            <button
+              onClick={() => setFilterTab('manager')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+                filterTab === 'manager'
+                  ? 'bg-purple-600 text-white shadow-sm'
+                  : 'bg-purple-50 text-purple-800 hover:bg-purple-100 border border-purple-200/60'
+              }`}
+            >
+              <ShieldCheck className="w-3.5 h-3.5" />
+              <span>Cấp 2: Quản Lý ({managerUsers.length})</span>
+            </button>
+
+            <button
+              onClick={() => setFilterTab('employee_accounting')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+                filterTab === 'employee_accounting'
+                  ? 'bg-emerald-600 text-white shadow-sm'
+                  : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200/60'
+              }`}
+            >
+              <Calculator className="w-3.5 h-3.5" />
+              <span>Cấp 3: Kế Toán ({accountingUsers.length})</span>
+            </button>
+
+            <button
+              onClick={() => setFilterTab('employee_logistics')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+                filterTab === 'employee_logistics'
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'bg-blue-50 text-blue-800 hover:bg-blue-100 border border-blue-200/60'
+              }`}
+            >
+              <Truck className="w-3.5 h-3.5" />
+              <span>Cấp 4: Logistics ({logisticsUsers.length})</span>
+            </button>
+
+            <button
+              onClick={() => setFilterTab('customer')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+                filterTab === 'customer'
+                  ? 'bg-slate-700 text-white shadow-sm'
+                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              }`}
+            >
+              <Building2 className="w-3.5 h-3.5" />
+              <span>Cấp 5: Khách Hàng ({customerUsers.length})</span>
+            </button>
+
+            <button
+              onClick={() => setFilterTab('pending')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ml-auto ${
+                filterTab === 'pending'
+                  ? 'bg-amber-500 text-slate-950 shadow-sm'
+                  : 'bg-amber-50 text-amber-900 hover:bg-amber-100 border border-amber-300'
+              }`}
+            >
               <Clock className="w-3.5 h-3.5" />
-              <span>Chờ Duyệt Registration</span>
+              <span>Chờ Duyệt</span>
               {pendingUsers.length > 0 && (
                 <span className="bg-rose-600 text-white text-[10px] px-1.5 py-0.2 rounded-full font-black">
                   {pendingUsers.length}
                 </span>
               )}
-            </button>
-
-            <button
-              onClick={() => setFilterTab('employee')}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
-                filterTab === 'employee'
-                  ? 'bg-indigo-600 text-white shadow-sm'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              <Users className="w-3.5 h-3.5" />
-              <span>Tài Khoản Nhân Viên</span>
-            </button>
-
-            <button
-              onClick={() => setFilterTab('manager')}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
-                filterTab === 'manager'
-                  ? 'bg-purple-600 text-white shadow-sm'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              <ShieldCheck className="w-3.5 h-3.5" />
-              <span>Quản Lý (Manager)</span>
-            </button>
-
-            <button
-              onClick={() => setFilterTab('customer')}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
-                filterTab === 'customer'
-                  ? 'bg-emerald-600 text-white shadow-sm'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              <Users className="w-3.5 h-3.5" />
-              <span>Khách Hàng</span>
-            </button>
-
-            <button
-              onClick={() => setFilterTab('all')}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition ${
-                filterTab === 'all'
-                  ? 'bg-slate-800 text-white shadow-sm'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              Tất Cả ({users.length})
             </button>
           </div>
 
@@ -389,7 +504,7 @@ export const UserManagementModal: React.FC<UserManagementProps> = ({
                 <thead>
                   <tr className="bg-slate-100/90 border-b border-slate-200 text-slate-600 text-[11px] font-bold uppercase">
                     <th className="p-3">Họ & Tên</th>
-                    <th className="p-3">Email & SĐT</th>
+                    <th className="p-3">Tài khoản / Nickname / Email</th>
                     <th className="p-3 text-center">Vai Trò</th>
                     <th className="p-3 text-center">Trạng Thái</th>
                     <th className="p-3 text-center">Google 2FA</th>
@@ -468,17 +583,30 @@ export const UserManagementModal: React.FC<UserManagementProps> = ({
                         )}
                       </td>
                       <td className="p-3 text-center">
+                        {(() => {
+                          const roleInfo = getRoleInfo(user.role);
+                          return (
+                            <div className="flex items-center justify-between gap-1 mb-1.5">
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${roleInfo.badgeClass}`}>
+                                {roleInfo.levelBadge}
+                              </span>
+                              <span className="text-[10px] font-bold text-slate-500">
+                                {roleInfo.shortLabel}
+                              </span>
+                            </div>
+                          );
+                        })()}
                         <select
                           value={user.role}
                           disabled={user.email.toLowerCase() === 'admin@spv.biz.vn'}
                           onChange={e => onChangeUserRole(user.id, e.target.value as UserRole)}
-                          className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed w-full"
+                          className="px-2 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-bold text-slate-800 focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed w-full shadow-2xs"
                         >
-                          <option value="admin">Quản trị viên (Admin)</option>
-                          <option value="manager">Quản lý (Manager)</option>
-                          <option value="employee_logistics">NV Logistics</option>
-                          <option value="employee_accounting">NV Kế toán</option>
-                          <option value="customer">Khách hàng (Customer)</option>
+                          <option value="admin">Cấp 1: Quản trị viên (Admin tối cao)</option>
+                          <option value="manager">Cấp 2: Quản lý (Manager)</option>
+                          <option value="employee_accounting">Cấp 3: Nhân viên Kế toán</option>
+                          <option value="employee_logistics">Cấp 4: Nhân viên Logistics</option>
+                          <option value="customer">Cấp 5: Khách hàng (Customer)</option>
                         </select>
                         {user.role === 'customer' && (
                           <div className="mt-1.5">
@@ -533,7 +661,7 @@ export const UserManagementModal: React.FC<UserManagementProps> = ({
                                   className="px-1.5 py-0.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded font-bold border border-rose-200 transition"
                                   title="Xóa trắng toàn bộ quyền của tài khoản này (Bỏ tích tất cả)"
                                 >
-                                  Bỏ tích hết
+                                  Bỏ tích
                                 </button>
                                 <button
                                   type="button"
@@ -541,31 +669,39 @@ export const UserManagementModal: React.FC<UserManagementProps> = ({
                                   className="px-1.5 py-0.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded font-bold border border-indigo-200 transition"
                                   title="Tích chọn tất cả các quyền Xem & Sửa"
                                 >
-                                  Tích tất cả
+                                  Toàn quyền
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => applyQuickPreset(user.id, 'manager')}
+                                  className="px-1.5 py-0.5 bg-purple-50 hover:bg-purple-100 text-purple-800 rounded font-bold border border-purple-200 transition"
+                                  title="Gán quyền Quản lý Cấp 2"
+                                >
+                                  Cấp 2: Quản lý
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => applyQuickPreset(user.id, 'accounting')}
-                                  className="px-1.5 py-0.5 bg-amber-50 hover:bg-amber-100 text-amber-800 rounded font-bold border border-amber-200 transition"
-                                  title="Gán quyền Kế toán (Full tài chính)"
+                                  className="px-1.5 py-0.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded font-bold border border-emerald-200 transition"
+                                  title="Gán quyền Kế toán Cấp 3 (Full tài chính & công nợ)"
                                 >
-                                  Kế toán
+                                  Cấp 3: Kế toán
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => applyQuickPreset(user.id, 'logistics')}
                                   className="px-1.5 py-0.5 bg-blue-50 hover:bg-blue-100 text-blue-800 rounded font-bold border border-blue-200 transition"
-                                  title="Gán quyền Logistics (Vận hành & Hải quan & Cước biển)"
+                                  title="Gán quyền Logistics Cấp 4 (Vận hành & Hải quan & Cước biển)"
                                 >
-                                  Logistics
+                                  Cấp 4: Logistics
                                 </button>
                                 <button
                                   type="button"
-                                  onClick={() => applyQuickPreset(user.id, 'manager')}
-                                  className="px-1.5 py-0.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded font-bold border border-emerald-200 transition"
-                                  title="Gán quyền Quản lý (Full xem & sửa)"
+                                  onClick={() => applyQuickPreset(user.id, 'customer')}
+                                  className="px-1.5 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded font-bold border border-slate-300 transition"
+                                  title="Gán quyền Khách hàng Cấp 5 (Tra cứu chuyến hàng của mình)"
                                 >
-                                  Quản lý
+                                  Cấp 5: Khách hàng
                                 </button>
                               </div>
                             </div>

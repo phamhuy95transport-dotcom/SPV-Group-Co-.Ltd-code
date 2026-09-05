@@ -51,6 +51,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [regEmail, setRegEmail] = useState('');
   const [regPhone, setRegPhone] = useState('');
   const [regPassword, setRegPassword] = useState('');
+  const [regRole, setRegRole] = useState<UserRole>('employee_logistics');
 
   // Change Password State
   const [oldPassword, setOldPassword] = useState('');
@@ -112,11 +113,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     setErrorMsg('');
     setSuccessMsg('');
 
-    const emailClean = loginEmail.trim().toLowerCase();
-    const foundUser = users.find(u => u.email.toLowerCase() === emailClean);
+    const inputClean = loginEmail.trim().toLowerCase();
+    const foundUser = users.find(u => 
+      (u.email && u.email.trim().toLowerCase() === inputClean) ||
+      (u.name && u.name.trim().toLowerCase() === inputClean) ||
+      (u.id && u.id.trim().toLowerCase() === inputClean)
+    );
 
     if (!foundUser) {
-      setErrorMsg('Tài khoản email không tồn tại trong hệ thống!');
+      setErrorMsg('Tài khoản / Nickname không tồn tại trong hệ thống!');
       return;
     }
 
@@ -159,7 +164,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       return;
     }
 
-    const isValid = verifyTOTPToken(totpCode, pendingUser.totpSecret, pendingUser.email);
+    const isValid = verifyTOTPToken(totpCode, pendingUser.totpSecret, pendingUser.email || pendingUser.name);
     if (isValid) {
       onLoginSuccess(pendingUser);
       setSuccessMsg('Xác thực 2FA Google Authenticator thành công!');
@@ -176,32 +181,36 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     setErrorMsg('');
     setSuccessMsg('');
 
-    if (!regName.trim() || !regEmail.trim() || !regPassword.trim()) {
+    const cleanUsername = regEmail.trim();
+    if (!regName.trim() || !cleanUsername || !regPassword.trim()) {
       setErrorMsg('Vui lòng điền đầy đủ các thông tin bắt buộc!');
       return;
     }
 
-    const exists = users.some(u => u.email.toLowerCase() === regEmail.trim().toLowerCase());
+    const exists = users.some(u => 
+      (u.email && u.email.trim().toLowerCase() === cleanUsername.toLowerCase()) ||
+      (u.id && u.id.trim().toLowerCase() === cleanUsername.toLowerCase())
+    );
     if (exists) {
-      setErrorMsg('Email này đã được sử dụng!');
+      setErrorMsg('Tên đăng nhập / Nickname / Email này đã được sử dụng!');
       return;
     }
 
-    // Submit employee registration
+    // Submit registration with selected role (Cấp 3, Cấp 4 hoặc Cấp 5)
     onRegisterEmployee({
       name: regName.trim(),
-      email: regEmail.trim().toLowerCase(),
+      email: cleanUsername,
       phone: regPhone.trim(),
-      role: 'employee_logistics',
+      role: regRole,
       status: 'pending',
       totpEnabled: false,
       password: regPassword
     });
 
-    setSuccessMsg('Đăng ký tài khoản nhân viên thành công! Vui lòng chờ Quản trị viên duyệt.');
+    setSuccessMsg('Gửi yêu cầu đăng ký tài khoản thành công! Quản trị viên sẽ phê duyệt và cấp quyền theo phân cấp 5 cấp.');
     setTimeout(() => {
       setMode('login');
-      setLoginEmail(regEmail);
+      setLoginEmail(cleanUsername);
       setLoginPassword('');
     }, 2000);
   };
@@ -326,8 +335,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           <div className="flex items-center gap-2.5">
             <ShieldCheck className="w-5 h-5 text-indigo-400" />
             <h3 className="font-extrabold text-sm sm:text-base">
-              {mode === 'login' && 'Đăng Nhập Tài Khoản 3 Cấp'}
-              {mode === 'register' && 'Đăng Ký Tài Khoản Nhân Viên'}
+              {mode === 'login' && 'Đăng Nhập Hệ Thống Phân Cấp 5 Cấp'}
+              {mode === 'register' && 'Đăng Ký Tài Khoản (Hệ Thống 5 Cấp)'}
               {mode === '2fa_verify' && 'Xác Thực Google Authenticator 2FA'}
               {mode === '2fa_setup' && 'Thiết Lập 2FA Google Authenticator'}
               {mode === 'change_password' && 'Đổi Mật Khẩu Tài Khoản'}
@@ -358,16 +367,84 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           {/* MODE 1: LOGIN */}
           {mode === 'login' && (
             <form onSubmit={handleLoginSubmit} className="space-y-4">
+              {/* Quick 5-Tier Demo Account Selector */}
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5">
+                <div className="flex items-center justify-between text-[11px] font-bold text-slate-700">
+                  <span>Chọn nhanh tài khoản thử nghiệm 5 cấp:</span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 text-[10px]">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLoginEmail('admin@spv.biz.vn');
+                      setLoginPassword('admin123');
+                    }}
+                    className="p-1.5 bg-orange-50 hover:bg-orange-100 text-orange-800 font-bold rounded-lg border border-orange-200 text-left transition"
+                  >
+                    <p className="font-extrabold text-[9px] uppercase text-orange-600">Cấp 1 • Admin</p>
+                    <p className="truncate text-slate-600 font-medium">admin@spv.biz.vn</p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLoginEmail('quanly@spv.biz.vn');
+                      setLoginPassword('123456');
+                    }}
+                    className="p-1.5 bg-purple-50 hover:bg-purple-100 text-purple-800 font-bold rounded-lg border border-purple-200 text-left transition"
+                  >
+                    <p className="font-extrabold text-[9px] uppercase text-purple-600">Cấp 2 • Quản lý</p>
+                    <p className="truncate text-slate-600 font-medium">quanly@spv.biz.vn</p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLoginEmail('ketoan@spv.biz.vn');
+                      setLoginPassword('123456');
+                    }}
+                    className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold rounded-lg border border-emerald-200 text-left transition"
+                  >
+                    <p className="font-extrabold text-[9px] uppercase text-emerald-600">Cấp 3 • Kế toán</p>
+                    <p className="truncate text-slate-600 font-medium">ketoan@spv.biz.vn</p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLoginEmail('logistics@spv.biz.vn');
+                      setLoginPassword('123456');
+                    }}
+                    className="p-1.5 bg-blue-50 hover:bg-blue-100 text-blue-800 font-bold rounded-lg border border-blue-200 text-left transition"
+                  >
+                    <p className="font-extrabold text-[9px] uppercase text-blue-600">Cấp 4 • Logistics</p>
+                    <p className="truncate text-slate-600 font-medium">logistics@spv.biz.vn</p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLoginEmail('khachhang@spv.biz.vn');
+                      setLoginPassword('123456');
+                    }}
+                    className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-lg border border-slate-300 text-left transition col-span-2 sm:col-span-1"
+                  >
+                    <p className="font-extrabold text-[9px] uppercase text-slate-600">Cấp 5 • Khách hàng</p>
+                    <p className="truncate text-slate-600 font-medium">khachhang@spv.biz.vn</p>
+                  </button>
+                </div>
+              </div>
+
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Email / Tài khoản</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Tài khoản / Nickname / Email</label>
                 <div className="relative">
-                  <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <User className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
-                    type="email"
+                    type="text"
                     required
                     value={loginEmail}
                     onChange={e => setLoginEmail(e.target.value)}
-                    placeholder="Ví dụ: admin@spv.biz.vn"
+                    placeholder="Ví dụ: admin, quanly, ketoan, logistics hoặc email..."
                     className="w-full pl-9 pr-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                 </div>
@@ -397,8 +474,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 </div>
               </div>
 
-
-
               <button
                 type="submit"
                 className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs sm:text-sm rounded-xl shadow-md transition flex items-center justify-center gap-2"
@@ -408,13 +483,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               </button>
 
               <div className="pt-2 text-center border-t border-slate-100">
-                <p className="text-xs text-slate-500">Chưa có tài khoản nhân viên?</p>
+                <p className="text-xs text-slate-500">Chưa có tài khoản?</p>
                 <button
                   type="button"
                   onClick={() => { setMode('register'); setErrorMsg(''); setSuccessMsg(''); }}
                   className="mt-1 text-xs font-bold text-indigo-600 hover:text-indigo-800 underline"
                 >
-                  Đăng ký tài khoản nhân viên mới (Gửi Admin duyệt)
+                  Đăng ký tài khoản mới (Hệ thống 5 cấp - Gửi Admin duyệt)
                 </button>
               </div>
             </form>
@@ -439,15 +514,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Email công việc <span className="text-rose-500">*</span></label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Tên đăng nhập / Nickname / Email <span className="text-rose-500">*</span></label>
                 <div className="relative">
-                  <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <User className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
-                    type="email"
+                    type="text"
                     required
                     value={regEmail}
                     onChange={e => setRegEmail(e.target.value)}
-                    placeholder="nv2@spv.biz.vn"
+                    placeholder="Ví dụ: huypq, namnv, nv_logistics hoặc email..."
                     className="w-full pl-9 pr-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                 </div>
@@ -482,8 +557,21 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 </div>
               </div>
 
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Cấp bậc / Vai trò đăng ký <span className="text-rose-500">*</span></label>
+                <select
+                  value={regRole}
+                  onChange={e => setRegRole(e.target.value as UserRole)}
+                  className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 font-semibold text-slate-800"
+                >
+                  <option value="employee_accounting">Cấp 3: Nhân viên Kế toán (Tài chính, Báo cáo & Công nợ)</option>
+                  <option value="employee_logistics">Cấp 4: Nhân viên Logistics (Điều hành xe & Thủ tục Hải quan)</option>
+                  <option value="customer">Cấp 5: Khách hàng (Tra cứu lô hàng của công ty mình)</option>
+                </select>
+              </div>
+
               <div className="p-3 bg-indigo-50/70 border border-indigo-200 rounded-xl text-[11px] text-indigo-900 font-medium">
-                Tài khoản sau khi đăng ký sẽ ở trạng thái <strong className="text-amber-600">Chờ duyệt (Pending)</strong>. Quản trị viên sẽ kiểm tra và kích hoạt trước khi bạn đăng nhập.
+                Tài khoản sau khi đăng ký sẽ ở trạng thái <strong className="text-amber-600">Chờ duyệt (Pending)</strong>. Quản trị viên Cấp 1 sẽ kiểm tra và kích hoạt trước khi bạn đăng nhập.
               </div>
 
               <button
@@ -491,7 +579,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs sm:text-sm rounded-xl shadow-md transition flex items-center justify-center gap-2"
               >
                 <UserPlus className="w-4 h-4" />
-                <span>Gửi Yêu Cầu Đăng Ký Nhân Viên</span>
+                <span>Gửi Yêu Cầu Đăng Ký Tài Khoản</span>
               </button>
 
               <div className="text-center pt-2">

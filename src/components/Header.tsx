@@ -19,7 +19,7 @@ import {
   HardDrive,
   LayoutDashboard
 } from 'lucide-react';
-import { ActiveTab, UserAccount, hasPermission } from '../types';
+import { ActiveTab, UserAccount, hasPermission, getRoleInfo } from '../types';
 
 interface HeaderProps {
   currentUser: UserAccount | null;
@@ -89,52 +89,61 @@ export const Header: React.FC<HeaderProps> = ({
           <div className="flex items-center space-x-2.5">
             {/* User Account Info / Role Badge */}
             {currentUser ? (
-              <div className="flex items-center gap-2 bg-slate-900/60 border border-slate-700 rounded-lg p-1.5 pr-3 text-xs">
-                <div
-                  className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-white text-xs border border-white/10 ${
-                    isAdmin
-                      ? 'bg-orange-500'
-                      : isManager
-                      ? 'bg-purple-600'
-                      : isEmployee
-                      ? 'bg-blue-600'
-                      : 'bg-emerald-600'
-                  }`}
-                >
-                  {currentUser.name ? currentUser.name.charAt(0).toUpperCase() : 'U'}
-                </div>
-                <div className="hidden md:block">
-                  <div className="flex items-center gap-1">
-                    <p className="font-semibold text-white leading-tight truncate max-w-[140px] text-xs">
-                      {currentUser.name}
-                    </p>
-                    {onOpenEditProfile && (
-                      <button
-                        onClick={onOpenEditProfile}
-                        title="Đổi họ tên đăng ký của bạn"
-                        className="p-0.5 text-slate-400 hover:text-indigo-300 transition rounded"
+              <div className="flex items-center gap-2 bg-slate-900/60 border border-slate-700 rounded-lg p-1.5 pr-2.5 text-xs">
+                {(() => {
+                  const roleInfo = getRoleInfo(currentUser.role);
+                  return (
+                    <div className="flex items-center gap-2">
+                      <div
+                        className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-white text-xs border border-white/10 ${
+                          currentUser.role === 'admin'
+                            ? 'bg-orange-600'
+                            : currentUser.role === 'manager'
+                            ? 'bg-purple-600'
+                            : currentUser.role === 'employee_accounting'
+                            ? 'bg-emerald-600'
+                            : currentUser.role === 'employee_logistics' || (currentUser.role as any) === 'employee'
+                            ? 'bg-blue-600'
+                            : 'bg-slate-700'
+                        }`}
                       >
-                        <Pencil className="w-3 h-3" />
-                      </button>
-                    )}
-                  </div>
-                  <p className="text-[10px] text-slate-400 font-medium capitalize flex items-center gap-1">
-                    <span
-                      className={`inline-block w-1.5 h-1.5 rounded-full ${
-                        isAdmin ? 'bg-orange-400' : isManager ? 'bg-purple-400' : isEmployee ? 'bg-blue-400' : 'bg-emerald-400'
-                      }`}
-                    ></span>
-                    {isAdmin
-                      ? 'Administrator (Full Access)'
-                      : currentUser?.role === 'manager'
-                      ? 'Quản lý (Manager)'
-                      : currentUser?.role === 'employee_accounting'
-                      ? 'NV Kế toán'
-                      : currentUser?.role === 'employee_logistics' || currentUser?.role === ('employee' as any)
-                      ? 'NV Logistics'
-                      : 'Khách hàng (Customer)'}
-                  </p>
-                </div>
+                        {currentUser.name ? currentUser.name.charAt(0).toUpperCase() : 'U'}
+                      </div>
+                      <div className="hidden md:block">
+                        <div className="flex items-center gap-1">
+                          <p className="font-semibold text-white leading-tight truncate max-w-[140px] text-xs">
+                            {currentUser.name}
+                          </p>
+                          {onOpenEditProfile && (
+                            <button
+                              onClick={onOpenEditProfile}
+                              title="Đổi họ tên đăng ký của bạn"
+                              className="p-0.5 text-slate-400 hover:text-indigo-300 transition rounded"
+                            >
+                              <Pencil className="w-3 h-3" />
+                            </button>
+                          )}
+                        </div>
+                        <div className="text-[10px] text-slate-300 font-medium flex items-center gap-1 mt-0.5">
+                          <span className={`px-1.5 py-0.2 rounded text-[9px] font-black uppercase ${
+                            currentUser.role === 'admin'
+                              ? 'bg-orange-500/20 text-orange-300 border border-orange-500/40'
+                              : currentUser.role === 'manager'
+                              ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40'
+                              : currentUser.role === 'employee_accounting'
+                              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                              : currentUser.role === 'employee_logistics' || (currentUser.role as any) === 'employee'
+                              ? 'bg-blue-500/20 text-blue-300 border border-blue-500/40'
+                              : 'bg-slate-600/40 text-slate-300 border border-slate-500/40'
+                          }`}>
+                            {roleInfo.levelBadge}
+                          </span>
+                          <span className="text-slate-400">{roleInfo.shortLabel}</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {/* Change Password Button */}
                 {onOpenChangePassword && (
