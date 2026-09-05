@@ -78,11 +78,30 @@ const MOTIVATIONAL_QUOTES = [
 ];
 
 export default function App() {
-  // Current logged in user (Defaults to null - logged out)
-  const [currentUser, setCurrentUser] = useState<UserAccount | null>(null);
+  // Current logged in user (restored from localStorage session if available)
+  const [currentUser, setCurrentUser] = useState<UserAccount | null>(() => {
+    try {
+      const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY}_current_user`);
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.warn('Lỗi đọc session user:', e);
+    }
+    return null;
+  });
 
-  // Main Data States
-  const [users, setUsers] = useState<UserAccount[]>(DEFAULT_USERS);
+  // Main Data States (with localStorage cache fallback)
+  const [users, setUsers] = useState<UserAccount[]>(() => {
+    try {
+      const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY}_users`);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.warn('Lỗi đọc local users:', e);
+    }
+    return DEFAULT_USERS;
+  });
   const [records, setRecords] = useState<ShipmentRecord[]>(DEFAULT_SHIPMENTS);
   const [warehouses, setWarehouses] = useState<WarehouseItem[]>(DEFAULT_WAREHOUSES);
   const [transporters, setTransporters] = useState<TransporterItem[]>(DEFAULT_TRANSPORTERS);
@@ -229,25 +248,64 @@ export default function App() {
     const unsubUsers = subscribeToCloudCollection('users', (data) => {
       const userMap = new Map<string, UserAccount & { password?: string }>();
       DEFAULT_USERS.forEach(u => userMap.set(u.email.toLowerCase(), { ...u }));
+
+      // Incorporate local storage cache if available
+      try {
+        const localSaved = localStorage.getItem(`${LOCAL_STORAGE_KEY}_users`);
+        if (localSaved) {
+          const parsed = JSON.parse(localSaved);
+          if (Array.isArray(parsed)) {
+            parsed.forEach((u: any) => {
+              if (u && u.email) {
+                const existing = userMap.get(u.email.toLowerCase());
+                userMap.set(u.email.toLowerCase(), { ...existing, ...u });
+              }
+            });
+          }
+        }
+      } catch (e) {}
+
+      // Authoritative Cloud Data from Firebase
       if (data && Array.isArray(data) && data.length > 0) {
         data.forEach((u: any) => {
           if (u && u.email) {
             const emailKey = u.email.toLowerCase();
             const existing = userMap.get(emailKey);
+            const userRole: UserRole = u.role || existing?.role || 'employee_logistics';
+            const userPermissions = u.permissions || existing?.permissions || getDefaultPermissions(userRole);
             userMap.set(emailKey, {
               ...existing,
               ...u,
-              password: u.password || existing?.password || (u.role === 'admin' ? 'admin123' : '')
+              id: u.id || existing?.id || `u_${Date.now()}`,
+              email: u.email,
+              name: u.name || existing?.name || 'Người dùng',
+              role: userRole,
+              status: u.status || existing?.status || 'active',
+              customer_name: userRole === 'customer' ? (u.customer_name || existing?.customer_name) : undefined,
+              permissions: userPermissions,
+              password: u.password || existing?.password || (userRole === 'admin' ? 'admin123' : '123456')
             });
           }
         });
       }
+
       const userList = Array.from(userMap.values());
       setUsers(userList);
+      try {
+        localStorage.setItem(`${LOCAL_STORAGE_KEY}_users`, JSON.stringify(userList));
+      } catch (e) {}
+
       setCurrentUser(curr => {
         if (!curr) return null;
         const matching = userList.find(u => u.id === curr.id || u.email.toLowerCase() === curr.email.toLowerCase());
-        return matching ? { ...curr, ...matching } : curr;
+        if (matching) {
+          const updated = { ...curr, ...matching };
+          try {
+            localStorage.setItem(`${LOCAL_STORAGE_KEY}_current_user`, JSON.stringify(updated));
+          } catch (e) {}
+          return updated;
+        }
+        return curr;
       });
     });
 
@@ -432,6 +490,9 @@ export default function App() {
   // Handlers for User Authentication & Registration
   const handleLoginSuccess = (user: UserAccount) => {
     setCurrentUser(user);
+    try {
+      localStorage.setItem(`${LOCAL_STORAGE_KEY}_current_user`, JSON.stringify(user));
+    } catch (e) {}
     showToast(`Đăng nhập thành công với vai trò ${user.role.toUpperCase()}!`);
     
     // Show Welcome Modal with a random quote
@@ -450,6 +511,9 @@ export default function App() {
 
   const handleLogout = () => {
     setCurrentUser(null);
+    try {
+      localStorage.removeItem(`${LOCAL_STORAGE_KEY}_current_user`);
+    } catch (e) {}
     setActiveTab('entry');
     showToast('Đã đăng xuất khỏi hệ thống.', 'info');
   };
@@ -462,100 +526,141 @@ export default function App() {
       createdAt: new Date().toISOString()
     };
 
-    setUsers(prev => [newUser, ...prev]);
+    const nextUsers = [newUser, ...users];
+    setUsers(nextUsers);
+    try {
+      localStorage.setItem(`${LOCAL_STORAGE_KEY}_users`, JSON.stringify(nextUsers));
+    } catch (e) {}
     await saveRecordToCloud('users', newId, newUser);
     showToast('Yêu cầu đăng ký tài khoản đã được gửi đến Quản trị viên!');
   };
 
   const handleApproveUser = async (userId: string) => {
-    setUsers(prev =>
-      prev.map(u => (u.id === userId ? { ...u, status: 'active' as const } : u))
-    );
-    const updated = users.find(u => u.id === userId);
-    if (updated) {
-      const activeUser = { ...updated, status: 'active' as const };
-      await saveRecordToCloud('users', userId, activeUser);
-      showToast(`Đã duyệt tài khoản cho ${activeUser.name}!`);
-    }
+    const target = users.find(u => u.id === userId);
+    if (!target) return;
+    const activeUser: UserAccount = { ...target, status: 'active' as const };
+    const nextUsers = users.map(u => (u.id === userId ? activeUser : u));
+    setUsers(nextUsers);
+    try {
+      localStorage.setItem(`${LOCAL_STORAGE_KEY}_users`, JSON.stringify(nextUsers));
+    } catch (e) {}
+    await saveRecordToCloud('users', userId, activeUser);
+    showToast(`Đã duyệt tài khoản cho ${activeUser.name}!`);
   };
 
   const handleRejectUser = async (userId: string) => {
-    setUsers(prev =>
-      prev.map(u => (u.id === userId ? { ...u, status: 'rejected' as const } : u))
-    );
-    const updated = users.find(u => u.id === userId);
-    if (updated) {
-      const rejectedUser = { ...updated, status: 'rejected' as const };
-      await saveRecordToCloud('users', userId, rejectedUser);
-      showToast(`Đã từ chối tài khoản ${rejectedUser.name}!`, 'info');
-    }
+    const target = users.find(u => u.id === userId);
+    if (!target) return;
+    const rejectedUser: UserAccount = { ...target, status: 'rejected' as const };
+    const nextUsers = users.map(u => (u.id === userId ? rejectedUser : u));
+    setUsers(nextUsers);
+    try {
+      localStorage.setItem(`${LOCAL_STORAGE_KEY}_users`, JSON.stringify(nextUsers));
+    } catch (e) {}
+    await saveRecordToCloud('users', userId, rejectedUser);
+    showToast(`Đã từ chối tài khoản ${rejectedUser.name}!`, 'info');
   };
 
   const handleChangeUserRole = async (userId: string, newRole: UserRole) => {
     const targetUser = users.find(u => u.id === userId);
-    if (targetUser?.email.trim().toLowerCase() === 'admin@spv.biz.vn') {
+    if (!targetUser) return;
+
+    if (targetUser.email.trim().toLowerCase() === 'admin@spv.biz.vn') {
       showToast('Không thể thay đổi vai trò của tài khoản tối cao admin@spv.biz.vn.', 'error');
       return;
     }
-    if (targetUser?.role === 'admin' && currentUser?.email.trim().toLowerCase() !== 'admin@spv.biz.vn') {
+    if (targetUser.role === 'admin' && currentUser?.email.trim().toLowerCase() !== 'admin@spv.biz.vn') {
       showToast('Chỉ tài khoản admin@spv.biz.vn mới có quyền thay đổi vai trò của Quản trị viên.', 'error');
       return;
     }
 
     const defaultPerms = getDefaultPermissions(newRole);
     const updatedRoleUser: UserAccount = {
-      ...(targetUser || {}),
+      ...targetUser,
       id: userId,
-      name: targetUser?.name || 'Người dùng',
-      email: targetUser?.email || '',
+      name: targetUser.name || 'Người dùng',
+      email: targetUser.email || '',
       role: newRole,
-      status: targetUser?.status || 'active',
-      customer_name: newRole === 'customer' ? targetUser?.customer_name : undefined,
-      permissions: (newRole === 'manager' || newRole === 'admin') ? defaultPerms : (targetUser?.permissions || defaultPerms),
-      createdAt: targetUser?.createdAt || new Date().toISOString()
+      status: targetUser.status || 'active',
+      customer_name: newRole === 'customer' ? (targetUser.customer_name || '') : undefined,
+      permissions: defaultPerms,
+      createdAt: targetUser.createdAt || new Date().toISOString()
     };
 
-    setUsers(prev =>
-      prev.map(u => (u.id === userId ? updatedRoleUser : u))
-    );
-    if (targetUser) {
-      await saveRecordToCloud('users', userId, updatedRoleUser);
-      if (currentUser?.id === userId) {
-        setCurrentUser(updatedRoleUser);
-      }
-      const roleName = newRole === 'manager' ? 'QUẢN LÝ (MANAGER)' : newRole === 'admin' ? 'QUẢN TRỊ VIÊN (ADMIN)' : newRole.toUpperCase();
-      showToast(`Đã cập nhật vai trò thành ${roleName}`);
+    const nextUsers = users.map(u => (u.id === userId ? updatedRoleUser : u));
+    setUsers(nextUsers);
+    try {
+      localStorage.setItem(`${LOCAL_STORAGE_KEY}_users`, JSON.stringify(nextUsers));
+    } catch (e) {}
+
+    await saveRecordToCloud('users', userId, updatedRoleUser);
+
+    if (currentUser && (currentUser.id === userId || currentUser.email.toLowerCase() === targetUser.email.toLowerCase())) {
+      const updatedCurrent = { ...currentUser, ...updatedRoleUser };
+      setCurrentUser(updatedCurrent);
+      try {
+        localStorage.setItem(`${LOCAL_STORAGE_KEY}_current_user`, JSON.stringify(updatedCurrent));
+      } catch (e) {}
     }
+
+    const roleName = newRole === 'manager'
+      ? 'Cấp 2: Quản Lý (Manager)'
+      : newRole === 'admin'
+      ? 'Cấp 1: Quản Trị Viên (Admin)'
+      : newRole === 'employee_accounting'
+      ? 'Cấp 3: Nhân Viên Kế Toán'
+      : newRole === 'employee_logistics'
+      ? 'Cấp 4: Nhân Viên Logistics'
+      : 'Cấp 5: Khách Hàng (Customer)';
+    showToast(`Đã phân cấp vai trò: ${roleName} và đồng bộ toàn hệ thống!`);
   };
 
   const handleChangeUserCustomerName = async (userId: string, customerName: string) => {
     const targetUser = users.find(u => u.id === userId);
-    setUsers(prev =>
-      prev.map(u => (u.id === userId ? { ...u, customer_name: customerName } : u))
-    );
-    if (targetUser) {
-      const updatedUser = { ...targetUser, customer_name: customerName };
-      await saveRecordToCloud('users', userId, updatedUser);
-      if (currentUser?.id === userId) {
-        setCurrentUser(updatedUser);
-      }
-      showToast(`Đã gắn tài khoản với khách hàng: ${customerName || 'Chưa chọn'}`);
+    if (!targetUser) return;
+
+    const updatedUser: UserAccount = { ...targetUser, customer_name: customerName };
+    const nextUsers = users.map(u => (u.id === userId ? updatedUser : u));
+    setUsers(nextUsers);
+    try {
+      localStorage.setItem(`${LOCAL_STORAGE_KEY}_users`, JSON.stringify(nextUsers));
+    } catch (e) {}
+
+    await saveRecordToCloud('users', userId, updatedUser);
+
+    if (currentUser && (currentUser.id === userId || currentUser.email.toLowerCase() === targetUser.email.toLowerCase())) {
+      const updatedCurrent = { ...currentUser, ...updatedUser };
+      setCurrentUser(updatedCurrent);
+      try {
+        localStorage.setItem(`${LOCAL_STORAGE_KEY}_current_user`, JSON.stringify(updatedCurrent));
+      } catch (e) {}
     }
+
+    showToast(`Đã gắn tài khoản với khách hàng: ${customerName || 'Chưa chọn'}`);
   };
 
   const handleChangeUserPermissions = async (userId: string, permissions: UserPermissions) => {
     const targetUser = users.find(u => u.id === userId);
-    setUsers(prev =>
-      prev.map(u => (u.id === userId ? { ...u, permissions } : u))
-    );
-    if (targetUser) {
-      const updatedUser = { ...targetUser, permissions };
-      await saveRecordToCloud('users', userId, updatedUser);
-      if (currentUser?.id === userId) {
-        setCurrentUser(updatedUser);
-      }
-      showToast(`Đã cập nhật phân quyền quản lý cho tài khoản.`);
+    if (!targetUser) return;
+
+    const updatedUser: UserAccount = { ...targetUser, permissions };
+    const nextUsers = users.map(u => (u.id === userId ? updatedUser : u));
+    setUsers(nextUsers);
+    try {
+      localStorage.setItem(`${LOCAL_STORAGE_KEY}_users`, JSON.stringify(nextUsers));
+    } catch (e) {}
+
+    await saveRecordToCloud('users', userId, updatedUser);
+
+    if (currentUser && (currentUser.id === userId || currentUser.email.toLowerCase() === targetUser.email.toLowerCase())) {
+      const updatedCurrent = { ...currentUser, ...updatedUser };
+      setCurrentUser(updatedCurrent);
+      try {
+        localStorage.setItem(`${LOCAL_STORAGE_KEY}_current_user`, JSON.stringify(updatedCurrent));
+      } catch (e) {}
     }
+
+    showToast('Đã lưu và đồng bộ phân quyền chi tiết cho tài khoản.');
   };
 
   const handleResetAllPermissions = async () => {
@@ -570,8 +675,16 @@ export default function App() {
     });
 
     setUsers(updatedUsers);
+    try {
+      localStorage.setItem(`${LOCAL_STORAGE_KEY}_users`, JSON.stringify(updatedUsers));
+    } catch (e) {}
+
     if (currentUser && currentUser.role !== 'admin') {
-      setCurrentUser(prev => prev ? { ...prev, permissions: emptyPerms } : null);
+      const updatedCurrent = { ...currentUser, permissions: emptyPerms };
+      setCurrentUser(updatedCurrent);
+      try {
+        localStorage.setItem(`${LOCAL_STORAGE_KEY}_current_user`, JSON.stringify(updatedCurrent));
+      } catch (e) {}
     }
 
     // Save all to cloud
@@ -581,7 +694,7 @@ export default function App() {
       }
     }
 
-    showToast('Đã xóa toàn bộ phân quyền của tất cả tài khoản về Trống (chưa tích). Bạn có thể tích chọn chi tiết từng quyền.');
+    showToast('Đã xóa toàn bộ phân quyền của tất cả tài khoản về Trống (chưa tích).');
   };
 
   const handleResetAllToRoleDefaults = async () => {
@@ -595,8 +708,16 @@ export default function App() {
     });
 
     setUsers(updatedUsers);
+    try {
+      localStorage.setItem(`${LOCAL_STORAGE_KEY}_users`, JSON.stringify(updatedUsers));
+    } catch (e) {}
+
     if (currentUser && currentUser.role !== 'admin') {
-      setCurrentUser(prev => prev ? { ...prev, permissions: getDefaultPermissions(prev.role) } : null);
+      const updatedCurrent = { ...currentUser, permissions: getDefaultPermissions(currentUser.role) };
+      setCurrentUser(updatedCurrent);
+      try {
+        localStorage.setItem(`${LOCAL_STORAGE_KEY}_current_user`, JSON.stringify(updatedCurrent));
+      } catch (e) {}
     }
 
     for (const u of updatedUsers) {
@@ -605,7 +726,7 @@ export default function App() {
       }
     }
 
-    showToast('Đã gán lại phân quyền mặc định theo vai trò cho toàn bộ tài khoản.');
+    showToast('Đã đồng bộ lại phân quyền mặc định 5 cấp cho toàn bộ tài khoản.');
   };
 
   const handleChangeUserName = async (userId: string, newName: string) => {
@@ -614,26 +735,25 @@ export default function App() {
       showToast('Họ và tên đăng ký không được để trống.', 'error');
       return;
     }
-    let updatedUser: UserAccount | null = null;
-    setUsers(prev =>
-      prev.map(u => {
-        if (u.id === userId) {
-          updatedUser = { ...u, name: trimmedName };
-          return updatedUser;
-        }
-        return u;
-      })
-    );
+    const targetUser = users.find(u => u.id === userId);
+    if (!targetUser) return;
 
-    if (currentUser?.id === userId) {
-      setCurrentUser(prev => (prev ? { ...prev, name: trimmedName } : null));
+    const updatedUser: UserAccount = { ...targetUser, name: trimmedName };
+    const nextUsers = users.map(u => (u.id === userId ? updatedUser : u));
+    setUsers(nextUsers);
+    try {
+      localStorage.setItem(`${LOCAL_STORAGE_KEY}_users`, JSON.stringify(nextUsers));
+    } catch (e) {}
+
+    if (currentUser && (currentUser.id === userId || currentUser.email.toLowerCase() === targetUser.email.toLowerCase())) {
+      const updatedCurrent = { ...currentUser, name: trimmedName };
+      setCurrentUser(updatedCurrent);
+      try {
+        localStorage.setItem(`${LOCAL_STORAGE_KEY}_current_user`, JSON.stringify(updatedCurrent));
+      } catch (e) {}
     }
 
-    const userToSave = updatedUser || (currentUser?.id === userId ? { ...currentUser, name: trimmedName } : users.find(u => u.id === userId));
-    if (userToSave) {
-      await saveRecordToCloud('users', userId, userToSave);
-    }
-
+    await saveRecordToCloud('users', userId, updatedUser);
     showToast(`Đã cập nhật họ tên đăng ký thành: ${trimmedName}`);
   };
 
@@ -647,13 +767,18 @@ export default function App() {
 
     const DEFAULT_RESET_PASSWORD = '27072026';
     const updatedUser: UserAccount = { ...targetUser, password: DEFAULT_RESET_PASSWORD };
+    const nextUsers = users.map(u => (u.id === userId ? updatedUser : u));
+    setUsers(nextUsers);
+    try {
+      localStorage.setItem(`${LOCAL_STORAGE_KEY}_users`, JSON.stringify(nextUsers));
+    } catch (e) {}
 
-    setUsers(prev =>
-      prev.map(u => (u.id === userId ? updatedUser : u))
-    );
-
-    if (currentUser?.id === userId) {
-      setCurrentUser(prev => (prev ? { ...prev, password: DEFAULT_RESET_PASSWORD } : null));
+    if (currentUser && (currentUser.id === userId || currentUser.email.toLowerCase() === targetUser.email.toLowerCase())) {
+      const updatedCurrent = { ...currentUser, password: DEFAULT_RESET_PASSWORD };
+      setCurrentUser(updatedCurrent);
+      try {
+        localStorage.setItem(`${LOCAL_STORAGE_KEY}_current_user`, JSON.stringify(updatedCurrent));
+      } catch (e) {}
     }
 
     await saveRecordToCloud('users', userId, updatedUser);
@@ -670,33 +795,36 @@ export default function App() {
       }
     }
 
-    setUsers(prev => prev.filter(u => u.id !== userId));
+    const nextUsers = users.filter(u => u.id !== userId);
+    setUsers(nextUsers);
+    try {
+      localStorage.setItem(`${LOCAL_STORAGE_KEY}_users`, JSON.stringify(nextUsers));
+    } catch (e) {}
+
     await deleteRecordFromCloud('users', userId);
     showToast('Đã xóa tài khoản khỏi hệ thống.');
   };
 
   const handleUpdateUserPassword = async (userId: string, newPassword: string) => {
-    let updatedUser: UserAccount | null = null;
-    setUsers(prev =>
-      prev.map(u => {
-        if (u.id === userId) {
-          updatedUser = { ...u, password: newPassword };
-          return updatedUser;
-        }
-        return u;
-      })
-    );
+    const targetUser = users.find(u => u.id === userId);
+    if (!targetUser) return;
 
-    if (currentUser?.id === userId) {
-      setCurrentUser(prev => (prev ? { ...prev, password: newPassword } : null));
+    const updatedUser: UserAccount = { ...targetUser, password: newPassword };
+    const nextUsers = users.map(u => (u.id === userId ? updatedUser : u));
+    setUsers(nextUsers);
+    try {
+      localStorage.setItem(`${LOCAL_STORAGE_KEY}_users`, JSON.stringify(nextUsers));
+    } catch (e) {}
+
+    if (currentUser && (currentUser.id === userId || currentUser.email.toLowerCase() === targetUser.email.toLowerCase())) {
+      const updatedCurrent = { ...currentUser, password: newPassword };
+      setCurrentUser(updatedCurrent);
+      try {
+        localStorage.setItem(`${LOCAL_STORAGE_KEY}_current_user`, JSON.stringify(updatedCurrent));
+      } catch (e) {}
     }
 
-    const userToSave = updatedUser || (currentUser?.id === userId ? { ...currentUser, password: newPassword } : users.find(u => u.id === userId));
-    if (userToSave) {
-      const recordToSave = { ...userToSave, password: newPassword };
-      await saveRecordToCloud('users', userId, recordToSave);
-    }
-
+    await saveRecordToCloud('users', userId, updatedUser);
     showToast('Đã cập nhật mật khẩu tài khoản thành công!');
   };
 
@@ -1225,6 +1353,11 @@ export default function App() {
     if (restoredData.users && Array.isArray(restoredData.users)) {
       setUsers(restoredData.users);
       localStorage.setItem(`${LOCAL_STORAGE_KEY}_users`, JSON.stringify(restoredData.users));
+      for (const u of restoredData.users) {
+        if (u && u.id) {
+          await saveRecordToCloud('users', u.id, u);
+        }
+      }
     }
     showToast('Đã đồng bộ và khôi phục toàn bộ cơ sở dữ liệu thành công!');
   };
