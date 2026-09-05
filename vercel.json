@@ -1,4 +1,9 @@
 {
+  "functions": {
+    "api/ocr/extract-shipment.ts": {
+      "maxDuration": 60
+    }
+  },
   "rewrites": [
     {
       "source": "/(.*)",

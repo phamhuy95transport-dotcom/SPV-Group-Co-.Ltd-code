@@ -3,6 +3,8 @@ import path from "path";
 import { google } from "googleapis";
 import { Readable } from "stream";
 import dotenv from "dotenv";
+import { allowOcrRequest, getRequestClientKey } from "./server/ocrRateLimit";
+import { extractShipmentDocuments, OcrRequestError } from "./server/shipmentOcr";
 
 dotenv.config();
 
@@ -12,21 +14,35 @@ const PORT = 3000;
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
-// Google Drive Service Account Credentials provided by user
-const DEFAULT_SERVICE_ACCOUNT_KEY = {
-  type: "service_account",
-  project_id: "spv-management-contract",
-  private_key_id: "80007555d4029f193c2ab6e6f5a78fad6873db64",
-  private_key: "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC5iISEjwg3pvPt\nIP5axAd9/DgzkXiOfGRrqcCiREd/Vni/YWfW4iMdoRxdRPEw0vOGPAw39/itItIs\nZoXYxEcrQO+laI0NRnzz6Cy0rglg0VQuH+onCk84/8PTC+w7Y2LgF71WTvk2e2h1\nkXow1z+5rNkc7KY3kiQzmMjwqT1qohbVkH3TAan0o4ghgznYqFNdA2nX3+klJrnu\nxSfp7TDZAbzchrl9VL0e34071UaPz5vb7YFt4RAzEXuqD20ZVpXIgtEFNZtrFlgo\nGqrlW/wy/B0f37FQIzdKkdbC+jPWxhfzJe0CWcBtCY5mjIFaiIQgYRg00tFtjrI4\nCn61MQrzAgMBAAECggEASAs/bhv+dGHTmXJ04nj5cc4FYtzro+Sgt//gSgJagxNo\nauRfhp0kRqaflYYmZC+eGbNqiTc0rMJ3O3+KHOzGuACMrj3Fe/Cxp6Kx7W0hPiO6\n3PhOm99QeRE0ENkx37PNmrgNMR0Uf7f3DaQyfxGucKKyYh1ww+ZvQUvkRzNoomVq\nUl5PCBOnyH5KIRgz15nGXeoMIDcZMYVM0nsZiACPp3kA4p9gFyihUNGjKWowAl5+\n7PwQNR6FwZE0ScAUbGAJ8X5vcuEGXxaTqvU/9k6WsOYvJ8gG4W2TX6vcSvjSFmVk\newZOLX5G2IPmkhvTPHi1VMOPY0ZWzbMqDZqXTYMgkQKBgQDdfuT7XZNpL6mazzgd\nlQ+OJ5tQ1OKMOmNkYDrpYEmAg1PgawwnhWAHf688Qd2eoJiNQ4A5HoXpHSYw08Om\n7uuMbnnkIHIf28bD5gSvE3VMzDQNmUFohuVkEUkmwIMlZZgxQwVGxjrfoxltdYEc\nkAtcV7LO0QZls18z/wonXSp6QwKBgQDWb3ckBBVAsUdrXln4DobKDOXTjEep4FTT\nqQcNgvGg5JkuHYeFCq89FDd+dcgZrpj9FkWQxFdQ89Z7Ca0nVMd4aePQ+vM+J8Dm\n95767yIz0LMWAnMFjHPC4nUvrUUODsMXGvjToB91R5gbXlZb4VmIFD0yJiGdPCE9\nvk8NjRXZkQKBgQCJh8I8hhUC6hJgyqwoSib3eIZLAXSN569RYyMRR7U7889/+Ff6\nrik7Xr/7JVarqUIv7KrQTLCPV4cgKE1C+PUPJIXQ7YiPWZKojsl3wBhEkEL98pwX\ngDMtGEKYqk6ESPngFKJRGMLzm70tJxn9Fz/GnbmsC0PyoBbMHV87o/C9KwKBgGyU\nmo55Js3QNqrOZt4tdOEgsMty7+K7/hgDMdgMow9mUY5BU5rxcxSJhSQavc0LVNpq\niaUpVlFedw9sMeqFik+Vxs7OE5c4h/wsDKthpT75gYU2jkmT+hYHl3Eh2qKopO6x\nMKfwH53CN+o71ZzGuhAmt2oKVuEIToi2Mc9ZzmORAoGAA5835o/lOjLCGVgCTAhF\nS8zGzRvIE6NgrFy52AuJgVknijDQLjDL3YE8MlDEIPWeriUWAE/zMd8uN5HETsje\nQoj1noVG+Q5CGLpU9pIWaAKYXTPL/uiGQjYYnQBjPLwCmhfexMeeFEPA9cKAcsGr\n/e8OAGg97sL1WGGWwaWIHh0=\n-----END PRIVATE KEY-----\n",
-  client_email: "spv-group-database-gdrive@spv-management-contract.iam.gserviceaccount.com",
-  client_id: "106738076589784964957",
-  auth_uri: "https://accounts.google.com/o/oauth2/auth",
-  token_uri: "https://oauth2.googleapis.com/token",
-  auth_provider_x509_cert_url: "https://www.googleapis.com/oauth2/v1/certs",
-  client_x509_cert_url: "https://www.googleapis.com/robot/v1/metadata/x509/spv-group-database-gdrive%40spv-management-contract.iam.gserviceaccount.com",
-  universe_domain: "googleapis.com"
-};
+// OCR always returns a reviewable draft. It deliberately accepts documents only
+// through this server route so the Gemini key never reaches the browser.
+app.post("/api/ocr/extract-shipment", async (req, res) => {
+  const rateLimit = allowOcrRequest(getRequestClientKey(req.headers, req.ip));
+  if (!rateLimit.allowed) {
+    res.setHeader("Retry-After", String(rateLimit.retryAfterSeconds || 60));
+    return res.status(429).json({
+      success: false,
+      error: "Bạn đã gửi quá nhiều lượt OCR. Hãy thử lại sau ít phút.",
+    });
+  }
 
+  try {
+    const results = await extractShipmentDocuments(req.body?.documents);
+    return res.json({ success: true, results });
+  } catch (error) {
+    const status = error instanceof OcrRequestError ? error.status : 500;
+    if (!(error instanceof OcrRequestError)) {
+      console.error("Shipment OCR failed:", error);
+    }
+    return res.status(status).json({
+      success: false,
+      error: error instanceof Error ? error.message : "Không thể trích xuất chứng từ.",
+    });
+  }
+});
+
+// Google Drive credentials must be provided through environment variables or
+// an explicit runtime configuration. Never embed a service-account key in source.
 // Dynamic in-memory configuration (allows user to switch API key, OAuth2 refresh token and target folders)
 interface OAuth2DriveConfig {
   clientId?: string;
@@ -82,7 +98,7 @@ function getServiceAccount(customSa?: any) {
       // ignore
     }
   }
-  return DEFAULT_SERVICE_ACCOUNT_KEY;
+  return null;
 }
 
 const SCOPES = ["https://www.googleapis.com/auth/drive"];
@@ -563,15 +579,22 @@ app.post("/api/gdrive/config/credentials", async (req, res) => {
 
     if (resetToDefault) {
       activeCustomServiceAccount = null;
+      const configuredServiceAccount = getServiceAccount();
+      if (!configuredServiceAccount?.client_email || !configuredServiceAccount?.private_key) {
+        return res.status(400).json({
+          success: false,
+          error: "Chưa có Service Account mặc định trong biến môi trường GOOGLE_DRIVE_SERVICE_ACCOUNT_KEY.",
+        });
+      }
       activeAuthMode = "service_account";
       return res.json({
         success: true,
         isCustomKey: false,
         authMode: "service_account",
-        message: "Đã khôi phục về khóa Service Account mặc định thành công!",
+        message: "Đã khôi phục cấu hình Service Account từ môi trường máy chủ.",
         serviceAccount: {
-          email: DEFAULT_SERVICE_ACCOUNT_KEY.client_email,
-          projectId: DEFAULT_SERVICE_ACCOUNT_KEY.project_id,
+          email: configuredServiceAccount.client_email,
+          projectId: configuredServiceAccount.project_id,
         },
       });
     }

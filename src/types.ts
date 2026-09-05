@@ -1,4 +1,5 @@
-export type UserRole = 'admin' | 'manager' | 'employee_logistics' | 'employee_accounting' | 'customer';
+/** `employee` is retained for older accounts created before role-specific staff types existed. */
+export type UserRole = 'admin' | 'manager' | 'employee' | 'employee_logistics' | 'employee_accounting' | 'customer';
 
 export type UserStatus = 'active' | 'pending' | 'rejected';
 
@@ -39,6 +40,7 @@ export const getDefaultPermissions = (role: UserRole): UserPermissions => {
         utilities: { view: true, edit: true },
         gdrive: { view: true, edit: true },
       };
+    case 'employee':
     case 'employee_logistics':
       return {
         dashboard: { view: true, edit: false },
@@ -187,6 +189,9 @@ export interface UserAccount {
   id: string;
   email: string;
   name: string;
+  /** Legacy profile fields used by the Drive integration. */
+  fullName?: string;
+  username?: string;
   phone?: string;
   role: UserRole;
   customer_name?: string; // Tên khách hàng gắn liên kết cho tài khoản role 'customer'
@@ -234,9 +239,38 @@ export interface ShipmentRecord {
   return_invoice_address?: string;
   created_by?: CreatorInfo; // Người nhập liệu
   createdAt?: string;
+  updatedAt?: string;
+  /** OCR-created records remain in review until a user confirms them. */
+  processing_status?: 'draft_review' | 'confirmed';
+  ocr?: ShipmentOcrMetadata;
 }
 
-export interface WarehouseItem {
+export interface ShipmentOcrMetadata {
+  provider: 'gemini';
+  model: string;
+  extractedAt: string;
+  sourceDocuments: ShipmentSourceDocument[];
+  warnings?: string[];
+  reviewStatus: 'needs_review' | 'applied' | 'confirmed';
+}
+
+export interface ShipmentSourceDocument {
+  name: string;
+  mimeType: string;
+  size?: number;
+  driveFileId?: string;
+  driveUrl?: string;
+}
+
+export interface MasterDataMetadata {
+  /** Alternate spellings or shorthand names that resolve to this canonical record. */
+  aliases?: string[];
+  /** Search key generated from the canonical name. */
+  normalized_name?: string;
+  updatedAt?: string;
+}
+
+export interface WarehouseItem extends MasterDataMetadata {
   id: string;
   warehouse_name: string;
   contact_person: string;
@@ -244,7 +278,7 @@ export interface WarehouseItem {
   location: string;
 }
 
-export interface TransporterItem {
+export interface TransporterItem extends MasterDataMetadata {
   id: string;
   transporter_name: string;
   company_full_name?: string;
@@ -252,7 +286,7 @@ export interface TransporterItem {
   address?: string;
 }
 
-export interface CustomerItem {
+export interface CustomerItem extends MasterDataMetadata {
   id: string;
   customer_name: string;
   company_full_name?: string;
@@ -260,7 +294,7 @@ export interface CustomerItem {
   address?: string;
 }
 
-export interface RouteItem {
+export interface RouteItem extends MasterDataMetadata {
   id: string;
   route_name: string;
 }
@@ -290,6 +324,27 @@ export interface EmployeeAdvanceItem {
   updatedAt?: string;
 }
 
+export type AuditEntityType = 'shipment' | 'master_data' | 'ocr_batch';
+export type AuditAction =
+  | 'shipment_created'
+  | 'shipment_updated'
+  | 'shipment_confirmed'
+  | 'shipment_draft_created'
+  | 'ocr_applied'
+  | 'master_saved'
+  | 'master_merged';
+
+export interface AuditEvent {
+  id: string;
+  entityType: AuditEntityType;
+  entityId?: string;
+  action: AuditAction;
+  message: string;
+  actor?: CreatorInfo;
+  createdAt: string;
+  metadata?: Record<string, unknown>;
+}
+
 export const findCustomerByName = (customerName?: string, customersList: CustomerItem[] = []): CustomerItem | undefined => {
   if (!customerName || !customerName.trim()) return undefined;
   const target = customerName.trim().toLowerCase();
@@ -306,7 +361,13 @@ export const findCustomerByName = (customerName?: string, customersList: Custome
   found = customersList.find(c => c.tax_code?.trim().toLowerCase() === target);
   if (found) return found;
 
-  // 4. Partial / Includes match
+  // 4. Canonical aliases (for example: "Madin Chem" -> the approved customer record).
+  found = customersList.find(c =>
+    (c.aliases || []).some(alias => alias.trim().toLowerCase() === target)
+  );
+  if (found) return found;
+
+  // 5. Partial / Includes match
   found = customersList.find(c => {
     const cName = c.customer_name.trim().toLowerCase();
     const compName = c.company_full_name?.trim().toLowerCase() || '';

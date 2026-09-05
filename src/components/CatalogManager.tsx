@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   FolderTree,
   Warehouse,
@@ -14,7 +14,10 @@ import {
   X,
   Globe,
   Loader2,
-  CheckCircle2
+  CheckCircle2,
+  AlertTriangle,
+  GitMerge,
+  Tags
 } from 'lucide-react';
 import {
   CatalogSubTab,
@@ -24,6 +27,12 @@ import {
   RouteItem
 } from '../types';
 import { lookupTaxCode } from '../lib/taxLookup';
+import {
+  findDuplicateGroups,
+  getMasterName,
+  MasterDuplicateGroup,
+  parseAliases,
+} from '../lib/masterData';
 
 interface CatalogManagerProps {
   activeSubTab: CatalogSubTab;
@@ -34,6 +43,7 @@ interface CatalogManagerProps {
   routes: RouteItem[];
   onSaveCatalogItem: (subTab: CatalogSubTab, item: any) => Promise<void>;
   onDeleteCatalogItem: (subTab: CatalogSubTab, id: string, name: string) => void;
+  onMergeCatalogItems?: (subTab: CatalogSubTab, primaryId: string, duplicateIds: string[]) => Promise<void>;
 }
 
 export const CatalogManager: React.FC<CatalogManagerProps> = ({
@@ -45,6 +55,7 @@ export const CatalogManager: React.FC<CatalogManagerProps> = ({
   routes,
   onSaveCatalogItem,
   onDeleteCatalogItem,
+  onMergeCatalogItems,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [showModal, setShowModal] = useState(false);
@@ -206,6 +217,7 @@ export const CatalogManager: React.FC<CatalogManagerProps> = ({
     e.preventDefault();
     await onSaveCatalogItem(activeSubTab, {
       ...formData,
+      aliases: parseAliases(formData.aliases),
       id: editItem ? editItem.id : undefined,
     });
     setShowModal(false);
@@ -238,6 +250,23 @@ export const CatalogManager: React.FC<CatalogManagerProps> = ({
   );
 
   const filteredRoutes = routes.filter(r => !q || r.route_name.toLowerCase().includes(q));
+
+  const duplicateGroups = useMemo(() => {
+    const groups: MasterDuplicateGroup[] = activeSubTab === 'warehouse'
+      ? findDuplicateGroups(warehouses, 'warehouse')
+      : activeSubTab === 'transporter'
+      ? findDuplicateGroups(transporters, 'transporter')
+      : activeSubTab === 'customer'
+      ? findDuplicateGroups(customers, 'customer')
+      : findDuplicateGroups(routes, 'route');
+    const uniqueGroups = new Map<string, MasterDuplicateGroup>();
+    groups.forEach(group => {
+      const ids = group.items.map(item => item.id).sort().join('|');
+      const existing = uniqueGroups.get(ids);
+      if (!existing || group.reason === 'same_tax_code') uniqueGroups.set(ids, group);
+    });
+    return [...uniqueGroups.values()];
+  }, [activeSubTab, warehouses, transporters, customers, routes]);
 
   const getSubTabTitle = (tab: CatalogSubTab) => {
     switch (tab) {
@@ -369,6 +398,46 @@ export const CatalogManager: React.FC<CatalogManagerProps> = ({
           />
         </div>
       </div>
+
+      {/* Safe master-data cleanup: an administrator explicitly confirms every merge. */}
+      {duplicateGroups.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3.5 text-xs text-amber-950 space-y-2">
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-extrabold">Phát hiện {duplicateGroups.length} nhóm dữ liệu có thể trùng</p>
+              <p className="text-[11px] text-amber-800 mt-0.5">Gợi ý dựa trên tên chuẩn hoặc MST; hệ thống không tự xóa dữ liệu.</p>
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            {duplicateGroups.slice(0, 3).map(group => {
+              const primary = group.items[0];
+              const duplicates = group.items.slice(1);
+              return (
+                <div key={`${group.reason}-${group.key}`} className="flex flex-col sm:flex-row sm:items-center gap-2 bg-white/70 border border-amber-100 rounded-xl px-3 py-2">
+                  <span className="flex-1 font-semibold truncate" title={group.items.map(item => getMasterName(item, activeSubTab)).join(' · ')}>
+                    {group.items.map(item => getMasterName(item, activeSubTab)).join(' · ')}
+                  </span>
+                  {onMergeCatalogItems && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const label = getMasterName(primary, activeSubTab);
+                        if (window.confirm(`Gộp ${duplicates.length} bản ghi vào "${label}"? Tên cũ sẽ được giữ thành alias.`)) {
+                          void onMergeCatalogItems(activeSubTab, primary.id, duplicates.map(item => item.id));
+                        }
+                      }}
+                      className="shrink-0 inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold transition"
+                    >
+                      <GitMerge className="w-3.5 h-3.5" /> Gộp an toàn
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Catalog Table: Warehouses */}
       {activeSubTab === 'warehouse' && (
@@ -688,6 +757,20 @@ export const CatalogManager: React.FC<CatalogManagerProps> = ({
                   </div>
                 </>
               )}
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1.5">
+                  <Tags className="w-3.5 h-3.5 text-indigo-600" /> Tên gọi khác / Alias OCR
+                </label>
+                <input
+                  type="text"
+                  value={Array.isArray(formData.aliases) ? formData.aliases.join(', ') : (formData.aliases || '')}
+                  onChange={e => setFormData({ ...formData, aliases: e.target.value })}
+                  placeholder="Ví dụ: MADIN CHEM, Madin Chemical (phân cách bằng dấu phẩy)"
+                  className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+                <p className="text-[11px] text-slate-400 mt-1">OCR sẽ map tên này về bản ghi chuẩn, không tự tạo danh mục trùng.</p>
+              </div>
 
               {activeSubTab === 'route' && (
                 <div>

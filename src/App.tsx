@@ -16,6 +16,9 @@ import {
   CustomerQuotation,
   EmployeeAdvanceItem,
   SeaFreightRecord,
+  ShipmentOcrMetadata,
+  AuditEvent,
+  AuditAction,
   DashboardCustomSettings,
   DEFAULT_DASHBOARD_SETTINGS,
   canDeleteUser,
@@ -48,6 +51,8 @@ import { AuthModal } from './components/AuthModal';
 import { UserManagementModal } from './components/UserManagementModal';
 import { ShipmentTable } from './components/ShipmentTable';
 import { ShipmentModal } from './components/ShipmentModal';
+import { ShipmentOcrModal } from './components/ShipmentOcrModal';
+import { ShipmentAuditModal } from './components/ShipmentAuditModal';
 import { DeliveryReceiptModal } from './components/DeliveryReceiptModal';
 import { CatalogManager } from './components/CatalogManager';
 import { FinancialReport } from './components/FinancialReport';
@@ -63,6 +68,13 @@ import { GoogleDriveManager } from './components/GoogleDriveManager';
 import { WelcomeModal } from './components/WelcomeModal';
 import { Toast, ToastState } from './components/Toast';
 import { Trash2, Briefcase, DollarSign, FileSpreadsheet, BarChart3, Award, Tag, Wallet, Ship } from 'lucide-react';
+import {
+  getMasterName,
+  mergeMasterAliases,
+  normalizeCatalogItem,
+  normalizeMasterText,
+} from './lib/masterData';
+import type { ShipmentOcrDraft } from './lib/ocrContract';
 
 const MOTIVATIONAL_QUOTES = [
   "Mỗi ngày là một món quà. Hãy trân trọng và tận hưởng nó.",
@@ -84,6 +96,7 @@ export default function App() {
   // Main Data States
   const [users, setUsers] = useState<UserAccount[]>(DEFAULT_USERS);
   const [records, setRecords] = useState<ShipmentRecord[]>(DEFAULT_SHIPMENTS);
+  const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([]);
   const [warehouses, setWarehouses] = useState<WarehouseItem[]>(DEFAULT_WAREHOUSES);
   const [transporters, setTransporters] = useState<TransporterItem[]>(DEFAULT_TRANSPORTERS);
   const [customers, setCustomers] = useState<CustomerItem[]>(DEFAULT_CUSTOMERS);
@@ -139,8 +152,10 @@ export default function App() {
   const [editProfileNameInput, setEditProfileNameInput] = useState('');
   
   const [isShipmentModalOpen, setIsShipmentModalOpen] = useState(false);
+  const [isBatchOcrModalOpen, setIsBatchOcrModalOpen] = useState(false);
   const [shipmentModalMode, setShipmentModalMode] = useState<'add' | 'edit'>('add');
   const [selectedShipment, setSelectedShipment] = useState<ShipmentRecord | null>(null);
+  const [auditShipment, setAuditShipment] = useState<ShipmentRecord | null>(null);
 
   const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
   const [receiptRecord, setReceiptRecord] = useState<ShipmentRecord | null>(null);
@@ -169,6 +184,29 @@ export default function App() {
     }, 4000);
   };
 
+  const appendAuditEvent = async (event: {
+    entityType: AuditEvent['entityType'];
+    entityId?: string;
+    action: AuditAction;
+    message: string;
+    metadata?: Record<string, unknown>;
+  }) => {
+    if (!currentUser) return;
+    const auditEvent: AuditEvent = {
+      id: `audit_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      ...event,
+      actor: {
+        uid: currentUser.id,
+        email: currentUser.email,
+        name: currentUser.name,
+        role: currentUser.role,
+      },
+      createdAt: new Date().toISOString(),
+    };
+    setAuditEvents(previous => [auditEvent, ...previous].slice(0, 500));
+    await saveRecordToCloud('audit_events', auditEvent.id, auditEvent);
+  };
+
   // Setup Firebase / LocalStorage Sync
   useEffect(() => {
     // 1. Subscribe to Firebase Realtime DB collections
@@ -176,6 +214,13 @@ export default function App() {
       if (data && data.length > 0) {
         setRecords(data as ShipmentRecord[]);
       }
+    });
+
+    const unsubAuditEvents = subscribeToCloudCollection('audit_events', (data) => {
+      setAuditEvents((data as AuditEvent[])
+        .filter(event => Boolean(event?.id && event?.createdAt))
+        .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+        .slice(0, 500));
     });
 
     const unsubWarehouses = subscribeToCloudCollection('warehouses', (data) => {
@@ -266,6 +311,7 @@ export default function App() {
 
     return () => {
       unsubShipments();
+      unsubAuditEvents();
       unsubWarehouses();
       unsubTransporters();
       unsubCustomers();
@@ -440,10 +486,10 @@ export default function App() {
     setIsWelcomeModalOpen(true);
 
     // Redirect if customer lands on forbidden tab
-    if (user.role === 'customer' && (activeTab === 'category' || activeTab === 'report' || activeTab === 'users')) {
+    if (user.role === 'customer' && (activeTab === 'category' || activeTab === 'users')) {
       setActiveTab('entry');
     }
-    if ((user.role === 'employee_logistics' || user.role === 'employee_accounting' || user.role === ('employee' as any)) && (activeTab === 'report' || activeTab === 'users')) {
+    if ((user.role === 'employee' || user.role === 'employee_logistics' || user.role === 'employee_accounting') && activeTab === 'users') {
       setActiveTab('entry');
     }
   };
@@ -913,6 +959,78 @@ export default function App() {
     setIsShipmentModalOpen(true);
   };
 
+  const handleOpenBatchOcrModal = () => {
+    if (!currentUser) {
+      showToast('Vui lòng đăng nhập để nhập chứng từ bằng AI.', 'error');
+      setAuthModalMode('login');
+      setIsAuthModalOpen(true);
+      return;
+    }
+    if (!hasPermission(currentUser, 'shipments', 'edit')) {
+      showToast('Tài khoản của bạn không có quyền nhập chuyến hàng bằng AI.', 'error');
+      return;
+    }
+    setIsBatchOcrModalOpen(true);
+  };
+
+  const handleCreateOcrDrafts = async (drafts: Array<{
+    draft: ShipmentOcrDraft;
+    metadata: ShipmentOcrMetadata;
+    documentName: string;
+  }>) => {
+    if (!currentUser || !hasPermission(currentUser, 'shipments', 'edit')) {
+      throw new Error('Tài khoản của bạn không có quyền tạo bản nháp chuyến hàng.');
+    }
+    const now = new Date().toISOString();
+    const newRecords: ShipmentRecord[] = drafts.map(({ draft, metadata }) => ({
+      id: `rec_ocr_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      // Empty required values stay visibly incomplete; they are never fabricated from OCR.
+      date_announced: draft.date_announced || '',
+      delivery_date: draft.delivery_date || '',
+      route: draft.route || '',
+      transporter: draft.transporter || '',
+      cont_number: draft.cont_number || '',
+      customer: draft.customer || '',
+      batch_number: draft.batch_number || '',
+      cont_quantity: draft.cont_quantity || 0,
+      warehouse: draft.warehouse || '',
+      contact_person: draft.contact_person || '',
+      contact_phone: draft.contact_phone || '',
+      notes: draft.notes || '',
+      phoi_nang: false,
+      phoi_ha: false,
+      hd_ha_rong: false,
+      hd_dich_vu: false,
+      hd_dau_vao: false,
+      hd_dau_ra: false,
+      base_price: 0,
+      sale_price: 0,
+      processing_status: 'draft_review',
+      ocr: { ...metadata, reviewStatus: 'needs_review' },
+      created_by: {
+        uid: currentUser.id,
+        email: currentUser.email,
+        name: currentUser.name,
+        role: currentUser.role,
+      },
+      createdAt: now,
+      updatedAt: now,
+    }));
+
+    setRecords(previous => [...newRecords, ...previous]);
+    await Promise.all([
+      ...newRecords.map(record => saveRecordToCloud('shipments', record.id, record)),
+      ...newRecords.map((record, index) => appendAuditEvent({
+        entityType: 'shipment',
+        entityId: record.id,
+        action: 'shipment_draft_created',
+        message: `Tạo bản nháp OCR từ chứng từ ${drafts[index].documentName}.`,
+        metadata: { documentName: drafts[index].documentName, processingStatus: 'draft_review' },
+      })),
+    ]);
+    showToast(`Đã tạo ${newRecords.length} bản nháp OCR. Hãy mở từng chuyến để kiểm tra và xác nhận.`);
+  };
+
   const handleSaveShipment = async (shipmentData: Partial<ShipmentRecord>) => {
     if (!currentUser) {
       showToast('Vui lòng đăng nhập để thực hiện thao tác này.', 'error');
@@ -927,6 +1045,8 @@ export default function App() {
     }
 
     const recordId = shipmentData.id || 'rec_' + Date.now();
+    const existingRecord = records.find(record => record.id === recordId);
+    const now = new Date().toISOString();
     const recordToSave: ShipmentRecord = {
       ...shipmentData,
       id: recordId,
@@ -949,7 +1069,8 @@ export default function App() {
         name: currentUser.name,
         role: currentUser.role
       } : undefined),
-      createdAt: shipmentData.createdAt || new Date().toISOString()
+      createdAt: shipmentData.createdAt || now,
+      updatedAt: now,
     };
 
     setRecords(prev => {
@@ -963,6 +1084,22 @@ export default function App() {
     });
 
     await saveRecordToCloud('shipments', recordId, recordToSave);
+    const action: AuditAction = !existingRecord
+      ? 'shipment_created'
+      : existingRecord.processing_status === 'draft_review' && recordToSave.processing_status === 'confirmed'
+      ? 'shipment_confirmed'
+      : 'shipment_updated';
+    await appendAuditEvent({
+      entityType: 'shipment',
+      entityId: recordId,
+      action,
+      message: action === 'shipment_confirmed'
+        ? 'Đã kiểm tra và xác nhận bản nháp OCR.'
+        : action === 'shipment_created'
+        ? 'Đã tạo chuyến hàng mới.'
+        : 'Đã cập nhật chuyến hàng.',
+      metadata: { processingStatus: recordToSave.processing_status || 'confirmed' },
+    });
     showToast(shipmentModalMode === 'add' ? 'Thêm mới chuyến hàng thành công!' : 'Cập nhật chuyến hàng thành công!');
   };
 
@@ -1022,7 +1159,7 @@ export default function App() {
       return;
     }
 
-    const updated = { ...record, [field]: !record[field] };
+    const updated = { ...record, [field]: !record[field], updatedAt: new Date().toISOString() };
     setRecords(prev => prev.map(r => (r.id === record.id ? updated : r)));
     await saveRecordToCloud('shipments', record.id, updated);
     
@@ -1033,6 +1170,13 @@ export default function App() {
     else if (field === 'phoi_ha') fieldLabel = 'Phơi hạ';
     else if (field === 'hd_ha_rong') fieldLabel = 'HĐ hạ rỗng';
 
+    await appendAuditEvent({
+      entityType: 'shipment',
+      entityId: record.id,
+      action: 'shipment_updated',
+      message: `Đã cập nhật ${fieldLabel}: ${updated[field] ? 'Có' : 'Không'}.`,
+      metadata: { field: String(field), value: Boolean(updated[field]) },
+    });
     showToast(`Đã cập nhật ${fieldLabel}: ${updated[field] ? 'Có' : 'Không'}`);
   };
 
@@ -1059,7 +1203,7 @@ export default function App() {
       return;
     }
     const id = itemData.id || subTab[0] + '_' + Date.now();
-    const itemToSave = { ...itemData, id };
+    const itemToSave = normalizeCatalogItem(subTab, { ...itemData, id });
 
     const collectionMap: { [key in CatalogSubTab]: string } = {
       warehouse: 'warehouses',
@@ -1069,29 +1213,123 @@ export default function App() {
     };
 
     if (subTab === 'warehouse') {
+      const typedItem = itemToSave as WarehouseItem;
       setWarehouses(prev => {
         const idx = prev.findIndex(x => x.id === id);
-        return idx >= 0 ? prev.map(x => (x.id === id ? itemToSave : x)) : [itemToSave, ...prev];
+        return idx >= 0 ? prev.map(x => (x.id === id ? typedItem : x)) : [typedItem, ...prev];
       });
     } else if (subTab === 'transporter') {
+      const typedItem = itemToSave as TransporterItem;
       setTransporters(prev => {
         const idx = prev.findIndex(x => x.id === id);
-        return idx >= 0 ? prev.map(x => (x.id === id ? itemToSave : x)) : [itemToSave, ...prev];
+        return idx >= 0 ? prev.map(x => (x.id === id ? typedItem : x)) : [typedItem, ...prev];
       });
     } else if (subTab === 'customer') {
+      const typedItem = itemToSave as CustomerItem;
       setCustomers(prev => {
         const idx = prev.findIndex(x => x.id === id);
-        return idx >= 0 ? prev.map(x => (x.id === id ? itemToSave : x)) : [itemToSave, ...prev];
+        return idx >= 0 ? prev.map(x => (x.id === id ? typedItem : x)) : [typedItem, ...prev];
       });
     } else if (subTab === 'route') {
+      const typedItem = itemToSave as RouteItem;
       setRoutes(prev => {
         const idx = prev.findIndex(x => x.id === id);
-        return idx >= 0 ? prev.map(x => (x.id === id ? itemToSave : x)) : [itemToSave, ...prev];
+        return idx >= 0 ? prev.map(x => (x.id === id ? typedItem : x)) : [typedItem, ...prev];
       });
     }
 
     await saveRecordToCloud(collectionMap[subTab], id, itemToSave);
+    await appendAuditEvent({
+      entityType: 'master_data',
+      entityId: id,
+      action: 'master_saved',
+      message: `Đã lưu danh mục ${subTab}: ${getMasterName(itemToSave, subTab)}.`,
+      metadata: { subTab },
+    });
     showToast(`Đã lưu dữ liệu danh mục thành công!`);
+  };
+
+  const handleMergeCatalogItems = async (subTab: CatalogSubTab, primaryId: string, duplicateIds: string[]) => {
+    if (!hasPermission(currentUser, 'catalog', 'edit')) {
+      showToast('Tài khoản của bạn chưa được cấp quyền chuẩn hóa danh mục.', 'error');
+      return;
+    }
+
+    const sourceItems = subTab === 'warehouse'
+      ? warehouses
+      : subTab === 'transporter'
+      ? transporters
+      : subTab === 'customer'
+      ? customers
+      : routes;
+    const primary = sourceItems.find(item => item.id === primaryId);
+    const duplicates = sourceItems.filter(item => duplicateIds.includes(item.id));
+
+    if (!primary || duplicates.length === 0) {
+      showToast('Không tìm thấy đủ bản ghi để gộp. Hãy làm mới danh mục và thử lại.', 'error');
+      return;
+    }
+
+    const merged = mergeMasterAliases(primary, duplicates, subTab);
+    const canonicalName = getMasterName(merged, subTab);
+    const oldNames = new Set(
+      duplicates.flatMap(item => [getMasterName(item, subTab), ...(item.aliases || [])])
+        .map(normalizeMasterText)
+        .filter(Boolean),
+    );
+
+    if (subTab === 'warehouse') {
+      setWarehouses(prev => prev.filter(item => !duplicateIds.includes(item.id)).map(item => item.id === primaryId ? merged as WarehouseItem : item));
+    } else if (subTab === 'transporter') {
+      setTransporters(prev => prev.filter(item => !duplicateIds.includes(item.id)).map(item => item.id === primaryId ? merged as TransporterItem : item));
+    } else if (subTab === 'customer') {
+      setCustomers(prev => prev.filter(item => !duplicateIds.includes(item.id)).map(item => item.id === primaryId ? merged as CustomerItem : item));
+    } else {
+      setRoutes(prev => prev.filter(item => !duplicateIds.includes(item.id)).map(item => item.id === primaryId ? merged as RouteItem : item));
+    }
+
+    const shipmentField: keyof ShipmentRecord = subTab === 'warehouse'
+      ? 'warehouse'
+      : subTab === 'transporter'
+      ? 'transporter'
+      : subTab === 'customer'
+      ? 'customer'
+      : 'route';
+    const changedShipments = records
+      .filter(record => oldNames.has(normalizeMasterText(String(record[shipmentField] || ''))))
+      .map(record => ({ ...record, [shipmentField]: canonicalName, updatedAt: new Date().toISOString() }));
+
+    if (changedShipments.length > 0) {
+      const changedIds = new Set(changedShipments.map(record => record.id));
+      setRecords(prev => prev.map(record => changedIds.has(record.id)
+        ? changedShipments.find(updated => updated.id === record.id) || record
+        : record));
+    }
+
+    const collectionMap: Record<CatalogSubTab, string> = {
+      warehouse: 'warehouses',
+      transporter: 'transporters',
+      customer: 'customers',
+      route: 'routes',
+    };
+    await Promise.all([
+      saveRecordToCloud(collectionMap[subTab], merged.id, merged),
+      ...duplicateIds.map(id => deleteRecordFromCloud(collectionMap[subTab], id)),
+      ...changedShipments.map(record => saveRecordToCloud('shipments', record.id, record)),
+    ]);
+    await appendAuditEvent({
+      entityType: 'master_data',
+      entityId: merged.id,
+      action: 'master_merged',
+      message: `Đã gộp ${duplicates.length} bản ghi ${subTab} vào ${canonicalName}.`,
+      metadata: {
+        subTab,
+        mergedIds: duplicateIds,
+        updatedShipmentCount: changedShipments.length,
+      },
+    });
+
+    showToast(`Đã gộp ${duplicates.length} bản ghi vào "${canonicalName}" và giữ tên cũ làm alias.`);
   };
 
   const handleDeleteCatalogItem = (subTab: CatalogSubTab, id: string, name: string) => {
@@ -1435,6 +1673,8 @@ export default function App() {
             onToggleCheckbox={handleToggleCheckbox}
             onOpenNewTripModal={handleOpenNewTripModal}
             onImportShipments={handleImportShipments}
+            onOpenOcrBatch={handleOpenBatchOcrModal}
+            onOpenAuditModal={record => setAuditShipment(record)}
             onOpenLoginModal={() => {
               setAuthModalMode('login');
               setIsAuthModalOpen(true);
@@ -1531,6 +1771,7 @@ export default function App() {
             routes={routes}
             onSaveCatalogItem={handleSaveCatalogItem}
             onDeleteCatalogItem={handleDeleteCatalogItem}
+            onMergeCatalogItems={handleMergeCatalogItems}
           />
         )}
 
@@ -1844,8 +2085,25 @@ export default function App() {
         transporters={transporters}
         customers={customers}
         routes={routes}
+        existingRecords={records}
         currentUser={currentUser}
         onSaveCatalogItem={handleSaveCatalogItem}
+      />
+
+      <ShipmentOcrModal
+        isOpen={isBatchOcrModalOpen}
+        onClose={() => setIsBatchOcrModalOpen(false)}
+        mode="batch"
+        masterData={{ warehouses, transporters, customers, routes }}
+        existingRecords={records}
+        onCreateDrafts={handleCreateOcrDrafts}
+      />
+
+      <ShipmentAuditModal
+        isOpen={Boolean(auditShipment)}
+        onClose={() => setAuditShipment(null)}
+        record={auditShipment}
+        events={auditEvents}
       />
 
       {/* Delivery Receipt Printable Modal */}

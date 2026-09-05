@@ -16,7 +16,8 @@ import {
   Building,
   CheckCheck,
   Download,
-  Upload
+  Upload,
+  History
 } from 'lucide-react';
 import { ShipmentRecord, UserAccount, formatDateVN } from '../types';
 import { exportShipmentsToExcel, parseShipmentsFromExcel } from '../lib/excel';
@@ -33,6 +34,8 @@ interface ShipmentTableProps {
   onOpenNewTripModal: () => void;
   onOpenLoginModal?: () => void;
   onImportShipments?: (records: Partial<ShipmentRecord>[]) => void;
+  onOpenOcrBatch?: () => void;
+  onOpenAuditModal?: (record: ShipmentRecord) => void;
 }
 
 export const ShipmentTable: React.FC<ShipmentTableProps> = ({
@@ -47,6 +50,8 @@ export const ShipmentTable: React.FC<ShipmentTableProps> = ({
   onOpenNewTripModal,
   onOpenLoginModal,
   onImportShipments,
+  onOpenOcrBatch,
+  onOpenAuditModal,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -337,6 +342,17 @@ export const ShipmentTable: React.FC<ShipmentTableProps> = ({
                   </span>
                 </button>
               </>
+            )}
+            {onOpenOcrBatch && (
+              <button
+                type="button"
+                onClick={onOpenOcrBatch}
+                className="bg-violet-50 hover:bg-violet-100 text-violet-700 text-xs px-3.5 py-2.5 rounded-xl font-bold transition shadow-xs flex items-center gap-2 whitespace-nowrap border border-violet-200"
+                title="Tải nhiều chứng từ để AI tạo bản nháp chờ duyệt"
+              >
+                <FileText className="w-4 h-4" />
+                <span className="hidden sm:inline">Nhập chứng từ AI</span>
+              </button>
             )}
             <button
               onClick={onOpenNewTripModal}
@@ -731,11 +747,16 @@ export const ShipmentTable: React.FC<ShipmentTableProps> = ({
                       <span className="font-mono bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-lg border border-indigo-200/60 text-xs font-bold shadow-xs">
                         {record.cont_number || '—'}
                       </span>
+                      {record.processing_status === 'draft_review' && (
+                        <span className="ml-1.5 inline-flex rounded-full border border-violet-200 bg-violet-50 px-1.5 py-0.5 text-[10px] font-extrabold text-violet-700" title="Cần mở chuyến hàng, đối chiếu chứng từ và lưu xác nhận">
+                          OCR chờ duyệt
+                        </span>
+                      )}
                     </td>
 
                     <td className="p-3.5 font-bold text-slate-900 whitespace-nowrap">{record.customer || '—'}</td>
                     <td className="p-3.5 text-slate-600 whitespace-nowrap">{record.batch_number || '—'}</td>
-                    <td className="p-3.5 text-center font-bold text-indigo-600">{record.cont_quantity || 1}</td>
+                    <td className="p-3.5 text-center font-bold text-indigo-600">{record.cont_quantity ?? 1}</td>
 
                     {/* Requirement 2: Hide Warehouse for Customer */}
                     {!isCustomer && (
@@ -830,6 +851,16 @@ export const ShipmentTable: React.FC<ShipmentTableProps> = ({
                           title="Nhân bản chuyến"
                         >
                           <Copy className="w-4 h-4" />
+                        </button>
+                      )}
+
+                      {!isCustomer && onOpenAuditModal && (
+                        <button
+                          onClick={() => onOpenAuditModal(record)}
+                          className="p-1.5 text-slate-500 hover:text-violet-700 hover:bg-violet-50 rounded-lg transition"
+                          title="Xem lịch sử kiểm tra và thay đổi"
+                        >
+                          <History className="w-4 h-4" />
                         </button>
                       )}
 

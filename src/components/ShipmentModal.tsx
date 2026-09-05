@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { X, PlusCircle, Edit2, Copy, Lock, Save, User, AlertCircle, FileText, Globe, Search, Loader2, CheckCircle2 } from 'lucide-react';
+import { X, PlusCircle, Edit2, Copy, Lock, Save, User, AlertCircle, FileText, Globe, Search, Loader2, CheckCircle2, FileSearch } from 'lucide-react';
 import { ShipmentRecord, WarehouseItem, TransporterItem, CustomerItem, RouteItem, UserAccount, findCustomerByName, CatalogSubTab } from '../types';
 import { lookupTaxCode } from '../lib/taxLookup';
+import { ShipmentOcrModal } from './ShipmentOcrModal';
+import { validateIso6346Container, validateShipmentDraft } from '../lib/shipmentValidation';
 
 export const formatNumberWithDots = (val: number | string | undefined | null): string => {
   if (val === undefined || val === null || val === '') return '';
@@ -15,9 +17,7 @@ export const parseFormattedNumber = (formattedStr: string): number => {
   return cleanDigits ? Number(cleanDigits) : 0;
 };
 
-export const validateISO6346 = (_contStr: string): { isValid: boolean; reason?: string } => {
-  return { isValid: true };
-};
+export const validateISO6346 = validateIso6346Container;
 
 interface ShipmentModalProps {
   isOpen: boolean;
@@ -29,6 +29,7 @@ interface ShipmentModalProps {
   transporters: TransporterItem[];
   customers: CustomerItem[];
   routes: RouteItem[];
+  existingRecords: ShipmentRecord[];
   currentUser: UserAccount | null;
   onSaveCatalogItem?: (subTab: CatalogSubTab, itemData: any) => Promise<void>;
 }
@@ -43,6 +44,7 @@ export const ShipmentModal: React.FC<ShipmentModalProps> = ({
   transporters,
   customers,
   routes,
+  existingRecords,
   currentUser,
   onSaveCatalogItem,
 }) => {
@@ -51,6 +53,7 @@ export const ShipmentModal: React.FC<ShipmentModalProps> = ({
   const [contErrorMsg, setContErrorMsg] = useState<string | null>(null);
   const [isSearchingTax, setIsSearchingTax] = useState(false);
   const [taxSearchResult, setTaxSearchResult] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
+  const [isOcrModalOpen, setIsOcrModalOpen] = useState(false);
 
   // Catalog item creation sub-modal state with strict validation
   const [catalogModal, setCatalogModal] = useState<{
@@ -399,6 +402,18 @@ export const ShipmentModal: React.FC<ShipmentModalProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    const validation = validateShipmentDraft(formData, {
+      warehouses,
+      transporters,
+      customers,
+      routes,
+    }, existingRecords);
+    const blockingIssue = validation.issues.find(issue => issue.severity === 'error');
+    if (blockingIssue) {
+      setContErrorMsg(blockingIssue.message);
+      return;
+    }
+
     setIsSaving(true);
     try {
       const creatorInfo = initialData?.created_by || (currentUser ? {
@@ -437,7 +452,9 @@ export const ShipmentModal: React.FC<ShipmentModalProps> = ({
         cont_number: formData.cont_number?.trim() || '',
         cont_quantity: formData.cont_quantity !== undefined ? formData.cont_quantity : 1,
         created_by: creatorInfo,
-        admin_edited_price: isAdminEdited
+        admin_edited_price: isAdminEdited,
+        processing_status: 'confirmed',
+        ocr: formData.ocr ? { ...formData.ocr, reviewStatus: 'confirmed' } : undefined,
       };
 
       if (currentUser?.role === 'employee' && initialData?.admin_edited_price) {
@@ -475,9 +492,22 @@ export const ShipmentModal: React.FC<ShipmentModalProps> = ({
                 : 'Chỉnh Sửa Thông Tin Chuyến Hàng'}
             </h3>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-white transition">
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setIsOcrModalOpen(true)}
+              className="hidden sm:inline-flex items-center gap-1.5 rounded-lg border border-indigo-300/30 bg-indigo-400/15 px-2.5 py-1.5 text-[11px] font-bold text-indigo-100 transition hover:bg-indigo-400/25"
+              title="Tải chứng từ để AI trích xuất thành bản nháp"
+            >
+              <FileSearch className="w-3.5 h-3.5" /> AI đọc chứng từ
+            </button>
+            <button type="button" onClick={() => setIsOcrModalOpen(true)} className="sm:hidden rounded-lg p-1.5 text-indigo-200 hover:bg-white/10" title="AI đọc chứng từ">
+              <FileSearch className="w-5 h-5" />
+            </button>
+            <button type="button" onClick={onClose} className="text-slate-400 hover:text-white transition">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Form Body */}
@@ -669,7 +699,7 @@ export const ShipmentModal: React.FC<ShipmentModalProps> = ({
                 <input
                   type="number"
                   min={1}
-                  value={formData.cont_quantity || 1}
+                  value={formData.cont_quantity ?? 1}
                   onChange={e => setFormData({ ...formData, cont_quantity: Number(e.target.value) })}
                   className="w-full px-3 py-2 text-xs sm:text-sm font-bold bg-indigo-50/50 border border-indigo-200 text-indigo-900 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
@@ -1501,6 +1531,23 @@ export const ShipmentModal: React.FC<ShipmentModalProps> = ({
           </div>
         </div>
       )}
+
+      <ShipmentOcrModal
+        isOpen={isOcrModalOpen}
+        onClose={() => setIsOcrModalOpen(false)}
+        mode="single"
+        masterData={{ warehouses, transporters, customers, routes }}
+        existingRecords={existingRecords}
+        onApplyDraft={(draft, metadata) => {
+          setFormData(previous => ({
+            ...previous,
+            ...draft,
+            ocr: metadata,
+            processing_status: 'draft_review',
+          }));
+          setContErrorMsg(null);
+        }}
+      />
     </div>
   );
 };
