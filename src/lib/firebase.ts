@@ -352,21 +352,27 @@ export const DEFAULT_SEA_FREIGHTS: SeaFreightRecord[] = [
 ];
 
 // Helper functions for Realtime DB sync
-export async function saveRecordToCloud(collection: string, id: string, data: any) {
+export async function saveRecordToCloud(collection: string, id: string, data: any): Promise<boolean> {
   try {
+    // Sanitize payload to strip undefined values which Firebase Realtime Database strictly forbids
+    const cleanData = JSON.parse(JSON.stringify(data));
     const itemRef = ref(db, `${cloudAppId}/${collection}/${id}`);
-    await set(itemRef, data);
+    await set(itemRef, cleanData);
+    return true;
   } catch (err) {
     console.warn(`Cloud save error on ${collection}/${id}:`, err);
+    return false;
   }
 }
 
-export async function deleteRecordFromCloud(collection: string, id: string) {
+export async function deleteRecordFromCloud(collection: string, id: string): Promise<boolean> {
   try {
     const itemRef = ref(db, `${cloudAppId}/${collection}/${id}`);
     await remove(itemRef);
+    return true;
   } catch (err) {
     console.warn(`Cloud remove error on ${collection}/${id}:`, err);
+    return false;
   }
 }
 
@@ -376,7 +382,14 @@ export function subscribeToCloudCollection(collection: string, callback: (data: 
     return onValue(colRef, (snapshot) => {
       const val = snapshot.val();
       if (val) {
-        callback(Object.values(val));
+        // Map entries to ensure each record retains its unique key as id if not present in item
+        const list = Object.entries(val).map(([key, item]: [string, any]) => {
+          if (item && typeof item === 'object') {
+            return { id: item.id || key, ...item };
+          }
+          return item;
+        });
+        callback(list);
       } else {
         callback([]);
       }
